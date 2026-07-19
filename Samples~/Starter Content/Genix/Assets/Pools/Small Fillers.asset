@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c978c10c1c93f46a59a4d6a45627e5c9, type: 3}
+  m_Name: Small Fillers
+  m_EditorClassIdentifier: Genix.Runtime::Genix.Assets.AssetPool
+  mode: 1
+  staticAssets: []
+  filterByPlacementType: 0
+  placementType: 0
+  filterByOrientationMode: 0
+  orientationMode: 0
+  categoryFilters:
+  - category: {fileID: 11400000, guid: ef5bd934e5b33409b96f7a5f517d3264, type: 2}
+    tags:
+    - {fileID: 11400000, guid: e68e95c644583425fa1d5312b8281173, type: 2}
+    - {fileID: 11400000, guid: 650e75f343e6145feb47a24829279142, type: 2}
+  - category: {fileID: 11400000, guid: 478d8d5aac2074286aebc6a52e5010e0, type: 2}
+    tags:
+    - {fileID: 11400000, guid: f4c04cbe69a984075930d99e65d8cf79, type: 2}
+    - {fileID: 11400000, guid: d8bf1988ba17c417a81af76bc94fc779, type: 2}
+    - {fileID: 11400000, guid: b107e93bb1ee94cb7a042279b9cd3c57, type: 2}

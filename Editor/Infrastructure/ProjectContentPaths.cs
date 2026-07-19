@@ -2,7 +2,7 @@ namespace Genix.Editor.Infrastructure
 {
     internal static class ProjectContentPaths
     {
-        public const string Root = "Assets/Genix/Content";
+        public const string Root = "Assets/Genix";
 
         public const string AssetsRoot = Root + "/Assets";
         public const string AssetDefinitions = AssetsRoot + "/Definitions";

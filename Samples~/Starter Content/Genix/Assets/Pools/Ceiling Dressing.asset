@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c978c10c1c93f46a59a4d6a45627e5c9, type: 3}
+  m_Name: Ceiling Dressing
+  m_EditorClassIdentifier: Genix.Runtime::Genix.Assets.AssetPool
+  mode: 1
+  staticAssets: []
+  filterByPlacementType: 1
+  placementType: 2
+  filterByOrientationMode: 0
+  orientationMode: 0
+  categoryFilters:
+  - category: {fileID: 11400000, guid: d000581b485354452b5fe3b80c982950, type: 2}
+    tags:
+    - {fileID: 11400000, guid: ca06b7ffc8f114ef3a6c53a38ba4a731, type: 2}
+    - {fileID: 11400000, guid: 6ec51d17a17554fc2bb7a385f31290af, type: 2}
+    - {fileID: 11400000, guid: 3595b473805bd4e5fa0b06d829fe40c6, type: 2}
+  - category: {fileID: 11400000, guid: ef5bd934e5b33409b96f7a5f517d3264, type: 2}
+    tags:
+    - {fileID: 11400000, guid: acd212b106f80419e83a9bda7c2a3c12, type: 2}
+    - {fileID: 11400000, guid: 650e75f343e6145feb47a24829279142, type: 2}
+    - {fileID: 11400000, guid: e68e95c644583425fa1d5312b8281173, type: 2}
