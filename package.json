@@ -1,0 +1,17 @@
+{
+  "name": "com.possiphil.genix",
+  "version": "0.1.0",
+  "displayName": "Genix",
+  "description": "Designer-focused procedural generation tools for Unity.",
+  "unity": "6000.0",
+  "author": {
+    "name": "possiphil"
+  },
+  "samples": [
+    {
+      "displayName": "Starter Content",
+      "description": "Starter generation presets for Genix.",
+      "path": "Samples~/Starter Content"
+    }
+  ]
+}
