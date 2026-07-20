@@ -164,6 +164,7 @@ namespace Genix.Areas
                     SurfaceClassifier.Classify(hit.normal, _settings) != PlacementType.Floor ||
                     hit.point.y < _worldBounds.min.y - 0.1f ||
                     hit.point.y > _worldBounds.max.y + _settings.surfaceRaycastHeight ||
+                    !IsSurfaceFacingAreaVolume(hit.point, hit.normal) ||
                     !TryGetMatchingRegion(
                         hit.point,
                         targetRegion,
@@ -205,6 +206,7 @@ namespace Genix.Areas
                     SurfaceClassifier.Classify(hit.normal, _settings) != PlacementType.Ceiling ||
                     hit.point.y < _worldBounds.min.y - _settings.surfaceRaycastHeight ||
                     hit.point.y > _worldBounds.max.y + 0.1f ||
+                    !IsSurfaceFacingAreaVolume(hit.point, hit.normal) ||
                     !TryGetMatchingRegion(
                         hit.point,
                         targetRegion,
@@ -278,7 +280,8 @@ namespace Genix.Areas
 
                 if (Vector3.Dot(surfaceNormal, inwardNormal) < 0.25f ||
                     hit.point.y < _worldBounds.min.y - 0.1f ||
-                    hit.point.y > _worldBounds.max.y + 0.1f)
+                    hit.point.y > _worldBounds.max.y + 0.1f ||
+                    !IsSurfaceFacingAreaVolume(hit.point, surfaceNormal))
                 {
                     continue;
                 }
@@ -340,7 +343,7 @@ namespace Genix.Areas
 
             if (targetRegion != null)
             {
-                if (!targetRegion.ContainsXZ(hitPoint) || !IsSurfaceYCompatible(hitPoint.y, targetRegion))
+                if (!targetRegion.ContainsXZ(hitPoint))
                     return false;
 
                 matchedRegion = targetRegion;
@@ -352,7 +355,7 @@ namespace Genix.Areas
                 if (targetVoxelLayer.HasValue && region.VoxelLayer != targetVoxelLayer)
                     continue;
 
-                if (!region.ContainsXZ(hitPoint) || !IsSurfaceYCompatible(hitPoint.y, region))
+                if (!region.ContainsXZ(hitPoint))
                     continue;
 
                 matchedRegion = region;
@@ -362,15 +365,16 @@ namespace Genix.Areas
             return false;
         }
 
-        private bool IsSurfaceYCompatible(float surfaceY, SurfaceRegion region)
+        private bool IsSurfaceFacingAreaVolume(Vector3 surfacePoint, Vector3 surfaceNormal)
         {
-            if (region == null || !region.VoxelLayer.HasValue && !_occupancy.HasSurfaceCells)
+            if (!_occupancy.HasVolumeCells)
                 return true;
 
-            float tolerance = _occupancy.CellSize > 0f
-                ? Mathf.Max(0.05f, _occupancy.CellSize * 0.75f)
-                : 0.25f;
-            return Mathf.Abs(surfaceY - region.SurfaceY) <= tolerance;
+            Vector3 normal = surfaceNormal.sqrMagnitude > 0.001f
+                ? surfaceNormal.normalized
+                : Vector3.up;
+            float offset = Mathf.Max(0.02f, _occupancy.CellSize * 0.1f);
+            return _occupancy.ContainsVolumePoint(surfacePoint + normal * offset);
         }
 
         private bool ShouldIgnoreCollider(Collider collider)
