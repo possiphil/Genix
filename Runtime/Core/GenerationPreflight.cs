@@ -42,6 +42,12 @@ namespace Genix.Core
                 return false;
             }
 
+            if (!IsValidPerformanceMode(request.PerformanceMode))
+            {
+                error = $"Unsupported performance mode: {request.PerformanceMode}.";
+                return false;
+            }
+
             if (request.GenerationMode == GenerationMode.TargetPlacement &&
                 (request.PlacementTargets & PlacementTarget.All) == PlacementTarget.None)
             {
@@ -86,6 +92,11 @@ namespace Genix.Core
         private static bool IsValidGenerationMode(GenerationMode generationMode)
         {
             return Enum.IsDefined(typeof(GenerationMode), generationMode);
+        }
+
+        private static bool IsValidPerformanceMode(GenerationPerformanceMode performanceMode)
+        {
+            return Enum.IsDefined(typeof(GenerationPerformanceMode), performanceMode);
         }
 
         private static int GetActiveTargetWeightSum(

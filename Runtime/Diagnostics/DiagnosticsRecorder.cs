@@ -11,12 +11,18 @@ namespace Genix.Diagnostics
     {
         private readonly GenerationDiagnostics _diagnostics;
         private readonly DiagnosticsMode _mode;
+        private readonly bool _recordAcceptedCandidates;
 
         public GenerationDiagnostics Diagnostics => _diagnostics;
 
-        public DiagnosticsRecorder(GenerationContext context, DiagnosticsMode mode, string styleName = "")
+        public DiagnosticsRecorder(
+            GenerationContext context,
+            DiagnosticsMode mode,
+            string styleName = "",
+            bool recordAcceptedCandidates = false)
         {
             _mode = mode;
+            _recordAcceptedCandidates = recordAcceptedCandidates;
 
             _diagnostics = new GenerationDiagnostics(
                 context.Area.SourceInfo.SourceName,
@@ -32,7 +38,13 @@ namespace Genix.Diagnostics
                 context.UseRandomSeed,
                 context.RandomSeed,
                 context.BestEffort,
-                context.RelativePlacement);
+                context.RelativePlacement,
+                context.PerformanceMode,
+                mode);
+            _diagnostics.EnsureCapacity(
+                GetCandidateDetailCapacity(context.Count, mode, recordAcceptedCandidates),
+                context.Count,
+                4);
         }
 
         public void RecordCandidatePool(int requestedCandidates, IReadOnlyList<CandidateSeed> seeds)
@@ -40,8 +52,8 @@ namespace Genix.Diagnostics
             if (_mode == DiagnosticsMode.None)
                 return;
 
-            _diagnostics.Sampler.RequestedCandidates = requestedCandidates;
-            _diagnostics.Sampler.GeneratedCandidates = seeds.Count;
+            _diagnostics.Sampler.RequestedCandidates = Mathf.Max(_diagnostics.Sampler.RequestedCandidates, requestedCandidates);
+            _diagnostics.Sampler.GeneratedCandidates += seeds.Count;
 
             if (_mode != DiagnosticsMode.Detailed)
                 return;
@@ -50,9 +62,18 @@ namespace Genix.Diagnostics
                 _diagnostics.Sampler.CandidateSeeds.Add(seed.Position);
         }
 
+        public bool ShouldRecordCandidateDetails(bool accepted) =>
+            _mode == DiagnosticsMode.Detailed ||
+            (_recordAcceptedCandidates && accepted);
+
         public void RecordCandidate(string assetId, string objectName, PlacementCandidate candidate, Bounds bounds, bool accepted, RejectionReason rejectionReason, string relatedObjectName = "")
         {
-            if (_mode != DiagnosticsMode.Detailed)
+            if (_mode == DiagnosticsMode.None)
+                return;
+
+            _diagnostics.RecordCandidateOutcome(accepted, rejectionReason);
+
+            if (!ShouldRecordCandidateDetails(accepted))
                 return;
 
             _diagnostics.Candidates.Add(new CandidateDiagnostic(assetId, objectName, candidate.Position, candidate.Rotation, bounds, candidate.PlacementType, accepted, rejectionReason, relatedObjectName));
@@ -153,6 +174,22 @@ namespace Genix.Diagnostics
             }
 
             return placementTypes.OrderBy(placementType => placementType);
+        }
+
+        private static int GetCandidateDetailCapacity(
+            int requestedObjectCount,
+            DiagnosticsMode mode,
+            bool recordAcceptedCandidates)
+        {
+            if (mode == DiagnosticsMode.None)
+                return 0;
+
+            int safeCount = Mathf.Max(0, requestedObjectCount);
+
+            if (mode == DiagnosticsMode.Detailed)
+                return safeCount <= int.MaxValue / 2 ? safeCount * 2 : safeCount;
+
+            return recordAcceptedCandidates ? safeCount : 0;
         }
     }
 }

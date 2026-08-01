@@ -13,6 +13,7 @@ namespace Genix.Core
         public int ObjectCount { get; }
 
         public GenerationMode GenerationMode { get; }
+        public GenerationPerformanceMode PerformanceMode { get; }
         public PlacementTarget PlacementTargets { get; }
         public TargetDistributionMode TargetDistributionMode { get; }
         public TargetDistributionWeights TargetDistributionWeights { get; }
@@ -22,6 +23,7 @@ namespace Genix.Core
         public bool UseRandomSeed { get; }
         public int RandomSeed { get; }
         public bool BestEffort { get; }
+        public bool DetailedDiagnostics { get; }
 
         public GenerationRequest(
             IAreaSource areaSource,
@@ -37,13 +39,16 @@ namespace Genix.Core
             string styleName = "",
             bool useRandomSeed = false,
             int randomSeed = 0,
-            bool bestEffort = true)
+            bool bestEffort = true,
+            GenerationPerformanceMode performanceMode = GenerationPerformanceMode.Accurate,
+            bool detailedDiagnostics = false)
         {
             AreaSource = areaSource;
             AreaBuildSettings = areaBuildSettings;
             AssetPool = assetPool;
             ObjectCount = objectCount;
             GenerationMode = generationMode;
+            PerformanceMode = performanceMode;
             PlacementTargets = placementTargets;
             TargetDistributionMode = targetDistributionMode;
             TargetDistributionWeights = targetDistributionWeights;
@@ -53,6 +58,7 @@ namespace Genix.Core
             UseRandomSeed = useRandomSeed;
             RandomSeed = randomSeed;
             BestEffort = bestEffort;
+            DetailedDiagnostics = detailedDiagnostics;
         }
     }
 }

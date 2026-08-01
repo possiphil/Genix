@@ -12,8 +12,14 @@ namespace Genix.Editor.Layouts
         public static SavedLayout[] LoadLayoutsForArea(IAreaSource areaSource) =>
             LayoutRepository.LoadForArea(areaSource);
 
+        public static SavedLayout[] LoadLayoutsForCurrentScene() =>
+            LayoutRepository.LoadForCurrentScene();
+
         public static bool MatchesArea(SavedLayout layout, IAreaSource areaSource) =>
             LayoutRepository.MatchesArea(layout, areaSource);
+
+        public static bool MatchesCurrentScene(SavedLayout layout) =>
+            LayoutRepository.MatchesCurrentScene(layout);
 
         public static bool SaveCurrentLayout(
             IAreaSource areaSource,
@@ -51,5 +57,8 @@ namespace Genix.Editor.Layouts
 
         public static bool ClearLayouts(out int deletedCount, out string error) =>
             LayoutRepository.ClearUnlocked(out deletedCount, out error);
+
+        public static bool ClearLayoutsForArea(IAreaSource areaSource, out int deletedCount, out string error) =>
+            LayoutRepository.ClearUnlockedForArea(areaSource, out deletedCount, out error);
     }
 }

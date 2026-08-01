@@ -16,6 +16,14 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void ExposesEffectiveSeed()
+        {
+            GenerationRandom random = GenerationRandom.Create(true, 12345);
+
+            Assert.That(random.Seed, Is.EqualTo(12345));
+        }
+
+        [Test]
         public void RestoredStateContinuesSameSequence()
         {
             GenerationRandom random = new(42);

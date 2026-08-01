@@ -11,6 +11,7 @@ using Genix.Geometry;
 using Genix.Layouts;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 namespace Genix.Editor.Layouts
@@ -54,6 +55,9 @@ namespace Genix.Editor.Layouts
             string createdAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
             string timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
             string areaName = areaSource.SourceInfo.SourceName;
+            Scene scene = SceneManager.GetActiveScene();
+            string sceneName = string.IsNullOrWhiteSpace(scene.name) ? "Unsaved Scene" : scene.name;
+            string scenePath = scene.path ?? string.Empty;
             string safeAreaName = AssetFileService.SanitizeName(AreaName.ToUnitySafeDisplayName(areaName), "Target Area");
             string displayName = $"{areaName} Layout {timestamp}";
             string safeDisplayName = AssetFileService.SanitizeName(displayName, "Saved Layout");
@@ -64,6 +68,8 @@ namespace Genix.Editor.Layouts
             GameObject temporaryRoot = CreatePrefabRoot(
                 generatedObjects,
                 displayName,
+                sceneName,
+                scenePath,
                 areaName,
                 areaSource.SourceInfo.SourceId,
                 createdAt);
@@ -89,6 +95,8 @@ namespace Genix.Editor.Layouts
                 layout.Initialize(
                     displayName,
                     prefab,
+                    sceneName,
+                    scenePath,
                     areaName,
                     areaSource.SourceInfo.SourceId,
                     areaSource.SourceInfo.SourceType,
@@ -122,6 +130,8 @@ namespace Genix.Editor.Layouts
         private static GameObject CreatePrefabRoot(
             IReadOnlyList<Transform> generatedObjects,
             string displayName,
+            string sceneName,
+            string scenePath,
             string areaName,
             string areaId,
             string createdAt)
@@ -131,6 +141,8 @@ namespace Genix.Editor.Layouts
             root.transform.localScale = Vector3.one;
             root.AddComponent<SavedLayoutRoot>().Initialize(
                 displayName,
+                sceneName,
+                scenePath,
                 areaName,
                 areaId,
                 createdAt,

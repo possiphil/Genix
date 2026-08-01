@@ -5,6 +5,7 @@ using Genix.Areas;
 using Genix.Editor.Infrastructure;
 using Genix.Layouts;
 using UnityEditor;
+using UnityEngine.SceneManagement;
 
 namespace Genix.Editor.Layouts
 {
@@ -33,9 +34,17 @@ namespace Genix.Editor.Layouts
                 : LoadAll().Where(layout => MatchesArea(layout, areaSource)).ToArray();
         }
 
+        public static SavedLayout[] LoadForCurrentScene()
+        {
+            return LoadAll().Where(MatchesCurrentScene).ToArray();
+        }
+
         public static bool MatchesArea(SavedLayout layout, IAreaSource areaSource)
         {
             if (!layout || areaSource == null)
+                return false;
+
+            if (!MatchesCurrentScene(layout))
                 return false;
 
             string sourceId = areaSource.SourceInfo.SourceId;
@@ -45,6 +54,20 @@ namespace Genix.Editor.Layouts
                     layout.TargetAreaName,
                     areaSource.SourceInfo.SourceName,
                     StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool MatchesCurrentScene(SavedLayout layout)
+        {
+            if (!layout)
+                return false;
+
+            string activeScenePath = SceneManager.GetActiveScene().path ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(activeScenePath))
+                return string.IsNullOrWhiteSpace(layout.ScenePath);
+
+            return !string.IsNullOrWhiteSpace(layout.ScenePath) &&
+                   string.Equals(layout.ScenePath, activeScenePath, StringComparison.OrdinalIgnoreCase);
         }
 
         public static bool Delete(SavedLayout layout, out string error)
@@ -82,6 +105,29 @@ namespace Genix.Editor.Layouts
             deletedCount = 0;
             error = string.Empty;
             SavedLayout[] layouts = LoadAll();
+            DeleteUnlocked(layouts, out deletedCount);
+            return true;
+        }
+
+        public static bool ClearUnlockedForArea(IAreaSource areaSource, out int deletedCount, out string error)
+        {
+            deletedCount = 0;
+
+            if (areaSource == null)
+            {
+                error = "No Target Area is selected.";
+                return false;
+            }
+
+            error = string.Empty;
+            SavedLayout[] layouts = LoadForArea(areaSource);
+            DeleteUnlocked(layouts, out deletedCount);
+            return true;
+        }
+
+        private static void DeleteUnlocked(IEnumerable<SavedLayout> layouts, out int deletedCount)
+        {
+            deletedCount = 0;
             HashSet<string> prefabPaths = new(StringComparer.OrdinalIgnoreCase);
             List<string> layoutPaths = new();
 
@@ -108,7 +154,6 @@ namespace Genix.Editor.Layouts
             }
 
             FinishChanges();
-            return true;
         }
 
         private static void DeleteOwnedPrefab(SavedLayout layout)

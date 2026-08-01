@@ -20,6 +20,7 @@ namespace Genix.Diagnostics
         [SerializeField, HideInInspector] private string _runId;
         [SerializeField, HideInInspector] private string _targetName;
         [SerializeField, HideInInspector] private string _generationMode;
+        [SerializeField, HideInInspector] private string _performanceMode;
         [SerializeField, HideInInspector] private string _placementTargets;
         [SerializeField, HideInInspector] private string _targetDistributionMode;
         [SerializeField, HideInInspector] private string _targetDistributionWeights;
@@ -33,6 +34,7 @@ namespace Genix.Diagnostics
         [SerializeField, HideInInspector] private bool _useRandomSeed;
         [SerializeField, HideInInspector] private int _randomSeed;
         [SerializeField, HideInInspector] private bool _bestEffort;
+        [SerializeField, HideInInspector] private bool _dryRun;
 
         [SerializeField, HideInInspector] private int _generatedCandidates;
         [SerializeField, HideInInspector] private int _testedCandidateSeeds;
@@ -63,6 +65,7 @@ namespace Genix.Diagnostics
         public string RunId => _runId;
         public string TargetName => _targetName;
         public string GenerationMode => _generationMode;
+        public string PerformanceMode => _performanceMode;
         public string PlacementTargets => _placementTargets;
         public string TargetDistributionMode => _targetDistributionMode;
         public string TargetDistributionWeights => _targetDistributionWeights;
@@ -76,6 +79,7 @@ namespace Genix.Diagnostics
         public bool UseRandomSeed => _useRandomSeed;
         public int RandomSeed => _randomSeed;
         public bool BestEffort => _bestEffort;
+        public bool DryRun => _dryRun;
 
         public int GeneratedCandidates => _generatedCandidates;
         public int TestedCandidateSeeds => _testedCandidateSeeds > 0
@@ -133,6 +137,7 @@ namespace Genix.Diagnostics
             _runId = diagnostics.RunId;
             _targetName = diagnostics.TargetName;
             _generationMode = diagnostics.GenerationMode.ToDisplayName();
+            _performanceMode = diagnostics.PerformanceMode.ToDisplayName();
             _placementTargets = FormatPlacementTargets(diagnostics.PlacementTargets);
             _targetDistributionMode = diagnostics.TargetDistributionMode.ToDisplayName();
             _targetDistributionWeights = FormatTargetWeights(diagnostics.TargetDistributionWeights);
@@ -148,15 +153,22 @@ namespace Genix.Diagnostics
             _useRandomSeed = diagnostics.UseRandomSeed;
             _randomSeed = diagnostics.RandomSeed;
             _bestEffort = diagnostics.BestEffort;
+            _dryRun = diagnostics.DryRun;
 
             _generatedCandidates = diagnostics.Sampler.GeneratedCandidates;
             _testedCandidateSeeds = diagnostics.Sampler.TestedCandidateSeeds;
             PositionOutcomeCounts positionOutcomes = CountPositionOutcomes(diagnostics.Candidates);
             _acceptedPositions = positionOutcomes.AcceptedPositions;
             _rejectedPositions = positionOutcomes.RejectedPositions;
-            _testedCandidates = diagnostics.Candidates.Count;
-            _acceptedCandidates = diagnostics.Candidates.Count(candidate => candidate.Accepted);
-            _rejectedCandidates = diagnostics.Candidates.Count(candidate => !candidate.Accepted);
+            _testedCandidates = diagnostics.HasCandidateOutcomeCounts
+                ? diagnostics.TestedCandidateCount
+                : diagnostics.Candidates.Count;
+            _acceptedCandidates = diagnostics.HasCandidateOutcomeCounts
+                ? diagnostics.AcceptedCandidateCount
+                : diagnostics.Candidates.Count(candidate => candidate.Accepted);
+            _rejectedCandidates = diagnostics.HasCandidateOutcomeCounts
+                ? diagnostics.RejectedCandidateCount
+                : diagnostics.Candidates.Count(candidate => !candidate.Accepted);
             _unusedCandidates = Mathf.Max(0, _generatedCandidates - _testedCandidateSeeds);
 
             _targetBounds = diagnostics.TargetBounds;
@@ -225,6 +237,14 @@ namespace Genix.Diagnostics
 
         private static List<CountEntry> CreateRejectionReasonCounts(GenerationDiagnostics diagnostics)
         {
+            if (diagnostics.HasCandidateOutcomeCounts)
+            {
+                return diagnostics.CandidateRejectionCounts
+                    .OrderByDescending(entry => entry.Value)
+                    .Select(entry => new CountEntry(entry.Key.ToDisplayName(), entry.Value))
+                    .ToList();
+            }
+
             return diagnostics.Candidates
                 .Where(candidate => !candidate.Accepted)
                 .GroupBy(candidate => candidate.RejectionReason)

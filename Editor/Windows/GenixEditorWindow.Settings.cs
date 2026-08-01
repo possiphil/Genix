@@ -1,5 +1,7 @@
 using System;
+using Genix.Areas;
 using Genix.Assets;
+using Genix.Core;
 using Genix.Editor.Drawers;
 using Genix.Editor.Infrastructure;
 using Genix.Editor.Layouts;
@@ -102,11 +104,23 @@ namespace Genix.Editor.Windows
             if (_placementSurfaceMaskLoaded)
                 return;
 
+            LayerMask defaultMask = ResolveDefaultSurfaceMask();
+            _floorSurfaceLayers = LoadSurfaceMask(FloorSurfaceMaskKey, defaultMask);
+            _wallSurfaceLayers = LoadSurfaceMask(WallSurfaceMaskKey, defaultMask);
+            _ceilingSurfaceLayers = LoadSurfaceMask(CeilingSurfaceMaskKey, defaultMask);
+            _placementSurfaceMaskLoaded = true;
+        }
+
+        private static LayerMask LoadSurfaceMask(string key, LayerMask fallback)
+        {
+            return EditorPrefs.HasKey(key) ? EditorPrefs.GetInt(key) : fallback;
+        }
+
+        private static LayerMask ResolveDefaultSurfaceMask()
+        {
             if (EditorPrefs.HasKey(PlacementSurfaceMaskKey))
             {
-                _placementSurfaceLayers = EditorPrefs.GetInt(PlacementSurfaceMaskKey);
-                _placementSurfaceMaskLoaded = true;
-                return;
+                return EditorPrefs.GetInt(PlacementSurfaceMaskKey);
             }
 
             int layer = LayerMask.NameToLayer(DefaultPlacementSurfaceLayerName);
@@ -117,9 +131,9 @@ namespace Genix.Editor.Windows
                 EditorPrefs.SetBool(PlacementSurfaceLayerCreatedKey, true);
             }
 
-            _placementSurfaceLayers = layer >= 0 ? 1 << layer : 0;
-            EditorPrefs.SetInt(PlacementSurfaceMaskKey, _placementSurfaceLayers.value);
-            _placementSurfaceMaskLoaded = true;
+            LayerMask mask = layer >= 0 ? 1 << layer : 0;
+            EditorPrefs.SetInt(PlacementSurfaceMaskKey, mask.value);
+            return mask;
         }
 
         private void LoadSurfaceClassificationSettings()
@@ -140,12 +154,36 @@ namespace Genix.Editor.Windows
             _surfaceClassificationSettingsLoaded = true;
         }
 
+        private void LoadSurfaceDiscoveryMode()
+        {
+            int value = EditorPrefs.GetInt(
+                SurfaceDiscoveryModeKey,
+                (int)DefaultSurfaceDiscoveryMode);
+
+            _surfaceDiscoveryMode = Enum.IsDefined(typeof(SurfaceDiscoveryMode), value)
+                ? (SurfaceDiscoveryMode)value
+                : DefaultSurfaceDiscoveryMode;
+        }
+
         private void LoadGenerationWorkflowSettings()
         {
             _useGenerationSeed = EditorPrefs.GetBool(UseGenerationSeedKey, false);
             _generationSeed = EditorPrefs.GetInt(GenerationSeedKey, _generationSeed);
             _bestEffort = EditorPrefs.GetBool(BestEffortKey, true);
+            _performanceMode = LoadPerformanceMode();
+            _detailedDiagnostics = EditorPrefs.GetBool(DetailedDiagnosticsKey, false);
             _relativeSceneLayers = EditorPrefs.GetInt(RelativeSceneLayersKey, _relativeSceneLayers);
+        }
+
+        private static GenerationPerformanceMode LoadPerformanceMode()
+        {
+            int value = EditorPrefs.GetInt(
+                GenerationPerformanceModeKey,
+                (int)DefaultPerformanceMode);
+
+            return Enum.IsDefined(typeof(GenerationPerformanceMode), value)
+                ? (GenerationPerformanceMode)value
+                : DefaultPerformanceMode;
         }
 
         private static float AngleToPositiveNormalYThreshold(float angleDegrees)

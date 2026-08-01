@@ -7,6 +7,7 @@ namespace Genix.Diagnostics
 {
     public interface IDiagnosticsSink
     {
+        bool ShouldRecordCandidateDetails(bool accepted);
         void RecordCandidatePool(int requestedCandidates, IReadOnlyList<CandidateSeed> seeds);
         void RecordCandidate(
             string assetId,
@@ -35,6 +36,7 @@ namespace Genix.Diagnostics
         {
         }
 
+        public bool ShouldRecordCandidateDetails(bool accepted) => false;
         public void RecordCandidatePool(int requestedCandidates, IReadOnlyList<CandidateSeed> seeds) { }
         public void RecordCandidate(string assetId, string objectName, PlacementCandidate candidate, Bounds bounds, bool accepted, RejectionReason rejectionReason, string relatedObjectName = "") { }
         public void RecordTestedCandidateSeed(Vector3 position) { }

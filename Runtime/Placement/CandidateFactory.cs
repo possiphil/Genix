@@ -1,6 +1,8 @@
+using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Orientation;
+using Genix.Profiling;
 using UnityEngine;
 
 namespace Genix.Placement
@@ -15,20 +17,40 @@ namespace Genix.Placement
             AssetDefinition asset,
             int rotationIndex,
             int rotationCount,
-            float yawBase)
+            float yawBase,
+            IGenerationProfiler profiler = null)
         {
             Vector3 surfaceNormal = seed.SurfaceNormal.sqrMagnitude <= 0.001f
                 ? Vector3.up
                 : seed.SurfaceNormal.normalized;
-            Quaternion rotation = CreateRotation(
+            Quaternion baseRotation = CreateBaseRotation(
                 seed,
                 context,
                 asset,
-                surfaceNormal,
                 rotationIndex,
                 rotationCount,
                 yawBase);
             Vector3 position = CreatePosition(seed, context, asset, surfaceNormal);
+            bool hasSurfaceFit = false;
+            SurfaceFitResult surfaceFit = default;
+
+            if (TryApplyAdaptiveSurfaceFit(
+                    seed,
+                    context,
+                    asset,
+                    baseRotation,
+                    ref surfaceNormal,
+                    ref position,
+                    out surfaceFit,
+                    profiler))
+            {
+                hasSurfaceFit = true;
+                position -= surfaceNormal * asset.SurfaceSinkOffset;
+            }
+
+            Quaternion rotation = seed.PlacementType == PlacementType.InsideSpace
+                ? baseRotation
+                : AlignToSurface(baseRotation, surfaceNormal);
 
             return new PlacementCandidate(
                 position,
@@ -36,7 +58,9 @@ namespace Genix.Placement
                 seed.SurfaceCollider,
                 surfaceNormal,
                 seed.VoxelLayer,
-                seed.PlacementType);
+                seed.PlacementType,
+                hasSurfaceFit,
+                surfaceFit);
         }
 
         public static OrientedBounds GetBounds(PlacementCandidate candidate, AssetDefinition asset) =>
@@ -106,11 +130,10 @@ namespace Genix.Placement
             return position;
         }
 
-        private static Quaternion CreateRotation(
+        private static Quaternion CreateBaseRotation(
             CandidateSeed seed,
             GenerationContext context,
             AssetDefinition asset,
-            Vector3 surfaceNormal,
             int rotationIndex,
             int rotationCount,
             float yawBase)
@@ -143,9 +166,47 @@ namespace Genix.Placement
                 rotation = Quaternion.Euler(0f, yaw, 0f) * rotation;
             }
 
-            return seed.PlacementType == PlacementType.InsideSpace
-                ? rotation
-                : AlignToSurface(rotation, surfaceNormal);
+            return rotation;
+        }
+
+        private static bool TryApplyAdaptiveSurfaceFit(
+            CandidateSeed seed,
+            GenerationContext context,
+            AssetDefinition asset,
+            Quaternion baseRotation,
+            ref Vector3 surfaceNormal,
+            ref Vector3 position,
+            out SurfaceFitResult fit,
+            IGenerationProfiler profiler)
+        {
+            fit = default;
+
+            if (!asset ||
+                asset.SurfaceFitMode != SurfaceFitMode.Adaptive ||
+                seed.PlacementType is not (PlacementType.Floor or PlacementType.Ceiling))
+            {
+                return false;
+            }
+
+            if (!context.SurfaceFitCache.TryEvaluate(
+                    context.Area,
+                    seed.Position,
+                    baseRotation,
+                    asset,
+                    seed.SurfaceCollider,
+                    seed.VoxelLayer,
+                    seed.PlacementType,
+                    out fit,
+                    profiler))
+            {
+                return false;
+            }
+
+            surfaceNormal = asset.SurfaceAlignmentMode == SurfaceAlignmentMode.KeepUpright
+                ? GetUprightNormal(seed.PlacementType)
+                : fit.Normal;
+            position = fit.Position + surfaceNormal * (Mathf.Max(0.01f, asset.Height) * 0.5f);
+            return true;
         }
 
         private static Quaternion CreateInsideSpaceRotation(
@@ -187,6 +248,11 @@ namespace Genix.Placement
                 forward = Vector3.ProjectOnPlane(Vector3.right, surfaceNormal);
 
             return Quaternion.LookRotation(forward.normalized, surfaceNormal);
+        }
+
+        private static Vector3 GetUprightNormal(PlacementType placementType)
+        {
+            return placementType == PlacementType.Ceiling ? Vector3.down : Vector3.up;
         }
     }
 }

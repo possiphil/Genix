@@ -331,27 +331,36 @@ namespace Genix.Editor.Windows
 
         private void ClearLayouts()
         {
-            int layoutCount = _generatedLayouts.Length;
-            int lockedCount = _generatedLayouts.Count(layout => layout && layout.Locked);
+            IAreaSource areaSource = CreateAreaSource();
+
+            if (areaSource == null)
+            {
+                Debug.LogWarning("No target area selected. Choose a target area/location before clearing layouts.");
+                return;
+            }
+
+            SavedLayout[] layouts = GetLayoutsForSelectedArea(areaSource);
+            int layoutCount = layouts.Length;
+            int lockedCount = layouts.Count(layout => layout && layout.Locked);
 
             if (layoutCount == 0)
             {
-                Debug.Log("No saved Genix layouts found.");
+                Debug.Log($"No saved Genix layouts found for '{areaSource.SourceInfo.SourceName}' in the current scene.");
                 return;
             }
 
             bool confirmed = EditorUtility.DisplayDialog(
                 "Clear Layouts",
                 lockedCount > 0
-                    ? $"Delete all unlocked Genix layouts and their saved prefabs? {lockedCount} locked layout(s) will be kept."
-                    : $"Delete all {layoutCount} saved Genix layout(s) and their saved prefabs?",
+                    ? $"Delete all unlocked Genix layouts for '{areaSource.SourceInfo.SourceName}' in the current scene? {lockedCount} locked layout(s) will be kept."
+                    : $"Delete all {layoutCount} saved Genix layout(s) for '{areaSource.SourceInfo.SourceName}' in the current scene?",
                 "Clear Layouts",
                 "Cancel");
 
             if (!confirmed)
                 return;
 
-            if (!LayoutWorkflow.ClearLayouts(out int deletedCount, out string error))
+            if (!LayoutWorkflow.ClearLayoutsForArea(areaSource, out int deletedCount, out string error))
             {
                 Debug.LogWarning(error);
                 return;

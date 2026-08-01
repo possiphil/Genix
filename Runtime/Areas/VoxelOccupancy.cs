@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Genix.Assets;
+using Genix.Core;
 using Genix.Placement;
 using UnityEngine;
 
@@ -10,10 +11,11 @@ namespace Genix.Areas
         private const float CellEpsilon = 0.0001f;
         private const int MinFootprintSegments = 2;
         private const int MaxFootprintSegments = 4;
+        private const int RandomVolumePointAttempts = 64;
 
         private readonly HashSet<Vector3Int> _floorCells;
         private readonly HashSet<Vector3Int> _ceilingCells;
-        private readonly HashSet<Vector3Int> _subspaceCells;
+        private readonly VoxelCellMask _subspaceCells;
         private readonly HashSet<Vector2Int> _floorColumns = new();
         private readonly HashSet<Vector2Int> _ceilingColumns = new();
         private readonly Dictionary<int, HashSet<Vector2Int>> _floorColumnsByLayer = new();
@@ -27,12 +29,13 @@ namespace Genix.Areas
             IReadOnlyCollection<Vector3Int> floorCells,
             IReadOnlyCollection<Vector3Int> ceilingCells,
             IReadOnlyCollection<Vector3Int> subspaceCells,
-            float cellSize)
+            float cellSize,
+            VoxelCellMask subspaceMask = null)
         {
             CellSize = cellSize;
             _floorCells = floorCells != null ? new HashSet<Vector3Int>(floorCells) : new HashSet<Vector3Int>();
             _ceilingCells = ceilingCells != null ? new HashSet<Vector3Int>(ceilingCells) : new HashSet<Vector3Int>();
-            _subspaceCells = subspaceCells != null ? new HashSet<Vector3Int>(subspaceCells) : new HashSet<Vector3Int>();
+            _subspaceCells = subspaceMask ?? new VoxelCellMask(subspaceCells);
 
             PopulateColumns(_floorCells, _floorColumns, _floorColumnsByLayer);
             PopulateColumns(_ceilingCells, _ceilingColumns, _ceilingColumnsByLayer);
@@ -103,6 +106,25 @@ namespace Genix.Areas
             return _subspaceCells.Contains(cell);
         }
 
+        public bool TryGetRandomVolumePoint(GenerationRandom random, Bounds bounds, out Vector3 position)
+        {
+            position = default;
+
+            if (!HasVolumeCells || random == null || _subspaceCells.Count == 0)
+                return false;
+
+            for (int attempt = 0; attempt < RandomVolumePointAttempts; attempt++)
+            {
+                Vector3Int cell = _subspaceCells.Cells[random.Range(0, _subspaceCells.Count)];
+                position = CreateRandomPointInCell(cell, random);
+
+                if (bounds.Contains(position) && _subspaceCells.Contains(cell))
+                    return true;
+            }
+
+            return false;
+        }
+
         public bool ContainsVolume(OrientedBounds candidateBounds)
         {
             if (_subspaceCells.Count == 0 || CellSize <= 0f)
@@ -149,6 +171,17 @@ namespace Genix.Areas
         {
             Vector3 min = new(cell.x * CellSize, cell.y * CellSize, cell.z * CellSize);
             return new Bounds(min + Vector3.one * (CellSize * 0.5f), Vector3.one * CellSize);
+        }
+
+        private Vector3 CreateRandomPointInCell(Vector3Int cell, GenerationRandom random)
+        {
+            Vector3 min = new(cell.x * CellSize, cell.y * CellSize, cell.z * CellSize);
+            Vector3 max = min + Vector3.one * CellSize;
+
+            return new Vector3(
+                random.Range(min.x, max.x),
+                random.Range(min.y, max.y),
+                random.Range(min.z, max.z));
         }
 
         private static void PopulateColumns(

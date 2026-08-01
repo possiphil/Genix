@@ -33,14 +33,21 @@ namespace Genix.Sampling
             int requestedCount,
             GenerationRandom random,
             float radius = 0f,
-            IDiagnosticsSink diagnostics = null)
+            IDiagnosticsSink diagnostics = null,
+            int minimumCandidateCount = -1,
+            int candidateCountOverride = -1)
         {
             Bounds = bounds;
             Center = center;
             Radius = radius;
 
             RequestedCount = requestedCount;
-            CandidateCount = Mathf.Max(requestedCount, requestedCount * styleSettings.candidates.multiplier, styleSettings.candidates.minimumCount);
+            CandidateCount = candidateCountOverride > 0
+                ? candidateCountOverride
+                : Mathf.Max(
+                    requestedCount,
+                    requestedCount * styleSettings.candidates.multiplier,
+                    minimumCandidateCount >= 0 ? minimumCandidateCount : styleSettings.candidates.minimumCount);
             StyleSettings = styleSettings;
             Diagnostics = diagnostics ?? NullDiagnosticsSink.Instance;
             Random = random;

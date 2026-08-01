@@ -1,3 +1,4 @@
+using Genix.Areas;
 using Genix.Assets;
 using UnityEngine;
 
@@ -11,6 +12,8 @@ namespace Genix.Placement
         public Vector3 SurfaceNormal { get; }
         public int? VoxelLayer { get; }
         public PlacementType PlacementType { get; }
+        public bool HasSurfaceFit { get; }
+        public SurfaceFitResult SurfaceFit { get; }
 
         public PlacementCandidate(
             Vector3 position,
@@ -18,7 +21,9 @@ namespace Genix.Placement
             Collider surfaceCollider = null,
             Vector3 surfaceNormal = default,
             int? voxelLayer = null,
-            PlacementType placementType = PlacementType.Floor)
+            PlacementType placementType = PlacementType.Floor,
+            bool hasSurfaceFit = false,
+            SurfaceFitResult surfaceFit = default)
         {
             Position = position;
             Rotation = rotation;
@@ -26,6 +31,8 @@ namespace Genix.Placement
             SurfaceNormal = surfaceNormal;
             VoxelLayer = voxelLayer;
             PlacementType = placementType;
+            HasSurfaceFit = hasSurfaceFit;
+            SurfaceFit = surfaceFit;
         }
     }
 }

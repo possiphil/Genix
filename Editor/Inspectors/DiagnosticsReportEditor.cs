@@ -58,10 +58,10 @@ namespace Genix.Editor.Inspectors
             DrawStat("Run ID", ShortenRunId(report.RunId));
             DrawStat("Target", report.TargetName);
             DrawStat("Mode", report.GenerationMode);
+            DrawStat("Performance", GetPerformanceModeLabel(report));
             DrawStat("Best Effort", report.BestEffort ? "Enabled" : "Disabled");
-
-            if (report.UseRandomSeed)
-                DrawStat("Seed", report.RandomSeed.ToString());
+            DrawStat("Run Type", report.DryRun ? "Preview Run" : "Generation");
+            DrawStat("Seed", report.RandomSeed.ToString());
 
             if (!string.IsNullOrWhiteSpace(report.PlacementTargets) &&
                 !string.Equals(report.PlacementTargets, "None", StringComparison.OrdinalIgnoreCase))
@@ -93,7 +93,7 @@ namespace Genix.Editor.Inspectors
 
             _showPlacedObjects = DrawFoldoutStat(
                 _showPlacedObjects,
-                "Placed Objects",
+                report.DryRun ? "Planned Objects" : "Placed Objects",
                 report.PlacedObjectCount.ToString());
 
             if (_showPlacedObjects)
@@ -126,6 +126,13 @@ namespace Genix.Editor.Inspectors
                 EditorGUILayout.HelpBox(report.StopReason, MessageType.Warning);
         }
 
+        private static string GetPerformanceModeLabel(DiagnosticsReport report)
+        {
+            return string.IsNullOrWhiteSpace(report.PerformanceMode)
+                ? "Accurate"
+                : report.PerformanceMode;
+        }
+
         private static void DrawTargetBudgetEntries(
             IReadOnlyList<DiagnosticsReport.TargetBudgetEntry> entries)
         {
@@ -143,12 +150,20 @@ namespace Genix.Editor.Inspectors
         {
             DrawStat("Generated Positions", report.GeneratedCandidates.ToString());
             DrawStat("Tested Positions", report.TestedCandidateSeeds.ToString());
-            DrawStat("Accepted Positions", report.AcceptedPositions.ToString());
-            DrawStat("Rejected Positions", report.RejectedPositions.ToString());
+            DrawStat("Accepted Positions", report.AcceptedPositions > 0
+                ? report.AcceptedPositions.ToString()
+                : report.AcceptedCandidates.ToString());
+            DrawStat("Rejected Positions", "-");
             DrawStat("Asset Attempts", report.CandidateAttempts.ToString());
             DrawStat("Accepted Attempts", report.AcceptedCandidates.ToString());
             DrawStat("Rejected Attempts", report.RejectedCandidates.ToString());
             DrawStat("Unused Positions", report.UnusedCandidates.ToString());
+
+            if (report.RejectionReasons.Count > 0)
+            {
+                DiagnosticsReport.CountEntry topRejection = report.RejectionReasons[0];
+                DrawStat("Top Rejection", $"{topRejection.Label} ({topRejection.Count})");
+            }
         }
 
         private void DrawDetailedCandidateSummary(DiagnosticsReport report)
@@ -583,5 +598,6 @@ namespace Genix.Editor.Inspectors
         {
             return $"({value.x:0.###}, {value.y:0.###}, {value.z:0.###})";
         }
+
     }
 }

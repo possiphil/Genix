@@ -24,6 +24,12 @@ namespace Genix.Editor.Inspectors
         private SerializedProperty _boundsSize;
         private SerializedProperty _boundsCenterOffset;
         private SerializedProperty _orientationMode;
+        private SerializedProperty _surfaceFitMode;
+        private SerializedProperty _surfaceAlignmentMode;
+        private SerializedProperty _surfaceHeightMode;
+        private SerializedProperty _maxSurfaceHeightDifference;
+        private SerializedProperty _minSurfaceSupport;
+        private SerializedProperty _surfaceSinkOffset;
         private SerializedProperty _randomYawRotation;
         private SerializedProperty _randomPitchRotation;
         private SerializedProperty _randomRollRotation;
@@ -40,6 +46,12 @@ namespace Genix.Editor.Inspectors
             _boundsSize = serializedObject.FindProperty("boundsSize");
             _boundsCenterOffset = serializedObject.FindProperty("boundsCenterOffset");
             _orientationMode = serializedObject.FindProperty("orientationMode");
+            _surfaceFitMode = serializedObject.FindProperty("surfaceFitMode");
+            _surfaceAlignmentMode = serializedObject.FindProperty("surfaceAlignmentMode");
+            _surfaceHeightMode = serializedObject.FindProperty("surfaceHeightMode");
+            _maxSurfaceHeightDifference = serializedObject.FindProperty("maxSurfaceHeightDifference");
+            _minSurfaceSupport = serializedObject.FindProperty("minSurfaceSupport");
+            _surfaceSinkOffset = serializedObject.FindProperty("surfaceSinkOffset");
             _randomYawRotation = serializedObject.FindProperty("randomYawRotation");
             _randomPitchRotation = serializedObject.FindProperty("randomPitchRotation");
             _randomRollRotation = serializedObject.FindProperty("randomRollRotation");
@@ -117,9 +129,28 @@ namespace Genix.Editor.Inspectors
             else
             {
                 EditorGUILayout.PropertyField(_randomYawRotation, new GUIContent("Random Yaw"));
+                DrawSurfaceFitSection();
             }
 
             EditorGUILayout.PropertyField(_orientationMode);
+        }
+
+        private void DrawSurfaceFitSection()
+        {
+            EditorGUILayout.Space(2f);
+            EditorGUILayout.PropertyField(_surfaceFitMode, new GUIContent("Surface Fit"));
+
+            if (!IsAdaptiveSurfaceFit())
+                return;
+
+            using (new EditorGUI.IndentLevelScope())
+            {
+                EditorGUILayout.PropertyField(_surfaceAlignmentMode, new GUIContent("Rotation"));
+                EditorGUILayout.PropertyField(_surfaceHeightMode, new GUIContent("Height"));
+                EditorGUILayout.PropertyField(_maxSurfaceHeightDifference, new GUIContent("Max Height Difference"));
+                EditorGUILayout.PropertyField(_minSurfaceSupport, new GUIContent("Min Support"));
+                EditorGUILayout.PropertyField(_surfaceSinkOffset, new GUIContent("Sink Offset"));
+            }
         }
 
         private void DrawBoundsSection()
@@ -344,6 +375,17 @@ namespace Genix.Editor.Inspectors
             }
 
             return _placementType.enumNames[_placementType.enumValueIndex] == nameof(PlacementType.InsideSpace);
+        }
+
+        private bool IsAdaptiveSurfaceFit()
+        {
+            if (_surfaceFitMode.enumValueIndex < 0 ||
+                _surfaceFitMode.enumValueIndex >= _surfaceFitMode.enumNames.Length)
+            {
+                return false;
+            }
+
+            return _surfaceFitMode.enumNames[_surfaceFitMode.enumValueIndex] == nameof(SurfaceFitMode.Adaptive);
         }
     }
 }

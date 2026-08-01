@@ -4,6 +4,8 @@ using Genix.Assets;
 using Genix.Core;
 using Genix.Diagnostics;
 using Genix.Placement;
+using Genix.Profiling;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Editor.Generation
 {
@@ -12,35 +14,48 @@ namespace Genix.Editor.Generation
         public static GenerationOutcome BuildPlan(
             GenerationContext context,
             IReadOnlyList<AssetDefinition> assets,
-            IDiagnosticsSink diagnostics)
+            IDiagnosticsSink diagnostics,
+            IGenerationProfiler profiler = null)
         {
+            profiler ??= NullGenerationProfiler.Instance;
+            long targetStart = StartPlanningStep(profiler);
             PlacementTarget usableTargets = TargetDistributionPolicy.GetUsableTargets(context, assets);
+            StopAndRecordPlanningStep(profiler, PlanningProfileStep.UsableTargetSelection, targetStart);
 
             if (usableTargets == PlacementTarget.None)
             {
                 return GenerationOutcome.Failed(
-                    "No selected placement target has usable assets after prefab and semantic tag filtering.");
+                    "No selected placement target has usable assets and matching area surfaces after prefab, semantic tag, and area filtering.");
             }
 
+            long namingStart = StartPlanningStep(profiler);
             GeneratedObjectNamer namer = new(context.GeneratedParent);
+            StopAndRecordPlanningStep(profiler, PlanningProfileStep.ObjectNaming, namingStart);
+
+            long catalogStart = StartPlanningStep(profiler);
+            AssetAttemptPlanner.Catalog attemptCatalog = AssetAttemptPlanner.CreateCatalog(assets);
+            StopAndRecordPlanningStep(profiler, PlanningProfileStep.AssetCatalog, catalogStart);
 
             return TargetDistributionPolicy.IsActive(context)
-                ? BuildDistributedPlan(context, assets, usableTargets, namer, diagnostics)
-                : BuildRandomPlan(context, assets, usableTargets, namer, diagnostics);
+                ? BuildDistributedPlan(context, assets, usableTargets, attemptCatalog, namer, diagnostics, profiler)
+                : BuildRandomPlan(context, assets, usableTargets, attemptCatalog, namer, diagnostics, profiler);
         }
 
         private static GenerationOutcome BuildRandomPlan(
             GenerationContext context,
             IReadOnlyList<AssetDefinition> assets,
             PlacementTarget usableTargets,
+            AssetAttemptPlanner.Catalog attemptCatalog,
             GeneratedObjectNamer namer,
-            IDiagnosticsSink diagnostics)
+            IDiagnosticsSink diagnostics,
+            IGenerationProfiler profiler)
         {
-            CandidatePool candidates = PlacementSolver.CreateCandidatePool(context, diagnostics, usableTargets);
+            CandidatePool candidates = PlacementSolver.CreateCandidatePool(context, diagnostics, usableTargets, profiler);
+            List<AssetDefinition> assetAttemptBuffer = new(assets?.Count ?? 0);
 
             for (int i = 0; i < context.Count; i++)
             {
-                if (TryPlanAsset(context, assets, candidates, namer, diagnostics))
+                if (TryPlanAsset(context, assets, attemptCatalog, assetAttemptBuffer, candidates, namer, diagnostics, profiler))
                     continue;
 
                 string reason = "No remaining sampled position fits any valid asset.";
@@ -58,17 +73,30 @@ namespace Genix.Editor.Generation
             GenerationContext context,
             IReadOnlyList<AssetDefinition> assets,
             PlacementTarget usableTargets,
+            AssetAttemptPlanner.Catalog attemptCatalog,
             GeneratedObjectNamer namer,
-            IDiagnosticsSink diagnostics)
+            IDiagnosticsSink diagnostics,
+            IGenerationProfiler profiler)
         {
+            long targetStart = StartPlanningStep(profiler);
             List<PlacementType> placementTypes = TargetDistributionPolicy.GetPlacementTypes(context, usableTargets);
             Dictionary<PlacementType, int> targets = TargetDistributionPolicy.CreateTargets(context, placementTypes);
+            placementTypes = placementTypes
+                .Where(type => targets.TryGetValue(type, out int targetCount) && targetCount > 0)
+                .ToList();
+            targets = targets
+                .Where(target => target.Value > 0)
+                .ToDictionary(target => target.Key, target => target.Value);
             Dictionary<PlacementType, int> placed = placementTypes.ToDictionary(type => type, _ => 0);
+            StopAndRecordPlanningStep(profiler, PlanningProfileStep.TargetSelection, targetStart);
+
             Dictionary<PlacementType, CandidatePool> pools = PlacementSolver.CreateCandidatePoolsByPlacementType(
                 context,
                 diagnostics,
-                usableTargets);
+                ToPlacementTargets(placementTypes),
+                profiler);
             HashSet<PlacementType> exhausted = new();
+            List<AssetDefinition> assetAttemptBuffer = new(assets?.Count ?? 0);
 
             for (int i = 0; i < context.Count; i++)
             {
@@ -79,13 +107,18 @@ namespace Genix.Editor.Generation
                         placed,
                         pools,
                         exhausted,
+                        attemptCatalog,
+                        assetAttemptBuffer,
                         namer,
-                        diagnostics))
+                        diagnostics,
+                        profiler))
                 {
                     continue;
                 }
 
+                long budgetStart = StartPlanningStep(profiler);
                 diagnostics.RecordTargetBudgets(targets, placed);
+                StopAndRecordPlanningStep(profiler, PlanningProfileStep.TargetBudgetRecording, budgetStart);
                 string summary = TargetDistributionPolicy.FormatTargets(targets, placed);
                 string reason = $"The remaining target distribution has no valid placement. Target budgets: {summary}.";
 
@@ -96,7 +129,9 @@ namespace Genix.Editor.Generation
                     : GenerationOutcome.Failed(context.Plan.Count, reason);
             }
 
+            long finalBudgetStart = StartPlanningStep(profiler);
             diagnostics.RecordTargetBudgets(targets, placed);
+            StopAndRecordPlanningStep(profiler, PlanningProfileStep.TargetBudgetRecording, finalBudgetStart);
             return GenerationOutcome.Completed(context.Plan.Count);
         }
 
@@ -107,15 +142,19 @@ namespace Genix.Editor.Generation
             Dictionary<PlacementType, int> placed,
             IReadOnlyDictionary<PlacementType, CandidatePool> pools,
             ISet<PlacementType> exhausted,
+            AssetAttemptPlanner.Catalog attemptCatalog,
+            List<AssetDefinition> assetAttemptBuffer,
             GeneratedObjectNamer namer,
-            IDiagnosticsSink diagnostics)
+            IDiagnosticsSink diagnostics,
+            IGenerationProfiler profiler)
         {
-            while (TargetDistributionPolicy.TrySelectTarget(
+            while (TrySelectTarget(
                        context,
                        targets,
                        placed,
                        pools,
                        exhausted,
+                       profiler,
                        out PlacementType targetType))
             {
                 if (TryPlanAssetOnTarget(
@@ -124,8 +163,11 @@ namespace Genix.Editor.Generation
                         targetType,
                         pools,
                         placed,
+                        attemptCatalog,
+                        assetAttemptBuffer,
                         namer,
-                        diagnostics))
+                        diagnostics,
+                        profiler))
                 {
                     return true;
                 }
@@ -133,11 +175,15 @@ namespace Genix.Editor.Generation
                 exhausted.Add(targetType);
             }
 
-            foreach (PlacementType overflowType in TargetDistributionPolicy.GetOverflowTypes(
-                         targets.Keys,
-                         pools,
-                         exhausted,
-                         context))
+            long overflowStart = StartPlanningStep(profiler);
+            List<PlacementType> overflowTypes = TargetDistributionPolicy.GetOverflowTypes(
+                targets.Keys,
+                pools,
+                exhausted,
+                context);
+            StopAndRecordPlanningStep(profiler, PlanningProfileStep.TargetSelection, overflowStart);
+
+            foreach (PlacementType overflowType in overflowTypes)
             {
                 if (TryPlanAssetOnTarget(
                         context,
@@ -145,8 +191,11 @@ namespace Genix.Editor.Generation
                         overflowType,
                         pools,
                         placed,
+                        attemptCatalog,
+                        assetAttemptBuffer,
                         namer,
-                        diagnostics))
+                        diagnostics,
+                        profiler))
                 {
                     return true;
                 }
@@ -157,19 +206,45 @@ namespace Genix.Editor.Generation
             return false;
         }
 
+        private static PlacementTarget ToPlacementTargets(IEnumerable<PlacementType> placementTypes)
+        {
+            PlacementTarget targets = PlacementTarget.None;
+
+            foreach (PlacementType type in placementTypes)
+            {
+                targets |= type switch
+                {
+                    PlacementType.Floor => PlacementTarget.Floor,
+                    PlacementType.Wall => PlacementTarget.Wall,
+                    PlacementType.Ceiling => PlacementTarget.Ceiling,
+                    PlacementType.InsideSpace => PlacementTarget.InsideSpace,
+                    _ => PlacementTarget.None
+                };
+            }
+
+            return targets;
+        }
+
         private static bool TryPlanAssetOnTarget(
             GenerationContext context,
             IReadOnlyList<AssetDefinition> assets,
             PlacementType placementType,
             IReadOnlyDictionary<PlacementType, CandidatePool> pools,
             IDictionary<PlacementType, int> placed,
+            AssetAttemptPlanner.Catalog attemptCatalog,
+            List<AssetDefinition> assetAttemptBuffer,
             GeneratedObjectNamer namer,
-            IDiagnosticsSink diagnostics)
+            IDiagnosticsSink diagnostics,
+            IGenerationProfiler profiler)
         {
-            if (!TargetDistributionPolicy.HasAssets(assets, placementType) ||
+            long assetCheckStart = StartPlanningStep(profiler);
+            bool hasAssets = TargetDistributionPolicy.HasAssets(assets, placementType);
+            StopAndRecordPlanningStep(profiler, PlanningProfileStep.UsableTargetSelection, assetCheckStart);
+
+            if (!hasAssets ||
                 !pools.TryGetValue(placementType, out CandidatePool candidates) ||
                 candidates.Count <= 0 ||
-                !TryPlanAsset(context, assets, candidates, namer, diagnostics))
+                !TryPlanAsset(context, assets, attemptCatalog, assetAttemptBuffer, candidates, namer, diagnostics, profiler))
             {
                 return false;
             }
@@ -181,9 +256,12 @@ namespace Genix.Editor.Generation
         private static bool TryPlanAsset(
             GenerationContext context,
             IReadOnlyList<AssetDefinition> assets,
+            AssetAttemptPlanner.Catalog attemptCatalog,
+            List<AssetDefinition> assetAttemptBuffer,
             CandidatePool candidates,
             GeneratedObjectNamer namer,
-            IDiagnosticsSink diagnostics)
+            IDiagnosticsSink diagnostics,
+            IGenerationProfiler profiler)
         {
             bool found = PlacementSolver.TryGetValidCandidateForAnyAsset(
                 context,
@@ -193,12 +271,55 @@ namespace Genix.Editor.Generation
                 out AssetDefinition asset,
                 out PlacementCandidate candidate,
                 out string objectName,
-                diagnostics);
+                diagnostics,
+                profiler,
+                attemptCatalog,
+                assetAttemptBuffer);
 
             if (found)
+            {
+                long planStart = StartPlanningStep(profiler);
                 context.Plan.Add(asset, candidate, objectName);
+                StopAndRecordPlanningStep(profiler, PlanningProfileStep.PlanRecording, planStart);
+            }
 
             return found;
+        }
+
+        private static bool TrySelectTarget(
+            GenerationContext context,
+            IReadOnlyDictionary<PlacementType, int> targets,
+            IReadOnlyDictionary<PlacementType, int> placed,
+            IReadOnlyDictionary<PlacementType, CandidatePool> pools,
+            ISet<PlacementType> exhausted,
+            IGenerationProfiler profiler,
+            out PlacementType selected)
+        {
+            long start = StartPlanningStep(profiler);
+            bool result = TargetDistributionPolicy.TrySelectTarget(
+                context,
+                targets,
+                placed,
+                pools,
+                exhausted,
+                out selected);
+            StopAndRecordPlanningStep(profiler, PlanningProfileStep.TargetSelection, start);
+            return result;
+        }
+
+        private static long StartPlanningStep(IGenerationProfiler profiler) =>
+            profiler is { IsEnabled: true } ? Stopwatch.GetTimestamp() : 0L;
+
+        private static void StopAndRecordPlanningStep(
+            IGenerationProfiler profiler,
+            PlanningProfileStep step,
+            long startTimestamp)
+        {
+            if (profiler is not { IsEnabled: true } || startTimestamp <= 0L)
+                return;
+
+            float milliseconds = (float)((Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / Stopwatch.Frequency);
+            profiler.RecordPlanningStep(step, milliseconds);
         }
     }
 

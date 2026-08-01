@@ -7,6 +7,8 @@ namespace Genix.Core
     {
         private ulong _state;
 
+        public int Seed { get; }
+
         public ulong State
         {
             get => _state;
@@ -17,6 +19,7 @@ namespace Genix.Core
 
         public GenerationRandom(int seed)
         {
+            Seed = seed;
             State = Mix(unchecked((ulong)(uint)seed) + 0x9E3779B97F4A7C15UL);
         }
 

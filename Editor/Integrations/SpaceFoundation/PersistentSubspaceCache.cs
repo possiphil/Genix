@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Genix.Extensions;
+using UnityEditor;
 using UnityEngine;
+using SfsFoundation = SpaceFoundationSystem.SpaceFoundation;
 
 namespace Genix.SpaceFoundation.Editor
 {
@@ -9,6 +12,9 @@ namespace Genix.SpaceFoundation.Editor
     {
         private const int MaxEntries = 32;
         private const int MaxCells = 2_000_000;
+        private const int MaxPersistentCells = MaxCells;
+        private const string CacheFolderPath = "Assets/Genix/Cache";
+        private const string CacheAssetPath = CacheFolderPath + "/SfsSubspaceCache.asset";
 
         private static readonly Dictionary<PersistentSubspaceCacheKey, HashSet<Vector3Int>> Entries = new();
         private static int _cellCount;
@@ -18,10 +24,30 @@ namespace Genix.SpaceFoundation.Editor
             int minimumCellCount,
             out HashSet<Vector3Int> subspace)
         {
+            return TryGet(key, minimumCellCount, out subspace, out _);
+        }
+
+        public static bool TryGet(
+            PersistentSubspaceCacheKey key,
+            int minimumCellCount,
+            out HashSet<Vector3Int> subspace,
+            out PersistentSubspaceCacheSource source)
+        {
             subspace = null;
+            source = PersistentSubspaceCacheSource.None;
+
+            if (!key.IsValid)
+                return false;
 
             if (!Entries.TryGetValue(key, out HashSet<Vector3Int> cached))
-                return false;
+            {
+                if (!TryGetPersistent(key, minimumCellCount, out subspace))
+                    return false;
+
+                StoreMemory(key, subspace);
+                source = PersistentSubspaceCacheSource.Persistent;
+                return true;
+            }
 
             if (cached.Count < minimumCellCount)
             {
@@ -31,19 +57,46 @@ namespace Genix.SpaceFoundation.Editor
             }
 
             subspace = new HashSet<Vector3Int>(cached);
+            source = PersistentSubspaceCacheSource.Memory;
             return true;
         }
 
-        public static void Store(PersistentSubspaceCacheKey key, HashSet<Vector3Int> subspace)
+        public static PersistentSubspaceCacheStoreResult Store(PersistentSubspaceCacheKey key, HashSet<Vector3Int> subspace)
         {
-            if (subspace == null || subspace.Count > MaxCells)
-                return;
+            if (!key.IsValid || subspace == null || subspace.Count > MaxCells)
+                return PersistentSubspaceCacheStoreResult.NotStored;
 
+            if (Contains(key, subspace.Count))
+                return PersistentSubspaceCacheStoreResult.AlreadyCached;
+
+            StoreMemory(key, subspace);
+            return StorePersistent(key, subspace)
+                ? PersistentSubspaceCacheStoreResult.MemoryAndPersistent
+                : PersistentSubspaceCacheStoreResult.MemoryOnly;
+        }
+
+        public static bool Contains(PersistentSubspaceCacheKey key, int minimumCellCount)
+        {
+            if (!key.IsValid)
+                return false;
+
+            if (Entries.TryGetValue(key, out HashSet<Vector3Int> cached) &&
+                cached.Count >= minimumCellCount)
+            {
+                return true;
+            }
+
+            SfsSubspaceCacheAsset store = LoadPersistentStore(false);
+            return store && store.Contains(key.ToStableString(), minimumCellCount);
+        }
+
+        private static void StoreMemory(PersistentSubspaceCacheKey key, HashSet<Vector3Int> subspace)
+        {
             if (Entries.TryGetValue(key, out HashSet<Vector3Int> existing))
                 _cellCount = Mathf.Max(0, _cellCount - existing.Count);
 
             if (Entries.Count >= MaxEntries || _cellCount + subspace.Count > MaxCells)
-                Clear();
+                ClearMemory();
 
             Entries[key] = new HashSet<Vector3Int>(subspace);
             _cellCount += subspace.Count;
@@ -51,9 +104,93 @@ namespace Genix.SpaceFoundation.Editor
 
         public static void Clear()
         {
+            ClearMemory();
+            SfsSubspaceCacheAsset store = LoadPersistentStore(false);
+
+            if (!store)
+                return;
+
+            store.Clear();
+            EditorUtility.SetDirty(store);
+            AssetDatabase.SaveAssets();
+        }
+
+        private static void ClearMemory()
+        {
             Entries.Clear();
             _cellCount = 0;
         }
+
+        private static bool TryGetPersistent(
+            PersistentSubspaceCacheKey key,
+            int minimumCellCount,
+            out HashSet<Vector3Int> subspace)
+        {
+            subspace = null;
+            SfsSubspaceCacheAsset store = LoadPersistentStore(false);
+
+            return store && store.TryGet(key.ToStableString(), minimumCellCount, out subspace);
+        }
+
+        private static bool StorePersistent(PersistentSubspaceCacheKey key, HashSet<Vector3Int> subspace)
+        {
+            if (subspace.Count > MaxPersistentCells)
+                return false;
+
+            SfsSubspaceCacheAsset store = LoadPersistentStore(true);
+
+            if (!store)
+                return false;
+
+            store.Store(key.ToStableString(), subspace, MaxEntries, MaxPersistentCells);
+            EditorUtility.SetDirty(store);
+            AssetDatabase.SaveAssets();
+            return true;
+        }
+
+        private static SfsSubspaceCacheAsset LoadPersistentStore(bool create)
+        {
+            SfsSubspaceCacheAsset store = AssetDatabase.LoadAssetAtPath<SfsSubspaceCacheAsset>(CacheAssetPath);
+
+            if (store || !create)
+                return store;
+
+            EnsureFolder(CacheFolderPath);
+            store = ScriptableObject.CreateInstance<SfsSubspaceCacheAsset>();
+            AssetDatabase.CreateAsset(store, CacheAssetPath);
+            AssetDatabase.SaveAssets();
+            return store;
+        }
+
+        private static void EnsureFolder(string folderPath)
+        {
+            if (AssetDatabase.IsValidFolder(folderPath))
+                return;
+
+            string parent = Path.GetDirectoryName(folderPath)?.Replace("\\", "/");
+            string folderName = Path.GetFileName(folderPath);
+
+            if (string.IsNullOrWhiteSpace(parent) || string.IsNullOrWhiteSpace(folderName))
+                return;
+
+            EnsureFolder(parent);
+            AssetDatabase.CreateFolder(parent, folderName);
+        }
+    }
+
+    internal enum PersistentSubspaceCacheSource
+    {
+        None,
+        Memory,
+        Persistent
+    }
+
+    internal enum PersistentSubspaceCacheStoreResult
+    {
+        NotStored,
+        AlreadyCached,
+        MemoryOnly,
+        MemoryAndPersistent
     }
 
     internal readonly struct PersistentSubspaceCacheKey : IEquatable<PersistentSubspaceCacheKey>
@@ -66,6 +203,9 @@ namespace Genix.SpaceFoundation.Editor
         private readonly int _borderCount;
         private readonly int _borderHashXor;
         private readonly int _borderHashSum;
+
+        public bool IsValid => !string.IsNullOrWhiteSpace(_foundation) &&
+                               !string.IsNullOrWhiteSpace(_anchor);
 
         private PersistentSubspaceCacheKey(
             string foundation,
@@ -109,7 +249,7 @@ namespace Genix.SpaceFoundation.Editor
             }
 
             return new PersistentSubspaceCacheKey(
-                $"{data.Foundation.GetLocalObjectId()}:{data.Foundation.assetName}",
+                CreateFoundationId(data.Foundation),
                 data.AnchorId,
                 Mathf.RoundToInt(SfsFoundationUtility.GetVoxelSize(data.Foundation) * 100_000f),
                 data.Bounds.Min,
@@ -117,6 +257,21 @@ namespace Genix.SpaceFoundation.Editor
                 count,
                 hashXor,
                 hashSum);
+        }
+
+        public static PersistentSubspaceCacheKey CreateLiveSnapshot(
+            SfsFoundation foundation,
+            string anchorId)
+        {
+            return new PersistentSubspaceCacheKey(
+                CreateFoundationId(foundation),
+                anchorId,
+                Mathf.RoundToInt(SfsFoundationUtility.GetVoxelSize(foundation) * 100_000f),
+                Vector3Int.zero,
+                Vector3Int.zero,
+                -1,
+                -1,
+                -1);
         }
 
         public bool Equals(PersistentSubspaceCacheKey other)
@@ -133,6 +288,23 @@ namespace Genix.SpaceFoundation.Editor
 
         public override bool Equals(object obj) =>
             obj is PersistentSubspaceCacheKey other && Equals(other);
+
+        public string ToStableString()
+        {
+            return string.Join("|",
+                _foundation,
+                _anchor,
+                _voxelSize,
+                _min.x,
+                _min.y,
+                _min.z,
+                _max.x,
+                _max.y,
+                _max.z,
+                _borderCount,
+                _borderHashXor,
+                _borderHashSum);
+        }
 
         public override int GetHashCode()
         {
@@ -161,6 +333,215 @@ namespace Genix.SpaceFoundation.Editor
                 hash = hash * 31 + position.z;
                 hash = hash * 31 + StringComparer.Ordinal.GetHashCode(owner ?? string.Empty);
                 return hash;
+            }
+        }
+
+        private static string CreateFoundationId(SfsFoundation foundation) =>
+            foundation
+                ? $"{foundation.GetLocalObjectId()}:{foundation.assetName}"
+                : string.Empty;
+    }
+
+    internal sealed class SfsSubspaceCacheAsset : ScriptableObject
+    {
+        [SerializeField] private List<Entry> entries = new();
+
+        public bool TryGet(string key, int minimumCellCount, out HashSet<Vector3Int> subspace)
+        {
+            subspace = null;
+            Entry entry = entries.Find(item => item.Key == key);
+
+            if (entry == null || entry.CellCount < minimumCellCount)
+                return false;
+
+            return entry.TryGetCells(out subspace);
+        }
+
+        public bool Contains(string key, int minimumCellCount)
+        {
+            Entry entry = entries.Find(item => item.Key == key);
+            return entry != null && entry.CellCount >= minimumCellCount;
+        }
+
+        public void Store(string key, HashSet<Vector3Int> subspace, int maxEntries, int maxCells)
+        {
+            entries.RemoveAll(entry => entry.Key == key || entry.CellCount == 0);
+            entries.Insert(0, new Entry(key, subspace));
+            Trim(maxEntries, maxCells);
+        }
+
+        public void Clear()
+        {
+            entries.Clear();
+        }
+
+        private void Trim(int maxEntries, int maxCells)
+        {
+            while (entries.Count > Mathf.Max(1, maxEntries))
+                entries.RemoveAt(entries.Count - 1);
+
+            while (GetCellCount() > maxCells && entries.Count > 0)
+                entries.RemoveAt(entries.Count - 1);
+        }
+
+        private int GetCellCount()
+        {
+            int count = 0;
+
+            foreach (Entry entry in entries)
+                count += entry.CellCount;
+
+            return count;
+        }
+
+        [Serializable]
+        private sealed class Entry
+        {
+            [SerializeField] private string key;
+            [SerializeField] private List<Vector3Int> cells = new();
+            [SerializeField] private List<CellRun> runs = new();
+            [SerializeField] private int cellCount;
+
+            public string Key => key;
+            public int CellCount => cellCount > 0 ? cellCount : cells?.Count ?? 0;
+
+            public Entry()
+            {
+            }
+
+            public Entry(string key, IEnumerable<Vector3Int> cells)
+            {
+                this.key = key;
+                this.cells = new List<Vector3Int>();
+                runs = CreateRuns(cells, out cellCount);
+            }
+
+            public bool TryGetCells(out HashSet<Vector3Int> subspace)
+            {
+                subspace = new HashSet<Vector3Int>();
+
+                if (runs != null && runs.Count > 0)
+                {
+                    foreach (CellRun run in runs)
+                        run.AddCells(subspace);
+
+                    return subspace.Count > 0;
+                }
+
+                if (cells == null || cells.Count == 0)
+                    return false;
+
+                subspace = new HashSet<Vector3Int>(cells);
+                return true;
+            }
+
+            private static List<CellRun> CreateRuns(IEnumerable<Vector3Int> sourceCells, out int count)
+            {
+                count = 0;
+                Dictionary<RowKey, List<int>> rows = new();
+
+                foreach (Vector3Int cell in sourceCells)
+                {
+                    RowKey key = new(cell.y, cell.z);
+
+                    if (!rows.TryGetValue(key, out List<int> xValues))
+                    {
+                        xValues = new List<int>();
+                        rows[key] = xValues;
+                    }
+
+                    xValues.Add(cell.x);
+                    count++;
+                }
+
+                List<KeyValuePair<RowKey, List<int>>> sortedRows = new(rows);
+                sortedRows.Sort((a, b) => a.Key.CompareTo(b.Key));
+
+                List<CellRun> result = new();
+
+                foreach (KeyValuePair<RowKey, List<int>> row in sortedRows)
+                {
+                    List<int> xValues = row.Value;
+
+                    if (xValues.Count == 0)
+                        continue;
+
+                    xValues.Sort();
+
+                    int startX = xValues[0];
+                    int previousX = startX;
+
+                    for (int i = 1; i < xValues.Count; i++)
+                    {
+                        int x = xValues[i];
+
+                        if (x == previousX)
+                            continue;
+
+                        if (x == previousX + 1)
+                        {
+                            previousX = x;
+                            continue;
+                        }
+
+                        result.Add(new CellRun(row.Key.Y, row.Key.Z, startX, previousX - startX + 1));
+                        startX = x;
+                        previousX = x;
+                    }
+
+                    result.Add(new CellRun(row.Key.Y, row.Key.Z, startX, previousX - startX + 1));
+                }
+
+                return result;
+            }
+        }
+
+        [Serializable]
+        private sealed class CellRun
+        {
+            [SerializeField] private int y;
+            [SerializeField] private int z;
+            [SerializeField] private int startX;
+            [SerializeField] private int length;
+
+            public CellRun()
+            {
+            }
+
+            public CellRun(int y, int z, int startX, int length)
+            {
+                this.y = y;
+                this.z = z;
+                this.startX = startX;
+                this.length = Mathf.Max(0, length);
+            }
+
+            public void AddCells(HashSet<Vector3Int> subspace)
+            {
+                for (int x = startX; x < startX + length; x++)
+                    subspace.Add(new Vector3Int(x, y, z));
+            }
+        }
+
+        private readonly struct RowKey : IEquatable<RowKey>, IComparable<RowKey>
+        {
+            public int Y { get; }
+            public int Z { get; }
+
+            public RowKey(int y, int z)
+            {
+                Y = y;
+                Z = z;
+            }
+
+            public bool Equals(RowKey other) => Y == other.Y && Z == other.Z;
+            public override bool Equals(object obj) => obj is RowKey other && Equals(other);
+            public override int GetHashCode() => (Y * 397) ^ Z;
+
+            public int CompareTo(RowKey other)
+            {
+                int yComparison = Y.CompareTo(other.Y);
+                return yComparison != 0 ? yComparison : Z.CompareTo(other.Z);
             }
         }
     }

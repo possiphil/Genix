@@ -2,8 +2,10 @@ using System.Collections.Generic;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Diagnostics;
+using Genix.Profiling;
 using Genix.Sampling;
 using UnityEngine;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Placement.Providers
 {
@@ -11,11 +13,23 @@ namespace Genix.Placement.Providers
     {
         private const int RandomOversampling = 4;
         private const int MaxGeneratedSeeds = 50_000;
+        private const int FastVolumeMaxGeneratedSeeds = 10_000;
+
+        public InsideSpaceCandidateProvider(
+            int requestedCount = -1,
+            int minimumCandidateCount = -1,
+            int candidateCount = -1)
+            : base(requestedCount, minimumCandidateCount, candidateCount)
+        {
+        }
 
         public override List<CandidateSeed> CreateCandidateSeeds(
             GenerationContext context,
-            IDiagnosticsSink diagnostics = null)
+            IDiagnosticsSink diagnostics = null,
+            IGenerationProfiler profiler = null)
         {
+            profiler ??= NullGenerationProfiler.Instance;
+            Stopwatch providerStopwatch = profiler.IsEnabled ? Stopwatch.StartNew() : null;
             SamplingContext samplingContext = CreateSamplingContext(
                 context,
                 context.TargetBounds,
@@ -26,9 +40,18 @@ namespace Genix.Placement.Providers
 
             foreach (Vector3 position in CreateVolumePositions(context, samplingContext))
             {
+                profiler.RecordRawSamples(PlacementType.InsideSpace, 1);
                 samplingContext.Diagnostics.RecordRawSamplePosition(position);
 
-                if (!context.Area.ContainsVolumePoint(position))
+                Stopwatch projectionStopwatch = profiler.IsEnabled ? Stopwatch.StartNew() : null;
+                bool containsVolume = context.Area.ContainsVolumePoint(position);
+                projectionStopwatch?.Stop();
+                profiler.RecordProjection(
+                    PlacementType.InsideSpace,
+                    containsVolume,
+                    projectionStopwatch != null ? (float)projectionStopwatch.Elapsed.TotalMilliseconds : 0f);
+
+                if (!containsVolume)
                     continue;
 
                 AddSeed(
@@ -37,22 +60,53 @@ namespace Genix.Placement.Providers
                     Quaternion.identity,
                     surfaceNormal: Vector3.up,
                     placementType: PlacementType.InsideSpace);
+                profiler.RecordCandidateSeeds(PlacementType.InsideSpace, 1);
             }
 
             ShuffleIfNeeded(seeds, context);
+            profiler.AddSeedGenerationTime(PlacementType.InsideSpace, StopAndReadMilliseconds(providerStopwatch));
             return seeds;
+        }
+
+        private static float StopAndReadMilliseconds(Stopwatch stopwatch)
+        {
+            if (stopwatch == null)
+                return 0f;
+
+            stopwatch.Stop();
+            return (float)stopwatch.Elapsed.TotalMilliseconds;
         }
 
         private static IEnumerable<Vector3> CreateVolumePositions(
             GenerationContext context,
             SamplingContext samplingContext)
         {
+            if (context.PerformanceMode == GenerationPerformanceMode.Fast && context.Area.HasVolumeCells)
+                return CreateFastVolumePositions(context, samplingContext);
+
             return context.StyleSettings.algorithm switch
             {
                 SamplingAlgorithm.Grid => CreateGridPositions(context, samplingContext, false),
                 SamplingAlgorithm.JitteredGrid => CreateGridPositions(context, samplingContext, true),
                 _ => CreateRandomPositions(context, samplingContext)
             };
+        }
+
+        private static IEnumerable<Vector3> CreateFastVolumePositions(
+            GenerationContext context,
+            SamplingContext samplingContext)
+        {
+            int count = Mathf.Min(
+                FastVolumeMaxGeneratedSeeds,
+                Mathf.Max(samplingContext.CandidateCount, context.Count * RandomOversampling));
+
+            for (int i = 0; i < count; i++)
+            {
+                if (!context.Area.TryGetRandomVolumePoint(context.Random, out Vector3 position))
+                    yield break;
+
+                yield return position;
+            }
         }
 
         private static IEnumerable<Vector3> CreateRandomPositions(

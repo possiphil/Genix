@@ -4,6 +4,7 @@ namespace Genix.Placement
     {
         None,
         OutsideTargetArea,
+        InsufficientSurfaceSupport,
         OutsideTargetVolume,
         ExceedsTargetHeight,
         OverlapsGenerated,

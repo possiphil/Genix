@@ -17,6 +17,12 @@ namespace Genix.Editor.Diagnostics
 
         public static void SaveDetailed(GenerationDiagnostics diagnostics)
         {
+            if (diagnostics != null && diagnostics.CaptureMode != DiagnosticsMode.Detailed)
+            {
+                Debug.LogWarning("This run was captured in Summary mode. Enable Detailed Diagnostics before the run to save detailed candidate data.");
+                return;
+            }
+
             Save(diagnostics, DiagnosticsMode.Detailed, ProjectContentPaths.DiagnosticDetails);
         }
 

@@ -1,10 +1,13 @@
+using System;
 using System.Collections.Generic;
 using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Diagnostics;
+using Genix.Profiling;
 using Genix.Sampling;
 using UnityEngine;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Placement.Providers
 {
@@ -12,33 +15,66 @@ namespace Genix.Placement.Providers
     {
         private const float MinValue = 0.001f;
 
+        public WallCandidateProvider(
+            int requestedCount = -1,
+            int minimumCandidateCount = -1,
+            int candidateCount = -1)
+            : base(requestedCount, minimumCandidateCount, candidateCount)
+        {
+        }
+
         public override List<CandidateSeed> CreateCandidateSeeds(
             GenerationContext context,
-            IDiagnosticsSink diagnostics = null)
+            IDiagnosticsSink diagnostics = null,
+            IGenerationProfiler profiler = null)
         {
+            profiler ??= NullGenerationProfiler.Instance;
+            Stopwatch providerStopwatch = profiler.IsEnabled ? Stopwatch.StartNew() : null;
             List<CandidateSeed> seeds = new();
 
             WallSegment[] walls = CreateWallLines(context);
-            float perimeterLength = GetPerimeterLength(walls);
+            WallSegmentLookup wallLookup = new(walls);
+            float perimeterLength = wallLookup.PerimeterLength;
 
             if (perimeterLength <= 0f)
+            {
+                profiler.AddSeedGenerationTime(PlacementType.Wall, StopAndReadMilliseconds(providerStopwatch));
                 return seeds;
+            }
 
             List<Vector3> debugClusterCenters = new();
+            Stopwatch samplingStopwatch = profiler.IsEnabled ? Stopwatch.StartNew() : null;
+            int targetSeedCount = GetCandidateCount(context);
             List<float> distances = CreatePerimeterDistances(
                 context,
-                walls,
+                wallLookup,
                 perimeterLength,
-                debugClusterCenters);
+                debugClusterCenters,
+                targetSeedCount);
+            profiler.AddSamplingTime(PlacementType.Wall, StopAndReadMilliseconds(samplingStopwatch));
+            profiler.RecordRawSamples(PlacementType.Wall, distances.Count);
 
             foreach (float distance in distances)
             {
-                if (!TryGetWallAtDistance(walls, distance, perimeterLength, out WallSegment wall, out float wallDistance))
+                if (!wallLookup.TryGetAtDistance(distance, out WallSegment wall, out float wallDistance))
                     continue;
 
                 Vector3 worldPosition = wall.Start + wall.Direction * wallDistance;
 
-                if (!context.Area.TryProjectToWall(worldPosition, wall.InwardNormal, wall.VoxelLayer, out SurfacePoint surfacePoint))
+                Stopwatch projectionStopwatch = profiler.IsEnabled ? Stopwatch.StartNew() : null;
+                bool projected = context.Area.TryProjectToWall(
+                    worldPosition,
+                    wall.InwardNormal,
+                    wall.VoxelLayer,
+                    out SurfacePoint surfacePoint,
+                    profiler);
+                projectionStopwatch?.Stop();
+                profiler.RecordProjection(
+                    PlacementType.Wall,
+                    projected,
+                    projectionStopwatch != null ? (float)projectionStopwatch.Elapsed.TotalMilliseconds : 0f);
+
+                if (!projected)
                     continue;
 
                 Quaternion rotation = Quaternion.LookRotation(surfacePoint.Normal, Vector3.up);
@@ -50,12 +86,23 @@ namespace Genix.Placement.Providers
                     surfacePoint.Normal,
                     surfacePoint.VoxelLayer,
                     PlacementType.Wall);
+                profiler.RecordCandidateSeeds(PlacementType.Wall, 1);
             }
 
             diagnostics.RecordClusterCenters(debugClusterCenters);
 
             ShuffleIfNeeded(seeds, context);
+            profiler.AddSeedGenerationTime(PlacementType.Wall, StopAndReadMilliseconds(providerStopwatch));
             return seeds;
+        }
+
+        private static float StopAndReadMilliseconds(Stopwatch stopwatch)
+        {
+            if (stopwatch == null)
+                return 0f;
+
+            stopwatch.Stop();
+            return (float)stopwatch.Elapsed.TotalMilliseconds;
         }
 
         private static WallSegment[] CreateWallLines(GenerationContext context)
@@ -85,22 +132,29 @@ namespace Genix.Placement.Providers
             };
         }
 
-        private static List<float> CreatePerimeterDistances(GenerationContext context, WallSegment[] walls, float perimeterLength, List<Vector3> debugClusterCenters)
+        private static List<float> CreatePerimeterDistances(
+            GenerationContext context,
+            WallSegmentLookup wallLookup,
+            float perimeterLength,
+            List<Vector3> debugClusterCenters,
+            int targetCount)
         {
             return context.StyleSettings.algorithm switch
             {
-                SamplingAlgorithm.Random => CreateRandomDistances(context, perimeterLength),
-                SamplingAlgorithm.Grid => CreateGridDistances(context, perimeterLength, false),
-                SamplingAlgorithm.JitteredGrid => CreateGridDistances(context, perimeterLength, true),
-                SamplingAlgorithm.Cluster => CreateClusterDistances(context, walls, perimeterLength, debugClusterCenters),
-                SamplingAlgorithm.BridsonPoissonDisk => CreatePoissonDistances(context, perimeterLength),
-                _ => CreateRandomDistances(context, perimeterLength)
+                SamplingAlgorithm.Random => CreateRandomDistances(context, perimeterLength, targetCount),
+                SamplingAlgorithm.Grid => CreateGridDistances(context, perimeterLength, false, targetCount),
+                SamplingAlgorithm.JitteredGrid => CreateGridDistances(context, perimeterLength, true, targetCount),
+                SamplingAlgorithm.Cluster => CreateClusterDistances(context, wallLookup, perimeterLength, debugClusterCenters, targetCount),
+                SamplingAlgorithm.BridsonPoissonDisk => CreatePoissonDistances(context, perimeterLength, targetCount),
+                _ => CreateRandomDistances(context, perimeterLength, targetCount)
             };
         }
 
-        private static List<float> CreateRandomDistances(GenerationContext context, float perimeterLength)
+        private static List<float> CreateRandomDistances(
+            GenerationContext context,
+            float perimeterLength,
+            int targetCount)
         {
-            int targetCount = GetTargetSeedCount(context);
             List<float> distances = new();
 
             for (int i = 0; i < targetCount; i++)
@@ -112,7 +166,8 @@ namespace Genix.Placement.Providers
         private static List<float> CreateGridDistances(
             GenerationContext context,
             float perimeterLength,
-            bool jittered)
+            bool jittered,
+            int targetCount)
         {
             float cellSize = Mathf.Max(MinValue, context.StyleSettings.grid.cellSize);
             float jitterAmount = jittered ? Mathf.Clamp01(context.StyleSettings.grid.jitterAmount) : 0f;
@@ -125,17 +180,17 @@ namespace Genix.Placement.Providers
                 distances.Add(WrapDistance(distance + jitter, perimeterLength));
             }
 
-            EnsureMinimumEvenlySpacedDistances(distances, GetTargetSeedCount(context), perimeterLength);
+            EnsureMinimumEvenlySpacedDistances(distances, targetCount, perimeterLength);
             return distances;
         }
 
         private static List<float> CreateClusterDistances(
             GenerationContext context,
-            WallSegment[] walls,
+            WallSegmentLookup wallLookup,
             float perimeterLength,
-            List<Vector3> debugClusterCenters)
+            List<Vector3> debugClusterCenters,
+            int targetCount)
         {
-            int targetCount = GetTargetSeedCount(context);
             float radius = Mathf.Max(MinValue, context.StyleSettings.cluster.radius);
 
             List<float> clusterCenters = CreateClusterCenterDistances(context, perimeterLength);
@@ -143,7 +198,7 @@ namespace Genix.Placement.Providers
 
             foreach (float centerDistance in clusterCenters)
             {
-                if (TryGetWallAtDistance(walls, centerDistance, perimeterLength, out WallSegment wall, out float wallDistance))
+                if (wallLookup.TryGetAtDistance(centerDistance, out WallSegment wall, out float wallDistance))
                     debugClusterCenters.Add(wall.Start + wall.Direction * wallDistance);
             }
 
@@ -236,27 +291,34 @@ namespace Genix.Placement.Providers
             return true;
         }
 
-        private static List<float> CreatePoissonDistances(GenerationContext context, float perimeterLength)
+        private static List<float> CreatePoissonDistances(
+            GenerationContext context,
+            float perimeterLength,
+            int targetCount)
         {
             float minDistance = Mathf.Max(MinValue, context.StyleSettings.poisson.minDistance);
-            int attempts = Mathf.Max(1, context.StyleSettings.poisson.attempts);
-
-            int targetCount = GetTargetSeedCount(context);
             int maxUsefulCount = Mathf.Max(1, Mathf.FloorToInt(perimeterLength / minDistance));
 
             targetCount = Mathf.Min(targetCount, maxUsefulCount);
 
-            List<float> distances = new();
-            int maxAttempts = Mathf.Max(targetCount * attempts * 16, 128);
+            List<float> distances = new(targetCount);
 
-            for (int i = 0; i < maxAttempts && distances.Count < targetCount; i++)
+            if (targetCount <= 0)
+                return distances;
+
+            float step = perimeterLength / targetCount;
+            float jitterRadius = Mathf.Max(0f, (step - minDistance) * 0.5f);
+            float offset = context.Random.Range(0f, step);
+
+            for (int i = 0; i < targetCount; i++)
             {
-                float distance = context.Random.Range(0f, perimeterLength);
-                TryAddPoissonDistance(distances, distance, minDistance, perimeterLength);
+                float jitter = jitterRadius > 0f
+                    ? context.Random.Range(-jitterRadius, jitterRadius)
+                    : 0f;
+                distances.Add(WrapDistance(offset + step * i + jitter, perimeterLength));
             }
 
-            AddPoissonFallbackDistances(distances, targetCount, minDistance, perimeterLength);
-
+            context.Random.Shuffle(distances);
             return distances;
         }
 
@@ -274,95 +336,62 @@ namespace Genix.Placement.Providers
                 distances.Add(WrapDistance(step * i + step / 2f, perimeterLength));
         }
 
-        private static void AddPoissonFallbackDistances(
-            List<float> distances,
-            int targetCount,
-            float minDistance,
-            float perimeterLength)
-        {
-            if (distances.Count >= targetCount)
-                return;
-
-            float step = perimeterLength / targetCount;
-
-            for (int i = 0; i < targetCount && distances.Count < targetCount; i++)
-            {
-                float distance = WrapDistance(step * i, perimeterLength);
-                TryAddPoissonDistance(distances, distance, minDistance, perimeterLength);
-            }
-        }
-
-        private static bool TryAddPoissonDistance(
-            List<float> distances,
-            float distance,
-            float minDistance,
-            float perimeterLength)
-        {
-            foreach (float existingDistance in distances)
-            {
-                float delta = Mathf.Abs(distance - existingDistance);
-                float circularDelta = Mathf.Min(delta, perimeterLength - delta);
-
-                if (circularDelta < minDistance)
-                    return false;
-            }
-
-            distances.Add(WrapDistance(distance, perimeterLength));
-            return true;
-        }
-
-        private static bool TryGetWallAtDistance(
-            WallSegment[] walls,
-            float perimeterDistance,
-            float perimeterLength,
-            out WallSegment wall,
-            out float wallDistance)
-        {
-            float remainingDistance = WrapDistance(perimeterDistance, perimeterLength);
-
-            foreach (WallSegment currentWall in walls)
-            {
-                if (remainingDistance <= currentWall.Length)
-                {
-                    wall = currentWall;
-                    wallDistance = remainingDistance;
-                    return true;
-                }
-
-                remainingDistance -= currentWall.Length;
-            }
-
-            wall = default;
-            wallDistance = 0f;
-            return false;
-        }
-
-        private static float GetPerimeterLength(WallSegment[] walls)
-        {
-            float length = 0f;
-
-            foreach (WallSegment wall in walls)
-                length += wall.Length;
-
-            return length;
-        }
-
-        private static int GetTargetSeedCount(GenerationContext context)
-        {
-            int multipliedCount = Mathf.CeilToInt(
-                context.Count * context.StyleSettings.candidates.multiplier);
-
-            return Mathf.Max(
-                context.Count,
-                Mathf.Max(multipliedCount, context.StyleSettings.candidates.minimumCount));
-        }
-
         private static float WrapDistance(float distance, float length)
         {
             if (length <= 0f)
                 return 0f;
 
             return Mathf.Repeat(distance, length);
+        }
+
+        private readonly struct WallSegmentLookup
+        {
+            private readonly WallSegment[] _walls;
+            private readonly float[] _cumulativeLengths;
+
+            public float PerimeterLength { get; }
+
+            public WallSegmentLookup(WallSegment[] walls)
+            {
+                _walls = walls ?? Array.Empty<WallSegment>();
+                _cumulativeLengths = new float[_walls.Length];
+                float length = 0f;
+
+                for (int i = 0; i < _walls.Length; i++)
+                {
+                    length += Mathf.Max(0f, _walls[i].Length);
+                    _cumulativeLengths[i] = length;
+                }
+
+                PerimeterLength = length;
+            }
+
+            public bool TryGetAtDistance(
+                float perimeterDistance,
+                out WallSegment wall,
+                out float wallDistance)
+            {
+                if (_walls == null || _walls.Length == 0 || PerimeterLength <= 0f)
+                {
+                    wall = default;
+                    wallDistance = 0f;
+                    return false;
+                }
+
+                float distance = WrapDistance(perimeterDistance, PerimeterLength);
+                int index = Array.BinarySearch(_cumulativeLengths, distance);
+
+                if (index < 0)
+                    index = ~index;
+
+                if (index >= _walls.Length)
+                    index = _walls.Length - 1;
+
+                float previousLength = index > 0 ? _cumulativeLengths[index - 1] : 0f;
+                wall = _walls[index];
+                wallDistance = Mathf.Clamp(distance - previousLength, 0f, wall.Length);
+                return wall.Length > 0f;
+            }
         }
     }
 }

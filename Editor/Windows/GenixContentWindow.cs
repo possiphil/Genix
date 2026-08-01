@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Editor.Drawers;
+using Genix.Editor.Layouts;
 using Genix.Editor.Utilities;
 using Genix.Assets;
 using Genix.Editor.Genix.Editor.Assets;
 using Genix.Extensions;
+using Genix.Layouts;
 using Genix.Orientation;
 using Genix.Semantics;
 using Genix.Editor.TargetAreas;
@@ -22,7 +24,8 @@ namespace Genix.Editor.Windows
             Assets,
             Tags,
             Locations,
-            AssetPools
+            AssetPools,
+            Layouts
         }
 
         private enum AssetSortMode
@@ -69,6 +72,24 @@ namespace Genix.Editor.Windows
             Empty
         }
 
+        private enum LayoutSortMode
+        {
+            NewestFirst,
+            OldestFirst,
+            NameAscending,
+            NameDescending,
+            TargetArea,
+            ObjectCountDescending,
+            ObjectCountAscending
+        }
+
+        private enum LayoutScopeFilter
+        {
+            CurrentScene,
+            CurrentTargetArea,
+            AllScenes
+        }
+
         private int _prefabCreationSlotPickerControlId = -1;
 
         private string _staticPoolMessage;
@@ -89,6 +110,7 @@ namespace Genix.Editor.Windows
         private TagCategory _selectedTagCategory;
         private SemanticTag _selectedSemanticTag;
         private AssetPool _selectedPool;
+        private SavedLayout _selectedLayout;
 
         private Object _selectedObjectEditorTarget;
         private UnityEditor.Editor _selectedObjectEditor;
@@ -99,6 +121,7 @@ namespace Genix.Editor.Windows
         private Vector2 _windowScroll;
         private Vector2 _categoryScroll;
         private Vector2 _tagScroll;
+        private Vector2 _layoutListScroll;
 
         private string _assetSearch = string.Empty;
         private AssetSortMode _assetSortMode = AssetSortMode.AlphabeticalAscending;
@@ -121,8 +144,13 @@ namespace Genix.Editor.Windows
         private AssetPoolMode _poolModeFilter = AssetPoolMode.Static;
         private PoolAssetStateFilter _poolAssetStateFilter = PoolAssetStateFilter.All;
 
+        private string _layoutSearch = string.Empty;
+        private LayoutSortMode _layoutSortMode = LayoutSortMode.NewestFirst;
+        private LayoutScopeFilter _layoutScopeFilter = LayoutScopeFilter.CurrentScene;
+
         private AssetPool _targetStaticPool;
         private readonly LocationPanelHost _locationPanel = new();
+        private readonly TargetAreaSelectorHost _layoutTargetAreaSelector = new();
 
         [MenuItem("Tools/Genix/Assets", false, 20)]
         public static void Open()
@@ -136,6 +164,7 @@ namespace Genix.Editor.Windows
         {
             AssetCatalogService.Refresh();
             _locationPanel.Refresh();
+            _layoutTargetAreaSelector.Refresh();
         }
 
         private void OnDisable()
@@ -147,6 +176,7 @@ namespace Genix.Editor.Windows
         {
             AssetCatalogService.Refresh();
             _locationPanel.Refresh();
+            _layoutTargetAreaSelector.Refresh();
             Repaint();
         }
 
@@ -154,6 +184,7 @@ namespace Genix.Editor.Windows
         {
             AssetCatalogService.Refresh();
             _locationPanel.Refresh();
+            _layoutTargetAreaSelector.Refresh();
             Repaint();
         }
 
@@ -161,9 +192,9 @@ namespace Genix.Editor.Windows
         {
             AssetCatalog catalog = AssetCatalogService.GetOrCreate();
 
-            _windowScroll = EditorGUILayout.BeginScrollView(_windowScroll);
-
             DrawToolbar();
+
+            _windowScroll = EditorGUILayout.BeginScrollView(_windowScroll);
 
             EditorGUILayout.Space(6f);
 
@@ -184,6 +215,10 @@ namespace Genix.Editor.Windows
                 case ContentTab.AssetPools:
                     DrawAssetPoolsTab(catalog);
                     break;
+
+                case ContentTab.Layouts:
+                    DrawLayoutsTab();
+                    break;
             }
 
             EditorGUILayout.Space(8f);
@@ -201,13 +236,14 @@ namespace Genix.Editor.Windows
 
                 _tab = (ContentTab)DrawToolbarTabsWithRightBorder(
                     (int)_tab,
-                    new[] { "Assets", "Tags", "Locations", "Asset Pools" },
-                    320f);
+                    new[] { "Assets", "Tags", "Locations", "Asset Pools", "Layouts" },
+                    390f);
 
                 if (_tab != previousTab)
                 {
                     GUI.FocusControl(null);
                     DestroySelectedObjectEditor();
+                    _windowScroll = Vector2.zero;
                 }
 
                 GUILayout.FlexibleSpace();

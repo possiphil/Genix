@@ -9,6 +9,12 @@ namespace Genix.Core
         [InspectorName("Target Placement")] TargetPlacement
     }
 
+    public enum GenerationPerformanceMode
+    {
+        [InspectorName("Accurate")] Accurate,
+        [InspectorName("Fast")] Fast
+    }
+
     [Flags]
     public enum PlacementTarget
     {

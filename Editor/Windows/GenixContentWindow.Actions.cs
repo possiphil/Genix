@@ -5,6 +5,7 @@ using Genix.Assets;
 using Genix.Editor.Genix.Editor.Assets;
 using Genix.Editor.Utilities;
 using Genix.Extensions;
+using Genix.Layouts;
 using Genix.Orientation;
 using Genix.Semantics;
 using UnityEditor;
@@ -284,6 +285,7 @@ namespace Genix.Editor.Windows
                 ContentTab.Tags => _selectedSemanticTag ? _selectedSemanticTag : _selectedTagCategory,
                 ContentTab.Locations => null,
                 ContentTab.AssetPools => _selectedPool,
+                ContentTab.Layouts => _selectedLayout,
                 _ => null
             };
         }
@@ -337,6 +339,10 @@ namespace Genix.Editor.Windows
 
                 case ContentTab.AssetPools:
                     _selectedPool = selectedObject as AssetPool;
+                    break;
+
+                case ContentTab.Layouts:
+                    _selectedLayout = selectedObject as SavedLayout;
                     break;
             }
         }
@@ -530,6 +536,7 @@ namespace Genix.Editor.Windows
             _selectedTagCategory = null;
             _selectedSemanticTag = null;
             _selectedPool = null;
+            _selectedLayout = null;
             _targetStaticPool = null;
 
             DestroySelectedObjectEditor();

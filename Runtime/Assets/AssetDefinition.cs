@@ -18,6 +18,12 @@ namespace Genix.Assets
         [SerializeField] private Vector3 boundsSize = new(1f, 1f, 1f);
         [SerializeField] private Vector3 boundsCenterOffset;
         [SerializeField] private OrientationMode orientationMode = OrientationMode.None;
+        [SerializeField] private SurfaceFitMode surfaceFitMode = SurfaceFitMode.Strict;
+        [SerializeField] private SurfaceAlignmentMode surfaceAlignmentMode = SurfaceAlignmentMode.AlignToSurface;
+        [SerializeField] private SurfaceHeightMode surfaceHeightMode = SurfaceHeightMode.Average;
+        [SerializeField, Min(0f)] private float maxSurfaceHeightDifference = 0.35f;
+        [SerializeField, Range(0.1f, 1f)] private float minSurfaceSupport = 0.75f;
+        [SerializeField, Min(0f)] private float surfaceSinkOffset;
         [SerializeField] private bool randomYawRotation = true;
         [SerializeField] private bool randomPitchRotation;
         [SerializeField] private bool randomRollRotation;
@@ -40,6 +46,12 @@ namespace Genix.Assets
         public float Depth => boundsSize.z;
 
         public OrientationMode OrientationMode => orientationMode;
+        public SurfaceFitMode SurfaceFitMode => surfaceFitMode;
+        public SurfaceAlignmentMode SurfaceAlignmentMode => surfaceAlignmentMode;
+        public SurfaceHeightMode SurfaceHeightMode => surfaceHeightMode;
+        public float MaxSurfaceHeightDifference => Mathf.Max(0f, maxSurfaceHeightDifference);
+        public float MinSurfaceSupport => Mathf.Clamp01(minSurfaceSupport);
+        public float SurfaceSinkOffset => Mathf.Max(0f, surfaceSinkOffset);
         public bool RandomYawRotation => randomYawRotation;
         public bool RandomPitchRotation => randomPitchRotation;
         public bool RandomRollRotation => randomRollRotation;

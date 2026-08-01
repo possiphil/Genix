@@ -30,6 +30,21 @@ namespace Genix.Editor.Generation
             return result;
         }
 
+        public static PlacementTarget GetUsableTargetsForValidation(
+            GenerationRequest request,
+            IReadOnlyList<AssetDefinition> assets)
+        {
+            if (request.GenerationMode != GenerationMode.TargetPlacement)
+                return PlacementTarget.Floor;
+
+            PlacementTarget result = PlacementTarget.None;
+            AddUsableTarget(request, assets, PlacementTarget.Floor, PlacementType.Floor, ref result);
+            AddUsableTarget(request, assets, PlacementTarget.Wall, PlacementType.Wall, ref result);
+            AddUsableTarget(request, assets, PlacementTarget.Ceiling, PlacementType.Ceiling, ref result);
+            AddUsableTarget(request, assets, PlacementTarget.InsideSpace, PlacementType.InsideSpace, ref result);
+            return result;
+        }
+
         public static List<PlacementType> GetPlacementTypes(
             GenerationContext context,
             PlacementTarget usableTargets)
@@ -177,6 +192,25 @@ namespace Genix.Editor.Generation
             if ((context.PlacementTargets & target) == 0 ||
                 context.TargetDistributionMode == TargetDistributionMode.Weighted &&
                 context.TargetDistributionWeights.GetWeight(target) <= 0 ||
+                !context.Area.SupportsPlacementType(placementType) ||
+                !HasAssets(assets, placementType))
+            {
+                return;
+            }
+
+            result |= target;
+        }
+
+        private static void AddUsableTarget(
+            GenerationRequest request,
+            IReadOnlyList<AssetDefinition> assets,
+            PlacementTarget target,
+            PlacementType placementType,
+            ref PlacementTarget result)
+        {
+            if ((request.PlacementTargets & target) == 0 ||
+                request.TargetDistributionMode == TargetDistributionMode.Weighted &&
+                request.TargetDistributionWeights.GetWeight(target) <= 0 ||
                 !HasAssets(assets, placementType))
             {
                 return;

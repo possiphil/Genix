@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Genix.Assets;
 using Genix.Core;
@@ -13,6 +14,8 @@ namespace Genix.Layouts
         [SerializeField] private string notes;
         [SerializeField] private bool favorite;
         [SerializeField] private bool locked;
+        [SerializeField] private string sceneName;
+        [SerializeField] private string scenePath;
         [SerializeField] private string targetAreaName;
         [SerializeField] private string targetAreaId;
         [SerializeField] private string sourceType;
@@ -32,6 +35,8 @@ namespace Genix.Layouts
         public string Notes => notes;
         public bool Favorite => favorite;
         public bool Locked => locked;
+        public string SceneName => sceneName;
+        public string ScenePath => scenePath;
         public string TargetAreaName => targetAreaName;
         public string TargetAreaId => targetAreaId;
         public string SourceType => sourceType;
@@ -44,11 +49,15 @@ namespace Genix.Layouts
         public int ObjectCount => objectCount;
         public Bounds Bounds => bounds;
         public string CreatedAt => createdAt;
-        public IReadOnlyList<LayoutAssetSummary> AssetSummaries => assetSummaries;
+        public IReadOnlyList<LayoutAssetSummary> AssetSummaries => assetSummaries != null
+            ? assetSummaries
+            : Array.Empty<LayoutAssetSummary>();
 
         public void Initialize(
             string newDisplayName,
             GameObject newPrefab,
+            string newSceneName,
+            string newScenePath,
             string newTargetAreaName,
             string newTargetAreaId,
             string newSourceType,
@@ -68,6 +77,8 @@ namespace Genix.Layouts
             notes = string.Empty;
             favorite = false;
             locked = false;
+            sceneName = newSceneName;
+            scenePath = newScenePath;
             targetAreaName = newTargetAreaName;
             targetAreaId = newTargetAreaId;
             sourceType = newSourceType;

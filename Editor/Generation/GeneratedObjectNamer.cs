@@ -10,6 +10,7 @@ namespace Genix.Editor.Generation
     {
         private const string Prefix = "GenixGenerated";
         private readonly HashSet<string> _usedNames = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> _nextIndexByBaseName = new(StringComparer.Ordinal);
 
         public GeneratedObjectNamer(Transform parent)
         {
@@ -23,7 +24,9 @@ namespace Genix.Editor.Generation
         public string Next(AssetDefinition asset)
         {
             string baseName = ToPascalCase(asset ? asset.AssetName : null);
-            int index = 1;
+            int index = _nextIndexByBaseName.TryGetValue(baseName, out int nextIndex)
+                ? nextIndex
+                : 1;
             string candidate;
 
             do
@@ -32,6 +35,7 @@ namespace Genix.Editor.Generation
             }
             while (!_usedNames.Add(candidate));
 
+            _nextIndexByBaseName[baseName] = index;
             return candidate;
         }
 

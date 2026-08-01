@@ -424,9 +424,12 @@ namespace Genix.Editor.Windows
             string style = string.IsNullOrWhiteSpace(report.StyleName)
                 ? "Unknown Style"
                 : report.StyleName;
-            string seed = report.UseRandomSeed ? $"    Seed: {report.RandomSeed}" : string.Empty;
 
-            return $"Mode: {mode}    Style: {style}    Placed: {report.PlacedObjectCount}/{report.RequestedObjectCount}{seed}";
+            string performance = string.IsNullOrWhiteSpace(report.PerformanceMode)
+                ? "Accurate"
+                : report.PerformanceMode;
+
+            return $"Mode: {mode}    Performance: {performance}    Placed: {report.PlacedObjectCount}/{report.RequestedObjectCount}    Seed: {report.RandomSeed}    Style: {style}";
         }
 
         private void DestroySelectedReportEditor()

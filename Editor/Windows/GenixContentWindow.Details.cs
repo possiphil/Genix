@@ -1,6 +1,7 @@
 using Genix.Assets;
 using Genix.Editor.Drawers;
 using Genix.Extensions;
+using Genix.Layouts;
 using Genix.Semantics;
 using UnityEditor;
 using UnityEngine;
@@ -33,6 +34,9 @@ namespace Genix.Editor.Windows
                 if (_tab == ContentTab.Assets && selectedObject is AssetDefinition selectedAsset)
                     DrawAssetPlacementPreview(selectedAsset);
 
+                if (_tab == ContentTab.Layouts && selectedObject is SavedLayout selectedLayout)
+                    DrawLayoutDetails(selectedLayout);
+
                 if (_selectedObjectEditorTarget != selectedObject)
                 {
                     DestroySelectedObjectEditor();
@@ -58,6 +62,7 @@ namespace Genix.Editor.Windows
                     DrawAssetPreviewStat("Placement", asset.PlacementType.ToDisplayName());
                     DrawAssetPreviewStat("Bounds", FormatVector(asset.BoundsSize));
                     DrawAssetPreviewStat("Center Offset", FormatVector(asset.BoundsCenterOffset));
+                    DrawAssetPreviewStat("Surface Fit", asset.SurfaceFitMode.ToDisplayName());
                     DrawAssetPreviewStat("Random Yaw", asset.RandomYawRotation ? "On" : "Off");
 
                     if (asset.PlacementType == PlacementType.InsideSpace)
@@ -132,6 +137,7 @@ namespace Genix.Editor.Windows
                 ContentTab.Tags => _selectedTagCategory || _selectedSemanticTag,
                 ContentTab.Locations => false,
                 ContentTab.AssetPools => _selectedPool,
+                ContentTab.Layouts => _selectedLayout,
                 _ => false
             };
         }
@@ -165,6 +171,7 @@ namespace Genix.Editor.Windows
                 ContentTab.Tags => "Select a tag or category.",
                 ContentTab.Locations => "Select a location.",
                 ContentTab.AssetPools => "Select an asset pool.",
+                ContentTab.Layouts => "Select a layout.",
                 _ => "Select an item."
             };
         }

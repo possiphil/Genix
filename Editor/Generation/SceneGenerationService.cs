@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Genix.Areas;
 using Genix.Core;
 using Genix.Layouts;
+using Genix.Placement;
 using UnityEditor;
 using UnityEngine;
 
@@ -39,11 +40,17 @@ namespace Genix.Editor.Generation
                 error = $"Genix could not apply the generation plan: {exception.Message}";
                 return false;
             }
+            finally
+            {
+                PlacementSolver.ClearSceneObjectCache();
+            }
         }
 
         public static bool Clear(IAreaSource areaSource)
         {
-            return GeneratedHierarchy.Clear(areaSource);
+            bool cleared = GeneratedHierarchy.Clear(areaSource);
+            PlacementSolver.ClearSceneObjectCache();
+            return cleared;
         }
 
         public static GameObject CreateSnapshot(IAreaSource areaSource)
@@ -84,12 +91,17 @@ namespace Genix.Editor.Generation
                 SetHideFlagsRecursively(restored, HideFlags.None);
                 Undo.RegisterCreatedObjectUndo(restored, RegenerateUndoName);
             }
+
+            PlacementSolver.ClearSceneObjectCache();
         }
 
         public static void RemoveEmptyParent(Transform parent, bool existedBefore)
         {
             if (!existedBefore && parent && parent.childCount == 0)
+            {
                 Undo.DestroyObjectImmediate(parent.gameObject);
+                PlacementSolver.ClearSceneObjectCache();
+            }
         }
 
         private static GameObject Instantiate(PlannedObject plannedObject, Transform parent)

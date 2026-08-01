@@ -18,6 +18,8 @@ namespace Genix.Editor.Infrastructure
         public const string DiagnosticSummaries = Diagnostics + "/Summaries";
         public const string DiagnosticDetails = Diagnostics + "/Details";
 
+        public const string Profiles = Root + "/Profiles";
+
         public const string StylePresets = Root + "/Presets";
     }
 }

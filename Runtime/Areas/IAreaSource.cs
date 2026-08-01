@@ -18,4 +18,11 @@ namespace Genix.Areas
             out PlacementArea area,
             out string error);
     }
+
+    public interface IAreaCacheControl
+    {
+        string ClearCacheLabel { get; }
+        string ClearCacheTooltip { get; }
+        void ClearCache();
+    }
 }

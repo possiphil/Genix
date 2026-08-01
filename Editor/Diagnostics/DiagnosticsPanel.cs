@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Genix.Editor.Generation;
 using Genix.Editor.Windows;
 using Genix.Core;
 using Genix.Diagnostics;
@@ -54,10 +55,10 @@ namespace Genix.Editor.Diagnostics
             DrawStat("Run ID", ShortenRunId(diagnostics.RunId));
             DrawStat("Target", diagnostics.TargetName);
             DrawStat("Mode", diagnostics.GenerationMode.ToDisplayName());
+            DrawStat("Performance", diagnostics.PerformanceMode.ToDisplayName());
             DrawStat("Best Effort", diagnostics.BestEffort ? "Enabled" : "Disabled");
-
-            if (diagnostics.UseRandomSeed)
-                DrawStat("Seed", diagnostics.RandomSeed.ToString());
+            DrawStat("Run Type", diagnostics.DryRun ? "Preview Run" : "Generation");
+            DrawStat("Seed", diagnostics.RandomSeed.ToString());
 
             if (diagnostics.RelativePlacement.IsEnabled)
             {
@@ -83,12 +84,15 @@ namespace Genix.Editor.Diagnostics
 
             DrawStat("Requested Objects", diagnostics.RequestedObjectCount.ToString());
 
-            _showPlacedObjects = DrawFoldoutStat(_showPlacedObjects, "Placed Objects", diagnostics.PlacedObjectCount.ToString());
+            string placementLabel = diagnostics.DryRun ? "Planned Objects" : "Placed Objects";
+            _showPlacedObjects = DrawFoldoutStat(_showPlacedObjects, placementLabel, diagnostics.PlacedObjectCount.ToString());
 
             if (_showPlacedObjects)
                 DrawPlacedObjectSummary(diagnostics);
 
-            int rejectedAttemptCount = diagnostics.Candidates.Count(candidate => !candidate.Accepted);
+            int rejectedAttemptCount = diagnostics.HasCandidateOutcomeCounts
+                ? diagnostics.RejectedCandidateCount
+                : diagnostics.Candidates.Count(candidate => !candidate.Accepted);
 
             _showRejectedObjects = DrawFoldoutStat(_showRejectedObjects, "Rejected Attempts", rejectedAttemptCount.ToString());
 
@@ -273,21 +277,36 @@ namespace Genix.Editor.Diagnostics
             EditorGUILayout.LabelField("Candidates", EditorStyles.boldLabel);
 
             int testedPositions = diagnostics.Sampler.TestedCandidateSeeds;
-            int assetAttempts = diagnostics.Candidates.Count;
-            int acceptedAttempts = diagnostics.Candidates.Count(candidate => candidate.Accepted);
-            int rejectedAttempts = diagnostics.Candidates.Count(candidate => !candidate.Accepted);
+            int assetAttempts = diagnostics.HasCandidateOutcomeCounts
+                ? diagnostics.TestedCandidateCount
+                : diagnostics.Candidates.Count;
+            int acceptedAttempts = diagnostics.HasCandidateOutcomeCounts
+                ? diagnostics.AcceptedCandidateCount
+                : diagnostics.Candidates.Count(candidate => candidate.Accepted);
+            int rejectedAttempts = diagnostics.HasCandidateOutcomeCounts
+                ? diagnostics.RejectedCandidateCount
+                : diagnostics.Candidates.Count(candidate => !candidate.Accepted);
             int unusedPositions = Mathf.Max(0, diagnostics.Sampler.GeneratedCandidates - testedPositions);
             PositionOutcomeCounts positionOutcomes = DiagnosticPositionCounter.Count(diagnostics.Candidates, candidate => candidate.Position, candidate => candidate.Accepted);
+            string acceptedPositions = positionOutcomes.AcceptedPositions > 0
+                ? positionOutcomes.AcceptedPositions.ToString()
+                : acceptedAttempts.ToString();
+            string rejectedPositions = diagnostics.CaptureMode == DiagnosticsMode.Detailed
+                ? positionOutcomes.RejectedPositions.ToString()
+                : "-";
 
             DrawStat("Generated Positions", diagnostics.Sampler.GeneratedCandidates.ToString());
             DrawStat("Tested Positions", testedPositions.ToString());
-            DrawStat("Accepted Positions", positionOutcomes.AcceptedPositions.ToString());
-            DrawStat("Rejected Positions", positionOutcomes.RejectedPositions.ToString());
+            DrawStat("Accepted Positions", acceptedPositions);
+            DrawStat("Rejected Positions", rejectedPositions);
             DrawStat("Asset Attempts", assetAttempts.ToString());
             DrawStat("Accepted Attempts", acceptedAttempts.ToString());
             DrawStat("Rejected Attempts", rejectedAttempts.ToString());
 
             DrawStat("Unused Positions", unusedPositions.ToString());
+
+            if (!string.IsNullOrWhiteSpace(diagnostics.TopRejectionReason))
+                DrawStat("Top Rejection", diagnostics.TopRejectionReason);
 
             if (!string.IsNullOrWhiteSpace(diagnostics.StopReason))
                 EditorGUILayout.HelpBox(diagnostics.StopReason, MessageType.Warning);
@@ -295,17 +314,28 @@ namespace Genix.Editor.Diagnostics
 
         private static void DrawRejectionSummary(GenerationDiagnostics diagnostics, string emptyMessage = "No rejected candidates.")
         {
-            IEnumerable<IGrouping<RejectionReason, CandidateDiagnostic>> rejectionGroups = diagnostics.Candidates
-                .Where(candidate => !candidate.Accepted).GroupBy(candidate => candidate.RejectionReason).OrderByDescending(group => group.Count());
-
             using (new EditorGUI.IndentLevelScope())
             {
                 bool hasRejections = false;
 
-                foreach (IGrouping<RejectionReason, CandidateDiagnostic> group in rejectionGroups)
+                if (diagnostics.HasCandidateOutcomeCounts)
                 {
-                    hasRejections = true;
-                    DrawStat(group.Key.ToDisplayName(), group.Count().ToString());
+                    foreach (KeyValuePair<RejectionReason, int> entry in diagnostics.CandidateRejectionCounts.OrderByDescending(entry => entry.Value))
+                    {
+                        hasRejections = true;
+                        DrawStat(entry.Key.ToDisplayName(), entry.Value.ToString());
+                    }
+                }
+                else
+                {
+                    IEnumerable<IGrouping<RejectionReason, CandidateDiagnostic>> rejectionGroups = diagnostics.Candidates
+                        .Where(candidate => !candidate.Accepted).GroupBy(candidate => candidate.RejectionReason).OrderByDescending(group => group.Count());
+
+                    foreach (IGrouping<RejectionReason, CandidateDiagnostic> group in rejectionGroups)
+                    {
+                        hasRejections = true;
+                        DrawStat(group.Key.ToDisplayName(), group.Count().ToString());
+                    }
                 }
 
                 if (!hasRejections)
@@ -315,6 +345,9 @@ namespace Genix.Editor.Diagnostics
 
         private static void DrawRejectedAssetSummary(GenerationDiagnostics diagnostics)
         {
+            if (diagnostics.CaptureMode != DiagnosticsMode.Detailed)
+                return;
+
             List<IGrouping<string, CandidateDiagnostic>> rejectedAssetGroups = diagnostics.Candidates.Where(candidate => !candidate.Accepted && !string.IsNullOrWhiteSpace(candidate.AssetId))
                 .GroupBy(candidate => candidate.AssetId).OrderByDescending(group => group.Count()).Take(5).ToList();
 
@@ -378,11 +411,17 @@ namespace Genix.Editor.Diagnostics
                 if (GUILayout.Button("Save Summary"))
                     DiagnosticsReportSaver.SaveSummary(DiagnosticsStore.LastDiagnostics);
 
-                if (GUILayout.Button("Save Detailed"))
-                    DiagnosticsReportSaver.SaveDetailed(DiagnosticsStore.LastDiagnostics);
+                using (new EditorGUI.DisabledScope(DiagnosticsStore.LastDiagnostics?.CaptureMode != DiagnosticsMode.Detailed))
+                {
+                    if (GUILayout.Button("Save Detailed"))
+                        DiagnosticsReportSaver.SaveDetailed(DiagnosticsStore.LastDiagnostics);
+                }
 
                 if (GUILayout.Button("Clear"))
+                {
+                    GenerationWorkflow.ClearPreviewPlan();
                     DiagnosticsStore.Clear();
+                }
 
                 EditorGUI.EndDisabledGroup();
 
