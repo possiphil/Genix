@@ -2,6 +2,7 @@ using UnityEngine;
 
 namespace Genix.Layouts
 {
+    /// <summary>Stores scene and target-area provenance on the root object of a saved layout.</summary>
     public sealed class SavedLayoutRoot : MonoBehaviour
     {
         [SerializeField] private string displayName;
@@ -12,14 +13,22 @@ namespace Genix.Layouts
         [SerializeField] private string createdAt;
         [SerializeField] private int objectCount;
 
+        /// <summary>Gets display name.</summary>
         public string DisplayName => displayName;
+        /// <summary>Gets scene name.</summary>
         public string SceneName => sceneName;
+        /// <summary>Gets scene path.</summary>
         public string ScenePath => scenePath;
+        /// <summary>Gets target area name.</summary>
         public string TargetAreaName => targetAreaName;
+        /// <summary>Gets target area id.</summary>
         public string TargetAreaId => targetAreaId;
+        /// <summary>Gets created at.</summary>
         public string CreatedAt => createdAt;
+        /// <summary>Gets the number of object items.</summary>
         public int ObjectCount => objectCount;
 
+        /// <summary>Initializes the instance from the supplied runtime or serialized data.</summary>
         public void Initialize(
             string layoutName,
             string layoutSceneName,

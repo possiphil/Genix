@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace Genix.Sampling.GridSampling
 {
+    /// <summary>Produces deterministic samples at regular XZ grid coordinates.</summary>
     internal sealed class GridSampler : ISampler
     {
         public List<Vector3> SamplePositions(SamplingContext context)

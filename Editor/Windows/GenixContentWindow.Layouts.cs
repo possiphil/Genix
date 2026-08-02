@@ -34,11 +34,15 @@ namespace Genix.Editor.Windows
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                _layoutSearch = EditorGUILayout.TextField("Search", _layoutSearch);
+                _layoutSearch = EditorGUILayout.TextField(
+                    new GUIContent("Search", "Filter saved layouts by name, notes, scene, or target area."),
+                    _layoutSearch);
                 _layoutScopeFilter = DrawLayoutScopePopup(_layoutScopeFilter);
 
                 if (_layoutScopeFilter == LayoutScopeFilter.CurrentTargetArea)
-                    _layoutTargetAreaSelector.Draw("Target Area");
+                    _layoutTargetAreaSelector.Draw(new GUIContent(
+                        "Target Area",
+                        "Show layouts saved for this specific spatial area."));
             }
         }
 
@@ -299,7 +303,10 @@ namespace Genix.Editor.Windows
             if (selectedIndex < 0)
                 selectedIndex = 0;
 
-            selectedIndex = EditorGUILayout.Popup("Scope", selectedIndex, labels);
+            selectedIndex = EditorGUILayout.Popup(
+                new GUIContent("Scope", "Current Scene is the usual focused view; Current Target Area narrows results spatially; All Scenes searches the whole project."),
+                selectedIndex,
+                labels);
             return modes[Mathf.Clamp(selectedIndex, 0, modes.Length - 1)];
         }
 
@@ -410,9 +417,6 @@ namespace Genix.Editor.Windows
 
         private static string GetLayoutPlacementTargetLabel(SavedLayout layout)
         {
-            if (layout.GenerationMode != GenerationMode.TargetPlacement)
-                return layout.GenerationMode.ToDisplayName();
-
             return FormatPlacementTargets(layout.PlacementTargets);
         }
 

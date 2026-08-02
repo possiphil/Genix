@@ -11,6 +11,9 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Placement.Providers
 {
+    /// <summary>
+    /// Samples wall spans by cumulative length and projects fallback candidates when explicit spans are unavailable.
+    /// </summary>
     internal sealed class WallCandidateProvider : CandidateProviderBase
     {
         private const float MinValue = 0.001f;
@@ -28,6 +31,7 @@ namespace Genix.Placement.Providers
             IDiagnosticsSink diagnostics = null,
             IGenerationProfiler profiler = null)
         {
+            diagnostics ??= NullDiagnosticsSink.Instance;
             profiler ??= NullGenerationProfiler.Instance;
             Stopwatch providerStopwatch = profiler.IsEnabled ? Stopwatch.StartNew() : null;
             List<CandidateSeed> seeds = new();

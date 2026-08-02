@@ -1,15 +1,18 @@
 using Genix.Areas;
 using Genix.Assets;
+using Genix.Tests.Framework;
 using NUnit.Framework;
 using UnityEngine;
 
 namespace Genix.Tests
 {
+    [Category(GenixTestCategories.Quick)]
+    [Category(GenixTestCategories.Full)]
+    [Category(GenixTestCategories.SpatialArea)]
     public sealed class SurfaceClassifierTests
     {
         private static readonly AreaBuildSettings Settings = new(
             AreaDecompositionMode.Fast,
-            false,
             0,
             floorNormalYThreshold: 0.5f,
             ceilingNormalYThreshold: -0.5f);

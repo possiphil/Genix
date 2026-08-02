@@ -8,6 +8,13 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Areas
 {
+    /// <summary>
+    /// Projects candidate coordinates onto matching physics surfaces and evaluates adaptive footprint support.
+    /// </summary>
+    /// <remarks>
+    /// Terrain probes use the terrain height path when possible; other colliders use non-allocating physics queries.
+    /// Layer masks, surface normal classification, source-collider exclusion, and voxel-layer hints are enforced here.
+    /// </remarks>
     internal sealed class SurfaceProjector
     {
         private const int InitialRaycastBufferSize = 64;
@@ -40,6 +47,7 @@ namespace Genix.Areas
             _isSourceCollider = isSourceCollider;
         }
 
+        /// <summary>Projects a candidate downward onto the nearest valid floor surface.</summary>
         public bool TryProjectToFloor(
             Vector3 position,
             SurfaceRegion targetRegion,
@@ -66,6 +74,7 @@ namespace Genix.Areas
             return TryProjectToRegion(position, targetRegion, _floorRegions, Vector3.up, out point);
         }
 
+        /// <summary>Projects a candidate upward onto the nearest valid ceiling surface.</summary>
         public bool TryProjectToCeiling(
             Vector3 position,
             SurfaceRegion targetRegion,
@@ -92,6 +101,7 @@ namespace Genix.Areas
             return TryProjectToRegion(position, targetRegion, _ceilingRegions, Vector3.down, out point);
         }
 
+        /// <summary>Projects a candidate along both horizontal directions onto the nearest valid wall surface.</summary>
         public bool TryProjectToWall(
             Vector3 position,
             Vector3 inwardNormal,
@@ -153,6 +163,10 @@ namespace Genix.Areas
                 : TryFindFloor(position, expectedSurfaceCollider, null, voxelLayer, out _, profiler);
         }
 
+        /// <summary>
+        /// Probes an asset footprint and derives support ratio, placement height, and an optional fitted normal.
+        /// </summary>
+        /// <remarks>Returns false when support or height variation violates the asset's adaptive-fit constraints.</remarks>
         public bool TryEvaluateSurfaceFit(
             Vector3 surfaceCenter,
             Quaternion footprintRotation,

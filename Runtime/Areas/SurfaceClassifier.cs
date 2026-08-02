@@ -3,8 +3,10 @@ using UnityEngine;
 
 namespace Genix.Areas
 {
+    /// <summary>Classifies surface values.</summary>
     public static class SurfaceClassifier
     {
+        /// <summary>Classifies a surface normal as floor, wall, ceiling, or unsupported.</summary>
         public static PlacementType Classify(Vector3 normal, AreaBuildSettings settings)
         {
             if (normal.sqrMagnitude <= 0.001f)

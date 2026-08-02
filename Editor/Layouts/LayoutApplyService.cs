@@ -10,6 +10,7 @@ using Object = UnityEngine.Object;
 
 namespace Genix.Editor.Layouts
 {
+    /// <summary>Instantiates a saved layout under the selected area with Undo and generated metadata.</summary>
     internal static class LayoutApplyService
     {
         private const string UndoName = "Applied Genix Layout";

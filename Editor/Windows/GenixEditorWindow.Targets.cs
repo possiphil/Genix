@@ -8,9 +8,8 @@ namespace Genix.Editor.Windows
 {
     public sealed partial class GenixEditorWindow
     {
-        private void DrawGenerationModeSection()
+        private void DrawPlacementSettingsSection()
         {
-            _generationMode = GenerationMode.TargetPlacement;
             DrawPlacementTargetDropdown();
 
             if (_placementTargets == PlacementTarget.None)
@@ -71,7 +70,10 @@ namespace Genix.Editor.Windows
             if (selectedIndex < 0)
                 selectedIndex = 0;
 
-            selectedIndex = EditorGUILayout.Popup("Target Distribution", selectedIndex, TargetDistributionOptions);
+            selectedIndex = EditorGUILayout.Popup(
+                new GUIContent("Target Distribution", "Controls how the requested object count is shared across the selected placement targets."),
+                selectedIndex,
+                TargetDistributionOptions);
             _targetDistributionMode = TargetDistributionModes[Mathf.Clamp(selectedIndex, 0, TargetDistributionModes.Length - 1)];
 
             if (_targetDistributionMode != TargetDistributionMode.Weighted)
@@ -93,16 +95,16 @@ namespace Genix.Editor.Windows
             EditorGUI.indentLevel++;
 
             if ((_placementTargets & PlacementTarget.Floor) != 0)
-                floorWeight = Mathf.Max(0, EditorGUILayout.IntField("Floor Weight", floorWeight));
+                floorWeight = DrawTargetWeight("Floor Weight", floorWeight);
 
             if ((_placementTargets & PlacementTarget.Wall) != 0)
-                wallWeight = Mathf.Max(0, EditorGUILayout.IntField("Wall Weight", wallWeight));
+                wallWeight = DrawTargetWeight("Wall Weight", wallWeight);
 
             if ((_placementTargets & PlacementTarget.Ceiling) != 0)
-                ceilingWeight = Mathf.Max(0, EditorGUILayout.IntField("Ceiling Weight", ceilingWeight));
+                ceilingWeight = DrawTargetWeight("Ceiling Weight", ceilingWeight);
 
             if ((_placementTargets & PlacementTarget.InsideSpace) != 0)
-                insideSpaceWeight = Mathf.Max(0, EditorGUILayout.IntField("Inside Space Weight", insideSpaceWeight));
+                insideSpaceWeight = DrawTargetWeight("Inside Space Weight", insideSpaceWeight);
 
             EditorGUI.indentLevel--;
 
@@ -111,6 +113,13 @@ namespace Genix.Editor.Windows
                 wallWeight,
                 ceilingWeight,
                 insideSpaceWeight);
+        }
+
+        private static int DrawTargetWeight(string label, int value)
+        {
+            return Mathf.Max(0, EditorGUILayout.IntField(
+                new GUIContent(label, "Relative share for this target. A weight of zero disables the target while Weighted distribution is active."),
+                value));
         }
 
         private int GetActiveTargetWeightSum()
@@ -139,7 +148,10 @@ namespace Genix.Editor.Windows
             if (sourceIndex < 0)
                 sourceIndex = 0;
 
-            sourceIndex = EditorGUILayout.Popup("Relative To", sourceIndex, RelativeSourceOptions);
+            sourceIndex = EditorGUILayout.Popup(
+                new GUIContent("Relative To", "Optionally require each placement to be within a 3D radius of an anchor object's bounds."),
+                sourceIndex,
+                RelativeSourceOptions);
             _relativeSource = RelativeSources[Mathf.Clamp(sourceIndex, 0, RelativeSources.Length - 1)];
 
             if (_relativeSource == RelativePlacementSource.None)
@@ -147,11 +159,15 @@ namespace Genix.Editor.Windows
 
             EditorGUI.indentLevel++;
 
-            _relativeRadius = Mathf.Max(0.1f, EditorGUILayout.FloatField("Radius", _relativeRadius));
+            _relativeRadius = Mathf.Max(0.1f, EditorGUILayout.FloatField(
+                new GUIContent("Radius", "Maximum 3D world-space distance from the nearest point on an eligible anchor's bounds."),
+                _relativeRadius));
 
             if (_relativeSource is RelativePlacementSource.SceneObjects or RelativePlacementSource.Any)
             {
-                LayerMask sceneLayers = DrawLayerMaskField("Scene Layers", _relativeSceneLayers);
+                LayerMask sceneLayers = DrawLayerMaskField(
+                    new GUIContent("Scene Layers", "Only scene objects on these layers may act as relative-placement anchors."),
+                    _relativeSceneLayers);
 
                 if (sceneLayers.value != _relativeSceneLayers.value)
                 {
@@ -197,7 +213,9 @@ namespace Genix.Editor.Windows
             _placementTargets = NormalizePlacementTargets(_placementTargets);
 
             Rect controlRect = EditorGUILayout.GetControlRect();
-            Rect dropdownRect = EditorGUI.PrefixLabel(controlRect, new GUIContent("Placement Targets"));
+            Rect dropdownRect = EditorGUI.PrefixLabel(
+                controlRect,
+                new GUIContent("Placement Targets", "Surface and volume types that Genix may use. Assets must have a matching placement type."));
 
             if (!EditorGUI.DropdownButton(dropdownRect, new GUIContent(GetPlacementTargetLabel(_placementTargets)), FocusType.Keyboard))
                 return;
@@ -272,15 +290,15 @@ namespace Genix.Editor.Windows
             {
                 GUILayout.Space(VerticalPadding);
 
-                DrawRow("None", _targets == PlacementTarget.None, SelectNone);
-                DrawRow("Any", _targets == PlacementTarget.All, SelectAny);
-                DrawTargetRow("Floor", PlacementTarget.Floor);
-                DrawTargetRow("Wall", PlacementTarget.Wall);
-                DrawTargetRow("Ceiling", PlacementTarget.Ceiling);
-                DrawTargetRow("Inside Space", PlacementTarget.InsideSpace);
+                DrawRow(new GUIContent("None", "Disable every placement target. Generation remains unavailable until at least one target is selected."), _targets == PlacementTarget.None, SelectNone);
+                DrawRow(new GUIContent("Any", "Allow Floor, Wall, Ceiling, and Inside Space assets in the same run."), _targets == PlacementTarget.All, SelectAny);
+                DrawTargetRow(new GUIContent("Floor", "Place floor-compatible assets on upward-facing matching surfaces."), PlacementTarget.Floor);
+                DrawTargetRow(new GUIContent("Wall", "Place wall-compatible assets on near-vertical matching surfaces."), PlacementTarget.Wall);
+                DrawTargetRow(new GUIContent("Ceiling", "Place ceiling-compatible assets on downward-facing matching surfaces."), PlacementTarget.Ceiling);
+                DrawTargetRow(new GUIContent("Inside Space", "Place volume-compatible assets at valid positions inside the target volume."), PlacementTarget.InsideSpace);
             }
 
-            private void DrawTargetRow(string label, PlacementTarget target)
+            private void DrawTargetRow(GUIContent label, PlacementTarget target)
             {
                 DrawRow(label, (_targets & target) != 0, () => ToggleTarget(target));
             }
@@ -311,7 +329,7 @@ namespace Genix.Editor.Windows
                 editorWindow.Repaint();
             }
 
-            private static void DrawRow(string label, bool selected, Action onClick)
+            private static void DrawRow(GUIContent label, bool selected, Action onClick)
             {
                 Rect rowRect = EditorGUILayout.GetControlRect(false, RowHeight);
 

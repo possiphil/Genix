@@ -8,11 +8,13 @@ using UnityEngine;
 
 namespace Genix.Editor.Genix.Editor.Assets
 {
+    /// <summary>Creates asset definition instances.</summary>
     public static class AssetDefinitionFactory
     {
         private const string DefaultAssetName = "New Asset";
         private static readonly Vector3 DefaultBoundsSize = Vector3.one;
 
+        /// <summary>Creates asset from prefab.</summary>
         public static AssetDefinition CreateAssetFromPrefab(GameObject prefab)
         {
             if (!IsPrefabAsset(prefab))
@@ -45,6 +47,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             return asset;
         }
 
+        /// <summary>Creates assets from prefabs.</summary>
         public static List<AssetDefinition> CreateAssetsFromPrefabs(IEnumerable<GameObject> prefabs)
         {
             List<AssetDefinition> createdAssets = new();
@@ -63,21 +66,25 @@ namespace Genix.Editor.Genix.Editor.Assets
             return createdAssets;
         }
 
+        /// <summary>Creates assets from selected prefabs.</summary>
         public static List<AssetDefinition> CreateAssetsFromSelectedPrefabs()
         {
             return CreateAssetsFromPrefabs(GetSelectedPrefabAssets());
         }
 
+        /// <summary>Returns selected prefab assets.</summary>
         public static List<GameObject> GetSelectedPrefabAssets()
         {
             return Selection.objects.OfType<GameObject>().Where(IsPrefabAsset).Distinct().ToList();
         }
 
+        /// <summary>Determines whether selected prefab assets.</summary>
         public static bool HasSelectedPrefabAssets()
         {
             return GetSelectedPrefabAssets().Count > 0;
         }
 
+        /// <summary>Attempts to get prefab bounds.</summary>
         public static bool TryGetPrefabBounds(GameObject prefab, out Vector3 boundsSize, out Vector3 boundsCenterOffset)
         {
             boundsSize = default;
@@ -98,6 +105,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             return true;
         }
 
+        /// <summary>Determines whether prefab asset.</summary>
         public static bool IsPrefabAsset(GameObject gameObject)
         {
             if (!gameObject)

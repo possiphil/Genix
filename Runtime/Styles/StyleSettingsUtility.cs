@@ -7,8 +7,10 @@ using UnityEngine;
 
 namespace Genix.Styles
 {
+    /// <summary>Provides reusable style settings operations.</summary>
     public static class StyleSettingsUtility
     {
+        /// <summary>Clears unused settings.</summary>
         public static void ClearUnusedSettings(ref StyleSettings settings)
         {
             switch (settings.algorithm)
@@ -47,12 +49,14 @@ namespace Genix.Styles
             }
         }
 
+        /// <summary>Determines whether both settings values are equivalent.</summary>
         public static bool AreEqual(StyleSettings a, StyleSettings b)
         {
             return a.description == b.description && a.algorithm == b.algorithm && AreEqual(a.placement, b.placement) && AreEqual(a.candidates, b.candidates)
                 && AreEqual(a.grid, b.grid) && AreEqual(a.cluster, b.cluster) && AreEqual(a.poisson, b.poisson);
         }
 
+        /// <summary>Determines whether both settings values are equivalent.</summary>
         public static bool AreEqual(PlacementSettings a, PlacementSettings b)
         {
             return a.useFixedObjectClearance == b.useFixedObjectClearance

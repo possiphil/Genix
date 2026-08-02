@@ -8,13 +8,16 @@ using UnityEngine;
 
 namespace Genix.Editor.Diagnostics
 {
+    /// <summary>Persists runtime diagnostics in Unity assets for later inspection.</summary>
     public static class DiagnosticsReportSaver
     {
+        /// <summary>Writes a compact diagnostics summary to a project asset.</summary>
         public static void SaveSummary(GenerationDiagnostics diagnostics)
         {
             Save(diagnostics, DiagnosticsMode.Summary, ProjectContentPaths.DiagnosticSummaries);
         }
 
+        /// <summary>Writes the complete diagnostics report to a project asset.</summary>
         public static void SaveDetailed(GenerationDiagnostics diagnostics)
         {
             if (diagnostics != null && diagnostics.CaptureMode != DiagnosticsMode.Detailed)

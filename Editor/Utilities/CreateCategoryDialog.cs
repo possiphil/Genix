@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Utilities
 {
+    /// <summary>Provides the create category editor dialog.</summary>
     public sealed class CreateCategoryDialog : EditorWindow
     {
         private const string NameControlName = "GenixCategoryName";
@@ -13,6 +14,7 @@ namespace Genix.Editor.Utilities
         private Action<string, bool> _onConfirm;
         private bool _focusedInput;
 
+        /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
         public static void Open(Action<string, bool> onConfirm)
         {
             CreateCategoryDialog window = CreateInstance<CreateCategoryDialog>();
@@ -34,11 +36,15 @@ namespace Genix.Editor.Utilities
             EditorGUILayout.Space(8f);
 
             GUI.SetNextControlName(NameControlName);
-            _categoryName = EditorGUILayout.TextField("Category Name", _categoryName);
+            _categoryName = EditorGUILayout.TextField(
+                new GUIContent("Category Name", "Designer-facing name used to group related semantic tags."),
+                _categoryName);
 
             FocusInputOnce();
 
-            _allowMultipleTags = EditorGUILayout.Toggle("Allow Multiple Tags", _allowMultipleTags);
+            _allowMultipleTags = EditorGUILayout.Toggle(
+                new GUIContent("Allow Multiple Tags", "Enable for combinable labels; disable when exactly one value from this category should describe an object."),
+                _allowMultipleTags);
 
             EditorGUILayout.Space(8f);
 

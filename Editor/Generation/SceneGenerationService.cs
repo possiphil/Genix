@@ -9,6 +9,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Generation
 {
+    /// <summary>Applies plans to the scene with Undo support and snapshot-based rollback on failure.</summary>
     internal static class SceneGenerationService
     {
         private const string CreateObjectUndoName = "Generated Genix Object";

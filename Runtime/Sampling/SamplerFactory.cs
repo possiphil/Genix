@@ -7,6 +7,7 @@ using Genix.Sampling.RandomSampling;
 
 namespace Genix.Sampling
 {
+    /// <summary>Maps a sampling algorithm setting to its stateless sampler implementation.</summary>
     internal static class SamplerFactory
     {
         public static ISampler Create(SamplingAlgorithm algorithm)

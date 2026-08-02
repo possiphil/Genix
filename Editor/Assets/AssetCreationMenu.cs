@@ -5,6 +5,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Genix.Editor.Assets
 {
+    /// <summary>Provides Unity asset-menu commands for creating Genix asset definitions from prefabs.</summary>
     public static class AssetCreationMenu
     {
         [MenuItem("Assets/Genix/Create Asset Definition From Prefab", false, 20)]

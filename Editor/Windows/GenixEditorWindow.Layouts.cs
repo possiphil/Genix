@@ -122,7 +122,9 @@ namespace Genix.Editor.Windows
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                displayName = EditorGUILayout.TextField("Name", layout.DisplayName);
+                displayName = EditorGUILayout.TextField(
+                    new GUIContent("Name", "Designer-facing name of the saved layout asset."),
+                    layout.DisplayName);
 
                 if (GUILayout.Button(GetFavoriteContent(layout.Favorite), GetLayoutIconButtonStyle(), GUILayout.Width(24f)))
                     favorite = !favorite;
@@ -131,7 +133,9 @@ namespace Genix.Editor.Windows
                     locked = !locked;
             }
 
-            string notes = EditorGUILayout.TextField("Notes", layout.Notes);
+            string notes = EditorGUILayout.TextField(
+                new GUIContent("Notes", "Optional context about the layout's purpose, composition, or intended use."),
+                layout.Notes);
 
             if (!EditorGUI.EndChangeCheck())
                 return;
@@ -266,7 +270,6 @@ namespace Genix.Editor.Windows
 
             if (!LayoutWorkflow.SaveCurrentLayout(
                     areaSource,
-                    _generationMode,
                     GetEffectivePlacementTargets(),
                     GetEffectiveTargetDistributionMode(),
                     GetEffectiveTargetDistributionWeights(),
@@ -384,13 +387,11 @@ namespace Genix.Editor.Windows
         {
             string poolName = layout.AssetPool ? layout.AssetPool.name : "No Asset Pool";
             string styleName = string.IsNullOrWhiteSpace(layout.StyleName) ? "No Style" : layout.StyleName;
-            string targets = layout.GenerationMode == GenerationMode.TargetPlacement
-                ? $" | {GetPlacementTargetLabel(layout.PlacementTargets)} | {layout.TargetDistributionMode.ToDisplayName()}{GetLayoutWeightLabel(layout)}"
-                : string.Empty;
+            string targets = $" | {GetPlacementTargetLabel(layout.PlacementTargets)} | {layout.TargetDistributionMode.ToDisplayName()}{GetLayoutWeightLabel(layout)}";
             Vector3 size = layout.Bounds.size;
             string boundsSize = $" | Bounds {size.x:0.##} x {size.y:0.##} x {size.z:0.##}";
 
-            return $"{layout.ObjectCount} objects | {layout.GenerationMode.ToDisplayName()}{targets}{boundsSize} | {poolName} | {styleName} | {layout.CreatedAt}";
+            return $"{layout.ObjectCount} objects{targets}{boundsSize} | {poolName} | {styleName} | {layout.CreatedAt}";
         }
 
         private static string GetLayoutWeightLabel(SavedLayout layout)

@@ -34,18 +34,26 @@ namespace Genix.Editor.Inspectors
 
         private void DrawPlacementTypeFilter()
         {
-            EditorGUILayout.PropertyField(_filterByPlacementType, new GUIContent("Filter By Placement Type"));
+            EditorGUILayout.PropertyField(_filterByPlacementType, new GUIContent(
+                "Filter By Placement Type",
+                "Include only assets assigned to one surface or volume placement type."));
 
             if (_filterByPlacementType.boolValue)
-                EditorGUILayout.PropertyField(_placementType, new GUIContent("Placement Type"));
+                EditorGUILayout.PropertyField(_placementType, new GUIContent(
+                    "Placement Type",
+                    "Placement type that catalog assets must match."));
         }
 
         private void DrawOrientationModeFilter()
         {
-            EditorGUILayout.PropertyField(_filterByOrientationMode, new GUIContent("Filter By Orientation Mode"));
+            EditorGUILayout.PropertyField(_filterByOrientationMode, new GUIContent(
+                "Filter By Orientation",
+                "Include only assets with the selected relative-orientation behavior."));
 
             if (_filterByOrientationMode.boolValue)
-                EditorGUILayout.PropertyField(_orientationMode, new GUIContent("Orientation Mode"));
+                EditorGUILayout.PropertyField(_orientationMode, new GUIContent(
+                    "Orientation",
+                    "Orientation behavior that catalog assets must match."));
         }
 
         private void DrawDynamicCategoryFilters()

@@ -2,6 +2,7 @@ using UnityEngine;
 
 namespace Genix.Placement
 {
+    /// <summary>Immutable horizontal wall span with an inward-facing normal and optional voxel-layer identity.</summary>
     internal readonly struct WallSegment
     {
         public Vector3 Start { get; }

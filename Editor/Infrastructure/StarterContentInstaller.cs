@@ -6,6 +6,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Infrastructure
 {
+    /// <summary>Copies package starter assets into editable project folders without overwriting user content.</summary>
     internal static class StarterContentInstaller
     {
         private const string MenuPath = "Tools/Genix/Import Starter Content";

@@ -4,11 +4,15 @@ using UnityEngine;
 
 namespace Genix.Diagnostics
 {
+    /// <summary>Contains accepted and rejected counts for unique diagnostic positions.</summary>
     public readonly struct PositionOutcomeCounts
     {
+        /// <summary>Gets accepted positions.</summary>
         public int AcceptedPositions { get; }
+        /// <summary>Gets rejected positions.</summary>
         public int RejectedPositions { get; }
 
+        /// <summary>Initializes a new instance of position outcome counts.</summary>
         public PositionOutcomeCounts(int acceptedPositions, int rejectedPositions)
         {
             AcceptedPositions = acceptedPositions;
@@ -16,10 +20,12 @@ namespace Genix.Diagnostics
         }
     }
 
+    /// <summary>Counts quantized diagnostic positions without double-counting repeated asset attempts.</summary>
     public static class DiagnosticPositionCounter
     {
         private const float PositionKeyScale = 1000f;
 
+        /// <summary>Counts unique quantized positions, treating a position as accepted if any entry at that position was accepted.</summary>
         public static PositionOutcomeCounts Count<T>(
             IEnumerable<T> entries,
             Func<T, Vector3> getPosition,

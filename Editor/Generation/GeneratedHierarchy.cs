@@ -4,11 +4,13 @@ using UnityEngine;
 
 namespace Genix.Editor.Generation
 {
+    /// <summary>Creates and resolves per-area groups below the scene's Genix root.</summary>
     public static class GeneratedHierarchy
     {
         private const string RootName = "Genix";
         private const string CreateUndoName = "Created Genix Generated Parent";
 
+        /// <summary>Returns the generated-object group for an area, creating it when necessary.</summary>
         public static Transform GetOrCreate(IAreaSource areaSource)
         {
             Transform root = GetOrCreateRoot();
@@ -29,6 +31,7 @@ namespace Genix.Editor.Generation
             return group.transform;
         }
 
+        /// <summary>Attempts to resolve the existing generated-object group for an area.</summary>
         public static bool TryGet(IAreaSource areaSource, out Transform group)
         {
             group = null;
@@ -46,6 +49,7 @@ namespace Genix.Editor.Generation
             return group;
         }
 
+        /// <summary>Removes the generated-object group for an area through Unity Undo.</summary>
         public static bool Clear(IAreaSource areaSource)
         {
             GameObject root = GameObject.Find(RootName);

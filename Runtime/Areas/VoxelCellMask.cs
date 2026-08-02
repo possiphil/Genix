@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace Genix.Areas
 {
+    /// <summary>Stores a bounded set of voxel cells using a dense or sparse representation selected by occupancy.</summary>
     public sealed class VoxelCellMask
     {
         private const long MaxDenseVolume = 16_000_000L;
@@ -15,12 +16,18 @@ namespace Genix.Areas
         private readonly Vector3Int _min;
         private readonly Vector3Int _size;
 
+        /// <summary>Gets cells.</summary>
         public IReadOnlyList<Vector3Int> Cells => _cells;
+        /// <summary>Gets the number of stored items.</summary>
         public int Count => _cells.Count;
+        /// <summary>Indicates whether bounds.</summary>
         public bool HasBounds { get; }
+        /// <summary>Gets min.</summary>
         public Vector3Int Min => _min;
+        /// <summary>Gets max.</summary>
         public Vector3Int Max { get; }
 
+        /// <summary>Initializes a new instance of voxel cell mask.</summary>
         public VoxelCellMask(IReadOnlyCollection<Vector3Int> cells)
         {
             _cells = cells != null ? new List<Vector3Int>(cells) : new List<Vector3Int>();
@@ -62,6 +69,7 @@ namespace Genix.Areas
                 _denseCells[GetDenseIndex(cell)] = true;
         }
 
+        /// <summary>Determines whether the mask contains the supplied voxel coordinate.</summary>
         public bool Contains(Vector3Int cell)
         {
             if (_denseCells == null)

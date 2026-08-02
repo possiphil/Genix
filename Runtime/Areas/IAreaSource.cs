@@ -5,24 +5,41 @@ using UnityEngine;
 
 namespace Genix.Areas
 {
+    /// <summary>Adapts an external spatial system into the representation consumed by Genix.</summary>
     public interface IAreaSource
     {
+        /// <summary>Gets stable source metadata recorded in diagnostics.</summary>
         SpatialSourceInfo SourceInfo { get; }
+        /// <summary>Gets the transform that owns the target area and its fixed scene objects.</summary>
         Transform ParentTransform { get; }
+        /// <summary>Gets semantic tags required when filtering assets for this area.</summary>
         IReadOnlyList<SemanticTag> SemanticTags { get; }
+        /// <summary>Gets categories for which any asset tag in that category is accepted.</summary>
         IReadOnlyList<TagCategory> AnyTagCategories { get; }
+        /// <summary>Determines whether a collider belongs to the source representation itself.</summary>
+        /// <param name="collider">Collider to classify.</param>
+        /// <returns><see langword="true"/> when the collider must be excluded from fixed-object checks.</returns>
         bool IsSourceCollider(Collider collider);
 
+        /// <summary>Builds or retrieves a placement area for the requested targets and surface policy.</summary>
+        /// <param name="settings">Area-construction settings.</param>
+        /// <param name="area">Resulting area when successful.</param>
+        /// <param name="error">Actionable failure description when unsuccessful.</param>
+        /// <returns><see langword="true"/> when <paramref name="area"/> is valid.</returns>
         bool TryBuildArea(
             AreaBuildSettings settings,
             out PlacementArea area,
             out string error);
     }
 
+    /// <summary>Optional capability exposed by area sources with manually invalidatable caches.</summary>
     public interface IAreaCacheControl
     {
+        /// <summary>Gets the designer-facing label for the cache-clear command.</summary>
         string ClearCacheLabel { get; }
+        /// <summary>Gets an explanation of which cached data the command invalidates.</summary>
         string ClearCacheTooltip { get; }
+        /// <summary>Invalidates all spatial data owned by this area source.</summary>
         void ClearCache();
     }
 }

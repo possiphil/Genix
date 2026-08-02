@@ -8,6 +8,7 @@ using UnityEngine;
 
 namespace Genix.Placement.Providers
 {
+    /// <summary>Shared candidate budgeting, sampling-context creation, diagnostics, and shuffle behavior.</summary>
     internal abstract class CandidateProviderBase : ICandidateProvider
     {
         protected const float SamplingBoundsHeight = 0.01f;

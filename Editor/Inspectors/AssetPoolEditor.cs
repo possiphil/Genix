@@ -11,6 +11,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Inspectors
 {
+    /// <summary>Provides guided authoring for static asset lists and dynamic catalog filters.</summary>
     [CustomEditor(typeof(AssetPool))]
     public sealed partial class AssetPoolEditor : UnityEditor.Editor
     {
@@ -34,10 +35,12 @@ namespace Genix.Editor.Inspectors
             AssetPoolMode.Dynamic
         };
 
-        private static readonly string[] PoolModeLabels =
+        private static readonly GUIContent[] PoolModeLabels =
         {
-            AssetPoolMode.Static.ToDisplayName(),
-            AssetPoolMode.Dynamic.ToDisplayName()
+            new(AssetPoolMode.Static.ToDisplayName(),
+                "Use an explicit, manually curated asset list. Best when the pool must remain stable."),
+            new(AssetPoolMode.Dynamic.ToDisplayName(),
+                "Resolve matching assets from the catalog at generation time. Best for reusable semantic rules.")
         };
 
         private bool _showPreview = true;
@@ -55,6 +58,7 @@ namespace Genix.Editor.Inspectors
             _staticAssets.isExpanded = true;
         }
 
+        /// <summary>Draws and applies the custom Inspector interface.</summary>
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
@@ -82,7 +86,9 @@ namespace Genix.Editor.Inspectors
         {
             EditorGUI.BeginChangeCheck();
 
-            string displayName = EditorGUILayout.DelayedTextField("Display Name", target.name);
+            string displayName = EditorGUILayout.DelayedTextField(
+                new GUIContent("Display Name", "Designer-facing name shown in Genix asset-pool selectors."),
+                target.name);
 
             if (!EditorGUI.EndChangeCheck())
                 return;
@@ -103,7 +109,10 @@ namespace Genix.Editor.Inspectors
             if (currentIndex < 0)
                 currentIndex = 0;
 
-            int selectedIndex = EditorGUILayout.Popup("Mode", currentIndex, PoolModeLabels);
+            int selectedIndex = EditorGUILayout.Popup(
+                new GUIContent("Mode", "Static stores chosen assets; Dynamic resolves assets from catalog filters."),
+                currentIndex,
+                PoolModeLabels);
 
             SetSerializedMode(PoolModes[selectedIndex]);
         }

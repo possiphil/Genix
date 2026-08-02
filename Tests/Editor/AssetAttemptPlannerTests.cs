@@ -2,12 +2,16 @@ using System.Collections.Generic;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Placement;
+using Genix.Tests.Framework;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 
 namespace Genix.Tests
 {
+    [Category(GenixTestCategories.Quick)]
+    [Category(GenixTestCategories.Full)]
+    [Category(GenixTestCategories.PlacementArea)]
     public sealed class AssetAttemptPlannerTests
     {
         private readonly List<Object> _createdObjects = new();
@@ -45,9 +49,8 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void PruneDominatedPreservesAdaptiveSurfaceCandidateAfterStrictAreaFailure()
+        public void PruneRemainingPreservesAllValidAssetsAfterGeometryFailure()
         {
-            AssetDefinition failedStrict = CreateAsset("Strict Medium", new Vector3(2f, 1f, 2f), SurfaceFitMode.Strict);
             AssetDefinition adaptiveLarge = CreateAsset("Adaptive Large", new Vector3(4f, 1f, 4f), SurfaceFitMode.Adaptive);
             AssetDefinition strictLarge = CreateAsset("Strict Large", new Vector3(4f, 1f, 4f), SurfaceFitMode.Strict);
             AssetDefinition strictSmall = CreateAsset("Strict Small", new Vector3(1f, 1f, 1f), SurfaceFitMode.Strict);
@@ -58,21 +61,19 @@ namespace Genix.Tests
                 strictSmall
             };
 
-            AssetAttemptPlanner.PruneDominated(
+            AssetAttemptPlanner.PruneRemaining(
                 remaining,
-                PlacementType.Floor,
-                failedStrict,
+                0,
                 RejectionReason.OutsideTargetArea);
 
             Assert.That(remaining, Does.Contain(adaptiveLarge));
-            Assert.That(remaining, Does.Not.Contain(strictLarge));
+            Assert.That(remaining, Does.Contain(strictLarge));
             Assert.That(remaining, Does.Contain(strictSmall));
         }
 
         [Test]
-        public void PruneDominatedRemovesRemainingAssetsWhenSeedIsTooCloseToGenerated()
+        public void PruneRemainingRemovesRemainingAssetsWhenSeedIsTooCloseToGenerated()
         {
-            AssetDefinition failed = CreateAsset("Failed", new Vector3(2f, 1f, 2f), SurfaceFitMode.Strict);
             AssetDefinition small = CreateAsset("Small", new Vector3(1f, 1f, 1f), SurfaceFitMode.Strict);
             AssetDefinition adaptive = CreateAsset("Adaptive", new Vector3(4f, 1f, 4f), SurfaceFitMode.Adaptive);
             List<AssetDefinition> remaining = new()
@@ -81,22 +82,73 @@ namespace Genix.Tests
                 adaptive
             };
 
-            AssetAttemptPlanner.PruneDominated(
+            AssetAttemptPlanner.PruneRemaining(
                 remaining,
-                PlacementType.Floor,
-                failed,
+                0,
                 RejectionReason.TooCloseToGenerated);
 
             Assert.That(remaining, Is.Empty);
         }
 
-        private AssetDefinition CreateAsset(string assetName, Vector3 size, SurfaceFitMode surfaceFitMode)
+        [Test]
+        public void CatalogHandlesMissingInputsAndClearsReusableOrderForMissingType()
+        {
+            AssetDefinition floor = CreateAsset("Floor", Vector3.one, SurfaceFitMode.Strict);
+            AssetAttemptPlanner.Catalog catalog = AssetAttemptPlanner.CreateCatalog(null);
+            List<AssetDefinition> reusableOrder = new() { floor };
+
+            catalog.CreateOrder(PlacementType.Wall, new GenerationRandom(1), reusableOrder);
+
+            Assert.That(reusableOrder, Is.Empty);
+            Assert.That(catalog.CreateOrder(PlacementType.InsideSpace, new GenerationRandom(1)), Is.Empty);
+            Assert.That(() => catalog.CreateOrder(
+                PlacementType.Floor,
+                new GenerationRandom(1),
+                null), Throws.ArgumentNullException);
+        }
+
+        [Test]
+        public void PruneRemainingIgnoresMissingListsAndRemovesInvalidEntriesFromStartIndex()
+        {
+            AssetDefinition first = CreateAsset("First", Vector3.one, SurfaceFitMode.Strict);
+            AssetDefinition last = CreateAsset("Last", Vector3.one, SurfaceFitMode.Strict);
+            List<AssetDefinition> remaining = new() { first, null, last };
+
+            Assert.DoesNotThrow(() => AssetAttemptPlanner.PruneRemaining(null, 0, RejectionReason.OutsideTargetArea));
+            AssetAttemptPlanner.PruneRemaining(remaining, 1, RejectionReason.OutsideTargetArea);
+
+            Assert.That(remaining, Is.EqualTo(new[] { first, last }));
+        }
+
+        [TestCase(PlacementType.Wall)]
+        [TestCase(PlacementType.InsideSpace)]
+        public void CreateOrderSupportsNonFloorFootprintPolicies(PlacementType placementType)
+        {
+            AssetDefinition first = CreateAsset("First", new Vector3(1f, 4f, 2f), SurfaceFitMode.Strict, placementType);
+            AssetDefinition second = CreateAsset("Second", new Vector3(3f, 2f, 5f), SurfaceFitMode.Strict, placementType);
+
+            List<AssetDefinition> order = AssetAttemptPlanner.CreateOrder(
+                new[] { first, second },
+                placementType,
+                new GenerationRandom(7));
+
+            Assert.That(order, Is.EquivalentTo(new[] { first, second }));
+        }
+
+        private AssetDefinition CreateAsset(
+            string assetName,
+            Vector3 size,
+            SurfaceFitMode surfaceFitMode,
+            PlacementType placementType = PlacementType.Floor)
         {
             GameObject prefab = new(assetName + " Prefab");
             AssetDefinition asset = ScriptableObject.CreateInstance<AssetDefinition>();
             asset.name = assetName;
             asset.Initialize(prefab, size);
             SetSurfaceFitMode(asset, surfaceFitMode);
+            SerializedObject serializedAsset = new(asset);
+            serializedAsset.FindProperty("placementType").enumValueIndex = (int)placementType;
+            serializedAsset.ApplyModifiedPropertiesWithoutUndo();
             _createdObjects.Add(prefab);
             _createdObjects.Add(asset);
             return asset;

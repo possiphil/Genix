@@ -2,8 +2,10 @@ using UnityEngine;
 
 namespace Genix.Geometry
 {
+    /// <summary>Provides reusable bounds operations.</summary>
     public static class BoundsUtility
     {
+        /// <summary>Attempts to get renderer bounds.</summary>
         public static bool TryGetRendererBounds(
             Transform root,
             out Bounds bounds,
@@ -28,6 +30,7 @@ namespace Genix.Geometry
             return hasBounds;
         }
 
+        /// <summary>Attempts to get collider bounds.</summary>
         public static bool TryGetColliderBounds(
             Transform root,
             out Bounds bounds,
@@ -52,6 +55,7 @@ namespace Genix.Geometry
             return hasBounds;
         }
 
+        /// <summary>Attempts to get combined bounds.</summary>
         public static bool TryGetCombinedBounds(
             Transform root,
             out Bounds bounds,

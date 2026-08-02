@@ -6,6 +6,10 @@ using UnityEngine;
 
 namespace Genix.Areas
 {
+    /// <summary>
+    /// Provides cell-based point, footprint, and oriented-volume containment for a placement area.
+    /// </summary>
+    /// <remarks>Dense and sparse masks are selected by <see cref="VoxelCellMask"/> according to grid density.</remarks>
     internal sealed class VoxelOccupancy
     {
         private const float CellEpsilon = 0.0001f;
@@ -125,6 +129,7 @@ namespace Genix.Areas
             return false;
         }
 
+        /// <summary>Samples an oriented box at occupancy-dependent intervals and requires every sample to be valid.</summary>
         public bool ContainsVolume(OrientedBounds candidateBounds)
         {
             if (_subspaceCells.Count == 0 || CellSize <= 0f)
@@ -155,6 +160,7 @@ namespace Genix.Areas
             return true;
         }
 
+        /// <summary>Returns enough footprint segments to avoid skipping a voxel cell along the supplied length.</summary>
         public int GetFootprintSegmentCount(float length)
         {
             float spacing = CellSize > 0f

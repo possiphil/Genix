@@ -16,11 +16,11 @@ using Object = UnityEngine.Object;
 
 namespace Genix.Editor.Layouts
 {
+    /// <summary>Captures the generated hierarchy as prefab-backed layout data and searchable metadata.</summary>
     internal static class LayoutCaptureService
     {
         public static bool Save(
             IAreaSource areaSource,
-            GenerationMode generationMode,
             PlacementTarget placementTargets,
             TargetDistributionMode distributionMode,
             TargetDistributionWeights distributionWeights,
@@ -100,7 +100,6 @@ namespace Genix.Editor.Layouts
                     areaName,
                     areaSource.SourceInfo.SourceId,
                     areaSource.SourceInfo.SourceType,
-                    generationMode,
                     ResolvePlacementTargets(generatedObjects, placementTargets),
                     distributionMode,
                     distributionWeights,

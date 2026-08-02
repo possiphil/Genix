@@ -11,6 +11,7 @@ using SfsSpace = SpaceFoundationSystem.Space;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Reads compatible SFS serialized subspace data without depending on its private runtime representation.</summary>
     internal static class SfsPersistentDataReader
     {
         public static bool TryRead(
@@ -210,6 +211,7 @@ namespace Genix.SpaceFoundation.Editor
         }
     }
 
+    /// <summary>Stable source identity and occupied cells reconstructed from SFS persistent data.</summary>
     internal readonly struct PersistentSubspaceData
     {
         public SfsFoundation Foundation { get; }

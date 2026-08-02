@@ -13,6 +13,7 @@ using SfsAnchor = SpaceFoundationSystem.Anchor;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Draws the location editor panel.</summary>
     public sealed class LocationPanel : ILocationPanel
     {
         private const float ListHeight = 260f;
@@ -32,8 +33,10 @@ namespace Genix.SpaceFoundation.Editor
         private Vector2 _scroll;
         private SfsAnchor _selectedAnchor;
 
+        /// <summary>Gets title.</summary>
         public string Title => "Space Foundation";
 
+        /// <summary>Draws the control in the current editor layout.</summary>
         public void Draw(AssetCatalog catalog)
         {
             DrawFilters(catalog);
@@ -59,7 +62,9 @@ namespace Genix.SpaceFoundation.Editor
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                _search = EditorGUILayout.TextField("Search", _search);
+                _search = EditorGUILayout.TextField(
+                    new GUIContent("Search", "Filter Space Foundation locations by display name."),
+                    _search);
                 DrawCategoryFilters(catalog);
             }
         }
@@ -199,7 +204,7 @@ namespace Genix.SpaceFoundation.Editor
             if (selectedIndex < 0)
                 selectedIndex = 0;
 
-            GUILayout.Label("Sort by", EditorStyles.label, GUILayout.Width(42f));
+            GUILayout.Label(new GUIContent("Sort by", "Choose how matching locations are ordered."), EditorStyles.label, GUILayout.Width(42f));
 
             selectedIndex = EditorGUILayout.Popup(
                 selectedIndex,

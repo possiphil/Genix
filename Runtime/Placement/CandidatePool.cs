@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 namespace Genix.Placement
 {
+    /// <summary>Provides sequential, optionally lazy access to candidate seeds.</summary>
     public sealed class CandidatePool
     {
         private readonly List<CandidateSeed> _seeds;
@@ -12,6 +13,7 @@ namespace Genix.Placement
         private int _loadCount;
         private bool _exhausted;
 
+        /// <summary>Gets the number of currently available unconsumed seeds.</summary>
         public int Count
         {
             get

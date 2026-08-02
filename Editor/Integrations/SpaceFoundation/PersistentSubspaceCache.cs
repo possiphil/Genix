@@ -8,6 +8,10 @@ using SfsFoundation = SpaceFoundationSystem.SpaceFoundation;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>
+    /// Stores compressed SFS subspace cells in memory and in a project-local ScriptableObject cache.
+    /// </summary>
+    /// <remarks>Keys include the foundation, anchor, voxel size, bounds, and source revision to prevent stale reuse.</remarks>
     internal static class PersistentSubspaceCache
     {
         private const int MaxEntries = 32;
@@ -342,6 +346,7 @@ namespace Genix.SpaceFoundation.Editor
                 : string.Empty;
     }
 
+    /// <summary>Serialized LRU store for run-length encoded SFS subspace cells.</summary>
     internal sealed class SfsSubspaceCacheAsset : ScriptableObject
     {
         [SerializeField] private List<Entry> entries = new();

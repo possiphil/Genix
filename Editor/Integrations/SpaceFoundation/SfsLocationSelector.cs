@@ -10,12 +10,14 @@ using SfsSpace = SpaceFoundationSystem.Space;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Draws and maintains the editor selection of a Space Foundation System space.</summary>
     public sealed class SfsLocationSelector : ITargetAreaSelector
     {
         private SfsSpace[] _locations = Array.Empty<SfsSpace>();
         private string[] _options = Array.Empty<string>();
         private int _selectedIndex;
 
+        /// <summary>Reloads the backing assets and refreshes derived editor state.</summary>
         public void Refresh()
         {
             string selectedId = GetSelectedId();
@@ -42,7 +44,8 @@ namespace Genix.SpaceFoundation.Editor
                 : Mathf.Clamp(_selectedIndex, 0, Mathf.Max(0, _locations.Length - 1));
         }
 
-        public void Draw(string label)
+        /// <summary>Draws the control in the current editor layout.</summary>
+        public void Draw(GUIContent label)
         {
             if (_locations.Length == 0)
             {
@@ -55,6 +58,7 @@ namespace Genix.SpaceFoundation.Editor
             _selectedIndex = EditorGUILayout.Popup(label, _selectedIndex, _options);
         }
 
+        /// <summary>Creates area source.</summary>
         public IAreaSource CreateAreaSource()
         {
             SfsSpace location = GetSelected();

@@ -2,6 +2,7 @@ using UnityEngine;
 
 namespace Genix.Sampling.PoissonSampling
 {
+    /// <summary>Acceleration grid that limits Poisson distance checks to neighboring cells.</summary>
     internal sealed class PoissonGrid
     {
         private readonly Bounds _bounds;
@@ -33,6 +34,7 @@ namespace Genix.Sampling.PoissonSampling
             _cells[index.x, index.y] = point;
         }
 
+        /// <summary>Tests whether a point respects minimum distance from samples in neighboring cells.</summary>
         public bool IsFarEnough(Vector3 point, float minDistance)
         {
             Vector2Int index = GetIndex(point);

@@ -1,11 +1,15 @@
 using System.Collections.Generic;
 using Genix.Assets;
 using Genix.Semantics;
+using Genix.Tests.Framework;
 using NUnit.Framework;
 using UnityEngine;
 
 namespace Genix.Tests
 {
+    [Category(GenixTestCategories.Quick)]
+    [Category(GenixTestCategories.Full)]
+    [Category(GenixTestCategories.SemanticsArea)]
     public sealed class SemanticTagMatcherTests
     {
         private readonly List<Object> _createdObjects = new();

@@ -7,6 +7,7 @@ using Object = UnityEngine.Object;
 
 namespace Genix.Editor.Infrastructure
 {
+    /// <summary>Centralizes safe creation, lookup, rename, move, deletion, and dirty handling for Genix assets.</summary>
     internal static class AssetFileService
     {
         public static string CleanName(string value, string fallback)

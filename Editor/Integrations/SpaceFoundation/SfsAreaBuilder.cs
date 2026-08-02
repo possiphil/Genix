@@ -10,6 +10,7 @@ using SfsSpace = SpaceFoundationSystem.Space;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Builds a runtime placement area from resolved SFS cells, extracted surfaces, occupancy, and scene geometry.</summary>
     internal static class SfsAreaBuilder
     {
         public static bool TryBuild(

@@ -6,6 +6,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Generation
 {
+    /// <summary>Allocates deterministic collision-free names without advancing state for rejected attempts.</summary>
     internal sealed class GeneratedObjectNamer
     {
         private const string Prefix = "GenixGenerated";

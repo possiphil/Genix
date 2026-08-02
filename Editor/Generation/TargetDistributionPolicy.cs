@@ -7,21 +7,18 @@ using UnityEngine;
 
 namespace Genix.Editor.Generation
 {
+    /// <summary>Allocates requested counts and selects candidate pools for random, balanced, and weighted targets.</summary>
     internal static class TargetDistributionPolicy
     {
         public static bool IsActive(GenerationContext context)
         {
-            return context.GenerationMode == GenerationMode.TargetPlacement &&
-                   context.TargetDistributionMode != TargetDistributionMode.Random;
+            return context.TargetDistributionMode != TargetDistributionMode.Random;
         }
 
         public static PlacementTarget GetUsableTargets(
             GenerationContext context,
             IReadOnlyList<AssetDefinition> assets)
         {
-            if (context.GenerationMode != GenerationMode.TargetPlacement)
-                return PlacementTarget.Floor;
-
             PlacementTarget result = PlacementTarget.None;
             AddUsableTarget(context, assets, PlacementTarget.Floor, PlacementType.Floor, ref result);
             AddUsableTarget(context, assets, PlacementTarget.Wall, PlacementType.Wall, ref result);
@@ -34,9 +31,6 @@ namespace Genix.Editor.Generation
             GenerationRequest request,
             IReadOnlyList<AssetDefinition> assets)
         {
-            if (request.GenerationMode != GenerationMode.TargetPlacement)
-                return PlacementTarget.Floor;
-
             PlacementTarget result = PlacementTarget.None;
             AddUsableTarget(request, assets, PlacementTarget.Floor, PlacementType.Floor, ref result);
             AddUsableTarget(request, assets, PlacementTarget.Wall, PlacementType.Wall, ref result);

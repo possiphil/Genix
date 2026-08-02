@@ -1,8 +1,12 @@
 using Genix.Core;
+using Genix.Tests.Framework;
 using NUnit.Framework;
 
 namespace Genix.Tests
 {
+    [Category(GenixTestCategories.Quick)]
+    [Category(GenixTestCategories.Full)]
+    [Category(GenixTestCategories.RandomnessArea)]
     public sealed class GenerationRandomTests
     {
         [Test]

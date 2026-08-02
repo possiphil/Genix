@@ -4,8 +4,10 @@ using Genix.Assets;
 
 namespace Genix.Semantics
 {
+    /// <summary>Evaluates semantic tag rules.</summary>
     public static class SemanticTagMatcher
     {
+        /// <summary>Determines whether an asset satisfies the required and excluded semantic tags.</summary>
         public static bool MatchesAssetRequirements(
             AssetDefinition asset,
             IEnumerable<SemanticTag> requiredTags,
@@ -36,6 +38,7 @@ namespace Genix.Semantics
             return true;
         }
 
+        /// <summary>Determines whether an asset satisfies the configured category and tag filters.</summary>
         public static bool MatchesFilterTags(
             AssetDefinition asset,
             TagCategory category,

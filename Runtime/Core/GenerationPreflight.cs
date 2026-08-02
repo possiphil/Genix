@@ -1,9 +1,12 @@
-using System;
-
 namespace Genix.Core
 {
+    /// <summary>Performs inexpensive request validation before area construction or candidate generation.</summary>
     public static class GenerationPreflight
     {
+        /// <summary>Checks whether a request has all required inputs and internally consistent settings.</summary>
+        /// <param name="request">Request to validate.</param>
+        /// <param name="error">Actionable designer-facing error when validation fails; otherwise <see langword="null"/>.</param>
+        /// <returns><see langword="true"/> when generation may proceed.</returns>
         public static bool IsValid(GenerationRequest request, out string error)
         {
             if (request == null)
@@ -36,27 +39,13 @@ namespace Genix.Core
                 return false;
             }
 
-            if (!IsValidGenerationMode(request.GenerationMode))
-            {
-                error = $"Unsupported generation mode: {request.GenerationMode}.";
-                return false;
-            }
-
-            if (!IsValidPerformanceMode(request.PerformanceMode))
-            {
-                error = $"Unsupported performance mode: {request.PerformanceMode}.";
-                return false;
-            }
-
-            if (request.GenerationMode == GenerationMode.TargetPlacement &&
-                (request.PlacementTargets & PlacementTarget.All) == PlacementTarget.None)
+            if ((request.PlacementTargets & PlacementTarget.All) == PlacementTarget.None)
             {
                 error = "Target Placement could not start because no placement targets are selected. Choose at least Floor, Wall, Ceiling, or Inside Space.";
                 return false;
             }
 
-            if (request.GenerationMode == GenerationMode.TargetPlacement &&
-                request.TargetDistributionMode == TargetDistributionMode.Weighted &&
+            if (request.TargetDistributionMode == TargetDistributionMode.Weighted &&
                 GetActiveTargetWeightSum(request.PlacementTargets, request.TargetDistributionWeights) <= 0)
             {
                 error = "Weighted Target Distribution could not start because all selected target weights are zero. Increase at least one selected target weight.";
@@ -87,16 +76,6 @@ namespace Genix.Core
 
             error = null;
             return true;
-        }
-
-        private static bool IsValidGenerationMode(GenerationMode generationMode)
-        {
-            return Enum.IsDefined(typeof(GenerationMode), generationMode);
-        }
-
-        private static bool IsValidPerformanceMode(GenerationPerformanceMode performanceMode)
-        {
-            return Enum.IsDefined(typeof(GenerationPerformanceMode), performanceMode);
         }
 
         private static int GetActiveTargetWeightSum(

@@ -7,14 +7,17 @@ using UnityEngine;
 
 namespace Genix.Diagnostics
 {
+    /// <summary>Records generation events according to the selected diagnostics detail level.</summary>
     public sealed class DiagnosticsRecorder : IDiagnosticsSink
     {
         private readonly GenerationDiagnostics _diagnostics;
         private readonly DiagnosticsMode _mode;
         private readonly bool _recordAcceptedCandidates;
 
+        /// <summary>Gets diagnostics.</summary>
         public GenerationDiagnostics Diagnostics => _diagnostics;
 
+        /// <summary>Initializes a new instance of diagnostics recorder.</summary>
         public DiagnosticsRecorder(
             GenerationContext context,
             DiagnosticsMode mode,
@@ -28,18 +31,16 @@ namespace Genix.Diagnostics
                 context.Area.SourceInfo.SourceName,
                 styleName,
                 context.StyleSettings,
-                context.GenerationMode,
                 context.PlacementTargets,
                 context.TargetDistributionMode,
                 context.TargetDistributionWeights,
                 context.StyleSettings.algorithm,
                 context.TargetBounds,
                 context.Count,
-                context.UseRandomSeed,
+                context.UseFixedSeed,
                 context.RandomSeed,
                 context.BestEffort,
                 context.RelativePlacement,
-                context.PerformanceMode,
                 mode);
             _diagnostics.EnsureCapacity(
                 GetCandidateDetailCapacity(context.Count, mode, recordAcceptedCandidates),
@@ -47,6 +48,7 @@ namespace Genix.Diagnostics
                 4);
         }
 
+        /// <summary>Records candidate pool.</summary>
         public void RecordCandidatePool(int requestedCandidates, IReadOnlyList<CandidateSeed> seeds)
         {
             if (_mode == DiagnosticsMode.None)
@@ -62,10 +64,12 @@ namespace Genix.Diagnostics
                 _diagnostics.Sampler.CandidateSeeds.Add(seed.Position);
         }
 
+        /// <summary>Determines whether per-candidate diagnostic details should be retained.</summary>
         public bool ShouldRecordCandidateDetails(bool accepted) =>
             _mode == DiagnosticsMode.Detailed ||
             (_recordAcceptedCandidates && accepted);
 
+        /// <summary>Records candidate.</summary>
         public void RecordCandidate(string assetId, string objectName, PlacementCandidate candidate, Bounds bounds, bool accepted, RejectionReason rejectionReason, string relatedObjectName = "")
         {
             if (_mode == DiagnosticsMode.None)
@@ -79,6 +83,7 @@ namespace Genix.Diagnostics
             _diagnostics.Candidates.Add(new CandidateDiagnostic(assetId, objectName, candidate.Position, candidate.Rotation, bounds, candidate.PlacementType, accepted, rejectionReason, relatedObjectName));
         }
 
+        /// <summary>Records tested candidate seed.</summary>
         public void RecordTestedCandidateSeed(Vector3 position)
         {
             if (_mode == DiagnosticsMode.None)
@@ -92,6 +97,7 @@ namespace Genix.Diagnostics
             _diagnostics.Sampler.TestedCandidateSeedPositions.Add(position);
         }
 
+        /// <summary>Records placement.</summary>
         public void RecordPlacement(AssetDefinition asset, string objectName, PlacementCandidate candidate)
         {
             if (_mode == DiagnosticsMode.None)
@@ -100,6 +106,7 @@ namespace Genix.Diagnostics
             _diagnostics.Placements.Add(new PlacementDiagnostic(asset.AssetName, objectName, candidate.Position, candidate.Rotation, candidate.PlacementType));
         }
 
+        /// <summary>Records target budgets.</summary>
         public void RecordTargetBudgets(IReadOnlyDictionary<PlacementType, int> targetCounts, IReadOnlyDictionary<PlacementType, int> placedCounts)
         {
             if (_mode == DiagnosticsMode.None)
@@ -120,6 +127,7 @@ namespace Genix.Diagnostics
             }
         }
 
+        /// <summary>Records stop reason.</summary>
         public void RecordStopReason(string stopReason)
         {
             if (_mode == DiagnosticsMode.None)
@@ -128,6 +136,7 @@ namespace Genix.Diagnostics
             _diagnostics.StopReason = stopReason;
         }
 
+        /// <summary>Records cluster center.</summary>
         public void RecordClusterCenter(Vector3 position)
         {
             if (_mode != DiagnosticsMode.Detailed)
@@ -136,6 +145,7 @@ namespace Genix.Diagnostics
             _diagnostics.Sampler.ClusterCenters.Add(position);
         }
 
+        /// <summary>Records cluster centers.</summary>
         public void RecordClusterCenters(IReadOnlyList<Vector3> clusterCenters)
         {
             if (_mode == DiagnosticsMode.None)
@@ -147,6 +157,7 @@ namespace Genix.Diagnostics
             _diagnostics.Sampler.ClusterCenters.AddRange(clusterCenters);
         }
 
+        /// <summary>Records raw sample position.</summary>
         public void RecordRawSamplePosition(Vector3 position)
         {
             if (_mode != DiagnosticsMode.Detailed)

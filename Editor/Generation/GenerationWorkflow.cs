@@ -17,6 +17,7 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Editor.Generation
 {
+    /// <summary>Coordinates preview, generation, regeneration, and cleanup operations in the Unity editor.</summary>
     public static class GenerationWorkflow
     {
         private const string GenerateUndoName = "Generated Genix Objects";
@@ -26,8 +27,10 @@ namespace Genix.Editor.Generation
 
         private static PreviewPlan _lastPreviewPlan;
 
+        /// <summary>Indicates whether preview plan.</summary>
         public static bool HasPreviewPlan => _lastPreviewPlan is { Count: > 0 };
 
+        /// <summary>Plans and applies a generation request to the scene.</summary>
         public static void Generate(GenerationRequest request)
         {
             if (!Validate(request))
@@ -38,6 +41,7 @@ namespace Genix.Editor.Generation
             UndoStep.ExecuteAsSingleStep(GenerateUndoName, () => GenerateInternal(request));
         }
 
+        /// <summary>Clears the previous result and generates a replacement from the request.</summary>
         public static void Regenerate(GenerationRequest request)
         {
             if (!Validate(request))
@@ -48,6 +52,7 @@ namespace Genix.Editor.Generation
             UndoStep.ExecuteAsSingleStep(RegenerateUndoName, () => RegenerateInternal(request));
         }
 
+        /// <summary>Builds and retains a generation plan without instantiating scene objects.</summary>
         public static void Preview(GenerationRequest request)
         {
             ClearPreviewPlan();
@@ -59,6 +64,7 @@ namespace Genix.Editor.Generation
             PreviewInternal(request);
         }
 
+        /// <summary>Applies the retained preview plan without generating a new plan.</summary>
         public static bool ApplyPreview()
         {
             if (!HasPreviewPlan)
@@ -106,6 +112,7 @@ namespace Genix.Editor.Generation
             return true;
         }
 
+        /// <summary>Clears the stored state.</summary>
         public static void Clear(IAreaSource areaSource)
         {
             if (areaSource == null || !areaSource.ParentTransform)
@@ -123,6 +130,7 @@ namespace Genix.Editor.Generation
             });
         }
 
+        /// <summary>Clears preview plan.</summary>
         public static void ClearPreviewPlan()
         {
             _lastPreviewPlan = null;

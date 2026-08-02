@@ -5,6 +5,7 @@ using SfsSpace = SpaceFoundationSystem.Space;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Resolves the owning SFS foundation and normalized voxel size for a selected space.</summary>
     internal static class SfsFoundationUtility
     {
         public static SfsFoundation Find(SfsSpace space, SfsAnchor anchor)

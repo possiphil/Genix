@@ -11,6 +11,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Validation
 {
+    /// <summary>Validates request assets, layers, integrations, targets, and scene prerequisites before generation.</summary>
     internal static class SceneSetupValidator
     {
         public static SceneSetupReport Validate(GenerationRequest request)
@@ -148,6 +149,7 @@ namespace Genix.Editor.Validation
         }
     }
 
+    /// <summary>Ordered collection of setup issues with aggregate error state.</summary>
     internal sealed class SceneSetupReport
     {
         private readonly List<SceneSetupIssue> _issues = new();

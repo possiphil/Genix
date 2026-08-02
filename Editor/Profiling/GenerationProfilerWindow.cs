@@ -9,6 +9,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Profiling
 {
+    /// <summary>Provides the generation profiler editor window.</summary>
     public sealed class GenerationProfilerWindow : EditorWindow
     {
         private const float SavedListHeight = 180f;
@@ -18,6 +19,7 @@ namespace Genix.Editor.Profiling
         private Vector2 _savedListScroll;
         private Vector2 _savedDetailsScroll;
 
+        /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
         [MenuItem("Tools/Genix/Performance Profiler", false, 30)]
         public static void Open()
         {
@@ -226,8 +228,6 @@ namespace Genix.Editor.Profiling
                 profile.RunId,
                 profile.TargetName,
                 profile.RunType,
-                profile.GenerationMode,
-                profile.PerformanceMode,
                 profile.PlacementTargets,
                 profile.DistributionMode,
                 profile.StyleName,
@@ -246,8 +246,6 @@ namespace Genix.Editor.Profiling
                 report.RunId,
                 report.TargetName,
                 report.RunType,
-                report.GenerationMode,
-                report.PerformanceMode,
                 report.PlacementTargets,
                 report.DistributionMode,
                 report.StyleName,
@@ -264,8 +262,6 @@ namespace Genix.Editor.Profiling
             string runId,
             string targetName,
             string runType,
-            string generationMode,
-            string performanceMode,
             string placementTargets,
             string distributionMode,
             string styleName,
@@ -282,8 +278,6 @@ namespace Genix.Editor.Profiling
             DrawStat("Run ID", ShortenRunId(runId));
             DrawStat("Target", targetName);
             DrawStat("Run Type", runType);
-            DrawStat("Mode", generationMode);
-            DrawStat("Performance", performanceMode);
             DrawStat("Targets", placementTargets);
             DrawStat("Distribution", distributionMode);
             DrawStat("Style", styleName);

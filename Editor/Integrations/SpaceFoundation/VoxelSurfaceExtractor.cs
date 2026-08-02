@@ -5,6 +5,7 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Extracts exposed floor, ceiling, and merged wall faces from occupied subspace cells.</summary>
     internal static class VoxelSurfaceExtractor
     {
         private enum WallFace
@@ -229,6 +230,7 @@ namespace Genix.SpaceFoundation.Editor
             }
         }
 
+        /// <summary>Surface cells and wall segments extracted from one voxel subspace.</summary>
         public readonly struct VoxelSurfaceExtraction
         {
             public VoxelSurfaceExtraction(

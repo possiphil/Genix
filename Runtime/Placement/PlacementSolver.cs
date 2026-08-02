@@ -9,18 +9,22 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Placement
 {
+    /// <summary>Coordinates candidate generation, asset attempts, validation, diagnostics, and plan construction.</summary>
     public static class PlacementSolver
     {
+        /// <summary>Clears candidate cache.</summary>
         public static void ClearCandidateCache()
         {
             CandidateSeedCache.Clear();
         }
 
+        /// <summary>Clears scene object cache.</summary>
         public static void ClearSceneObjectCache()
         {
             SceneObjectIndex.ClearCache();
         }
 
+        /// <summary>Creates candidate pool.</summary>
         public static CandidatePool CreateCandidatePool(
             GenerationContext context,
             IDiagnosticsSink diagnostics = null,
@@ -32,6 +36,7 @@ namespace Genix.Placement
             return CandidateSeedFactory.CreatePool(context, diagnostics, targets, profiler);
         }
 
+        /// <summary>Creates candidate pools by placement type.</summary>
         public static Dictionary<PlacementType, CandidatePool> CreateCandidatePoolsByPlacementType(
             GenerationContext context,
             IDiagnosticsSink diagnostics = null,
@@ -43,6 +48,7 @@ namespace Genix.Placement
             return CandidateSeedFactory.CreatePoolsByPlacementType(context, diagnostics, targets, profiler);
         }
 
+        /// <summary>Attempts to get valid candidate.</summary>
         public static bool TryGetValidCandidate(
             GenerationContext context,
             AssetDefinition asset,
@@ -94,6 +100,7 @@ namespace Genix.Placement
             return false;
         }
 
+        /// <summary>Finds the first valid asset and candidate combination from the remaining candidate pool.</summary>
         public static bool TryGetValidCandidateForAnyAsset(
             GenerationContext context,
             IReadOnlyList<AssetDefinition> assets,
@@ -174,11 +181,9 @@ namespace Genix.Placement
                     }
 
                     long pruningStart = StartPlanningStep(profiler);
-                    attemptCatalog.PruneDominated(
+                    AssetAttemptPlanner.PruneRemaining(
                         remaining,
                         remainingIndex,
-                        seed.PlacementType,
-                        asset,
                         rejection);
                     StopAndRecordPlanningStep(profiler, PlanningProfileStep.AssetPruning, pruningStart);
                 }
@@ -259,7 +264,6 @@ namespace Genix.Placement
                 RecordRejectedCandidate(
                     diagnostics,
                     asset,
-                    GetObjectName,
                     earlyAttempt,
                     earlyBounds,
                     RejectionReason.TooCloseToGenerated,
@@ -305,7 +309,6 @@ namespace Genix.Placement
                 RecordRejectedCandidate(
                     diagnostics,
                     asset,
-                    GetObjectName,
                     earlyAttempt,
                     earlyBounds,
                     RejectionReason.TooCloseToGenerated,
@@ -339,7 +342,6 @@ namespace Genix.Placement
                 RecordRejectedCandidate(
                     diagnostics,
                     asset,
-                    GetObjectName,
                     earlyAttempt,
                     earlyRejectedBounds,
                     earlyRejection,
@@ -405,7 +407,6 @@ namespace Genix.Placement
                 RecordRejectedCandidate(
                     diagnostics,
                     asset,
-                    GetObjectName,
                     attempt,
                     bounds,
                     rejection,
@@ -422,7 +423,6 @@ namespace Genix.Placement
         private static void RecordRejectedCandidate(
             IDiagnosticsSink diagnostics,
             AssetDefinition asset,
-            Func<string> objectName,
             PlacementCandidate attempt,
             OrientedBounds bounds,
             RejectionReason rejection,
@@ -435,11 +435,10 @@ namespace Genix.Placement
 
             if (recordDetails)
             {
-                string resolvedObjectName = objectName();
                 diagnosticsStart = StartPlanningStep(profiler);
                 diagnostics.RecordCandidate(
                     asset.AssetName,
-                    resolvedObjectName,
+                    asset.AssetName,
                     attempt,
                     bounds.ToLocalBounds(),
                     false,

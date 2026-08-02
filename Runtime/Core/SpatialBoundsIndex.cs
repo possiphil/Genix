@@ -4,6 +4,10 @@ using UnityEngine;
 
 namespace Genix.Core
 {
+    /// <summary>
+    /// Uniform-grid broad-phase index for querying axis-aligned bounds without scanning every planned object.
+    /// </summary>
+    /// <remarks>Very large bounds are stored in an overflow list to prevent pathological cell expansion.</remarks>
     internal sealed class SpatialBoundsIndex
     {
         private const float DefaultCellSize = 4f;
@@ -30,6 +34,7 @@ namespace Genix.Core
                 : new List<int>();
         }
 
+        /// <summary>Adds bounds under the caller-owned object index.</summary>
         public void Add(Bounds bounds, int objectIndex)
         {
             EnsureMarker(objectIndex);
@@ -61,6 +66,7 @@ namespace Genix.Core
             }
         }
 
+        /// <summary>Enumerates unique indices from overlapping grid cells and the overflow list.</summary>
         public IEnumerable<int> Query(Bounds bounds)
         {
             if (_cells.Count == 0 && _globalIndices.Count == 0)

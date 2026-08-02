@@ -6,6 +6,7 @@ using Object = UnityEngine.Object;
 
 namespace Genix.Editor.Layouts
 {
+    /// <summary>Manages non-persistent scene previews for saved layouts in isolated comparison slots.</summary>
     internal static class LayoutPreviewService
     {
         private const string RootName = "Genix Layout Preview";

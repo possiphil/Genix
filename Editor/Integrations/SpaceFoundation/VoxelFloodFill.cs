@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Finds connected interior voxel cells inside bounded occupied SFS geometry.</summary>
     internal static class VoxelFloodFill
     {
         private static readonly Vector3Int[] Directions =
@@ -91,6 +92,7 @@ namespace Genix.SpaceFoundation.Editor
         }
     }
 
+    /// <summary>Inclusive integer bounds used to constrain voxel traversal.</summary>
     internal readonly struct VoxelBounds
     {
         public Vector3Int Min { get; }

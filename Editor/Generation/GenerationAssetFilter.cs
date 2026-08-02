@@ -10,6 +10,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Generation
 {
+    /// <summary>Resolves pool assets and removes entries incompatible with area semantics or selected targets.</summary>
     internal static class GenerationAssetFilter
     {
         public static bool TryResolve(
@@ -53,9 +54,6 @@ namespace Genix.Editor.Generation
             GenerationRequest request,
             IReadOnlyList<AssetDefinition> assets)
         {
-            if (request.GenerationMode != GenerationMode.TargetPlacement)
-                yield break;
-
             foreach ((PlacementTarget target, PlacementType type) in TargetMappings)
             {
                 if ((request.PlacementTargets & target) == 0 ||
@@ -112,10 +110,7 @@ namespace Genix.Editor.Generation
 
         private static PlacementTarget GetRequestedTargets(GenerationRequest request)
         {
-            if (request.GenerationMode == GenerationMode.TargetPlacement)
-                return request.PlacementTargets & PlacementTarget.All;
-
-            throw new ArgumentOutOfRangeException(nameof(request.GenerationMode));
+            return request.PlacementTargets & PlacementTarget.All;
         }
 
         private static bool MatchesTarget(AssetDefinition asset, PlacementTarget targets)

@@ -10,6 +10,7 @@ using UnityEngine;
 
 namespace Genix.Diagnostics
 {
+    /// <summary>Stores a serializable diagnostics.</summary>
     public sealed class DiagnosticsReport : ScriptableObject
     {
         [SerializeField, HideInInspector] private bool _initialized;
@@ -19,8 +20,6 @@ namespace Genix.Diagnostics
 
         [SerializeField, HideInInspector] private string _runId;
         [SerializeField, HideInInspector] private string _targetName;
-        [SerializeField, HideInInspector] private string _generationMode;
-        [SerializeField, HideInInspector] private string _performanceMode;
         [SerializeField, HideInInspector] private string _placementTargets;
         [SerializeField, HideInInspector] private string _targetDistributionMode;
         [SerializeField, HideInInspector] private string _targetDistributionWeights;
@@ -59,62 +58,101 @@ namespace Genix.Diagnostics
         [SerializeField, HideInInspector] private List<CandidateEntry> _candidateDetails = new();
         [SerializeField, HideInInspector] private List<PlacementEntry> _placementDetails = new();
 
+        /// <summary>Gets mode.</summary>
         public DiagnosticsMode Mode => _mode;
+        /// <summary>Gets created at.</summary>
         public string CreatedAt => _createdAt;
 
+        /// <summary>Gets run id.</summary>
         public string RunId => _runId;
+        /// <summary>Gets target name.</summary>
         public string TargetName => _targetName;
-        public string GenerationMode => _generationMode;
-        public string PerformanceMode => _performanceMode;
+        /// <summary>Gets placement targets.</summary>
         public string PlacementTargets => _placementTargets;
+        /// <summary>Gets target distribution mode.</summary>
         public string TargetDistributionMode => _targetDistributionMode;
+        /// <summary>Gets target distribution weights.</summary>
         public string TargetDistributionWeights => _targetDistributionWeights;
+        /// <summary>Gets relative source.</summary>
         public string RelativeSource => _relativeSource;
+        /// <summary>Gets relative radius.</summary>
         public float RelativeRadius => _relativeRadius;
+        /// <summary>Gets style name.</summary>
         public string StyleName => _styleName;
+        /// <summary>Gets stop reason.</summary>
         public string StopReason => _stopReason;
 
+        /// <summary>Gets the number of requested object items.</summary>
         public int RequestedObjectCount => _requestedObjectCount;
+        /// <summary>Gets the number of placed object items.</summary>
         public int PlacedObjectCount => _placedObjectCount;
-        public bool UseRandomSeed => _useRandomSeed;
+        /// <summary>Indicates whether fixed seed.</summary>
+        public bool UseFixedSeed => _useRandomSeed;
+        /// <summary>Gets random seed.</summary>
         public int RandomSeed => _randomSeed;
+        /// <summary>Indicates whether best effort.</summary>
         public bool BestEffort => _bestEffort;
+        /// <summary>Indicates whether dry run.</summary>
         public bool DryRun => _dryRun;
 
+        /// <summary>Gets generated candidates.</summary>
         public int GeneratedCandidates => _generatedCandidates;
+        /// <summary>Gets tested candidate seeds.</summary>
         public int TestedCandidateSeeds => _testedCandidateSeeds > 0
             ? _testedCandidateSeeds
             : Mathf.Min(_testedCandidates, _generatedCandidates);
+        /// <summary>Gets accepted positions.</summary>
         public int AcceptedPositions => _acceptedPositions > 0 || _candidateDetails.Count == 0
             ? _acceptedPositions
             : CountPositionOutcomes(_candidateDetails).AcceptedPositions;
+        /// <summary>Gets rejected positions.</summary>
         public int RejectedPositions => _rejectedPositions > 0 || _candidateDetails.Count == 0
             ? _rejectedPositions
             : CountPositionOutcomes(_candidateDetails).RejectedPositions;
+        /// <summary>Gets tested candidates.</summary>
         public int TestedCandidates => _testedCandidates;
+        /// <summary>Gets candidate attempts.</summary>
         public int CandidateAttempts => _testedCandidates;
+        /// <summary>Gets accepted candidates.</summary>
         public int AcceptedCandidates => _acceptedCandidates;
+        /// <summary>Gets rejected candidates.</summary>
         public int RejectedCandidates => _rejectedCandidates;
+        /// <summary>Gets unused candidates.</summary>
         public int UnusedCandidates => _unusedCandidates;
 
+        /// <summary>Gets target bounds.</summary>
         public Bounds TargetBounds => _targetBounds;
+        /// <summary>Gets sampling algorithm.</summary>
         public SamplingAlgorithm SamplingAlgorithm => _samplingAlgorithm;
+        /// <summary>Gets style settings.</summary>
         public StyleSettings StyleSettings => _styleSettings;
 
+        /// <summary>Gets placed objects.</summary>
         public IReadOnlyList<CountEntry> PlacedObjects => _placedObjects;
+        /// <summary>Gets rejection reasons.</summary>
         public IReadOnlyList<CountEntry> RejectionReasons => _rejectionReasons;
+        /// <summary>Gets target budgets.</summary>
         public IReadOnlyList<TargetBudgetEntry> TargetBudgets => _targetBudgets;
 
+        /// <summary>Gets candidate seeds.</summary>
         public IReadOnlyList<Vector3> CandidateSeeds => _candidateSeeds;
+        /// <summary>Gets raw sample positions.</summary>
         public IReadOnlyList<Vector3> RawSamplePositions => _rawSamplePositions;
+        /// <summary>Gets cluster centers.</summary>
         public IReadOnlyList<Vector3> ClusterCenters => _clusterCenters;
+        /// <summary>Gets candidate details.</summary>
         public IReadOnlyList<CandidateEntry> CandidateDetails => _candidateDetails;
+        /// <summary>Gets placement details.</summary>
         public IReadOnlyList<PlacementEntry> PlacementDetails => _placementDetails;
 
+        /// <summary>Indicates whether detailed.</summary>
         public bool IsDetailed => _mode == DiagnosticsMode.Detailed;
+        /// <summary>Indicates whether supports grid.</summary>
         public bool SupportsGrid => _samplingAlgorithm is SamplingAlgorithm.Grid or SamplingAlgorithm.JitteredGrid;
+        /// <summary>Indicates whether supports clusters.</summary>
         public bool SupportsClusters => _samplingAlgorithm == SamplingAlgorithm.Cluster;
 
+        /// <summary>Initializes the instance from the supplied runtime or serialized data.</summary>
         public void Initialize(
             GenerationDiagnostics diagnostics,
             DiagnosticsMode mode,
@@ -136,8 +174,6 @@ namespace Genix.Diagnostics
 
             _runId = diagnostics.RunId;
             _targetName = diagnostics.TargetName;
-            _generationMode = diagnostics.GenerationMode.ToDisplayName();
-            _performanceMode = diagnostics.PerformanceMode.ToDisplayName();
             _placementTargets = FormatPlacementTargets(diagnostics.PlacementTargets);
             _targetDistributionMode = diagnostics.TargetDistributionMode.ToDisplayName();
             _targetDistributionWeights = FormatTargetWeights(diagnostics.TargetDistributionWeights);
@@ -150,7 +186,7 @@ namespace Genix.Diagnostics
 
             _requestedObjectCount = diagnostics.RequestedObjectCount;
             _placedObjectCount = diagnostics.PlacedObjectCount;
-            _useRandomSeed = diagnostics.UseRandomSeed;
+            _useRandomSeed = diagnostics.UseFixedSeed;
             _randomSeed = diagnostics.RandomSeed;
             _bestEffort = diagnostics.BestEffort;
             _dryRun = diagnostics.DryRun;
@@ -309,15 +345,19 @@ namespace Genix.Diagnostics
                 candidate => candidate.Accepted);
         }
 
+        /// <summary>Stores one serialized count measurement.</summary>
         [Serializable]
         public struct CountEntry
         {
             [SerializeField, HideInInspector] private string _label;
             [SerializeField, HideInInspector] private int _count;
 
+            /// <summary>Gets label.</summary>
             public string Label => _label;
+            /// <summary>Gets the number of stored items.</summary>
             public int Count => _count;
 
+            /// <summary>Initializes a new instance of count entry.</summary>
             public CountEntry(string label, int count)
             {
                 _label = label;
@@ -325,6 +365,7 @@ namespace Genix.Diagnostics
             }
         }
 
+        /// <summary>Stores one serialized target budget measurement.</summary>
         [Serializable]
         public struct TargetBudgetEntry
         {
@@ -332,10 +373,14 @@ namespace Genix.Diagnostics
             [SerializeField, HideInInspector] private int _targetCount;
             [SerializeField, HideInInspector] private int _placedCount;
 
+            /// <summary>Gets target.</summary>
             public string Target => _target;
+            /// <summary>Gets the number of target items.</summary>
             public int TargetCount => _targetCount;
+            /// <summary>Gets the number of placed items.</summary>
             public int PlacedCount => _placedCount;
 
+            /// <summary>Initializes a new instance of target budget entry.</summary>
             public TargetBudgetEntry(string target, int targetCount, int placedCount)
             {
                 _target = target;
@@ -344,6 +389,7 @@ namespace Genix.Diagnostics
             }
         }
 
+        /// <summary>Stores one serialized candidate measurement.</summary>
         [Serializable]
         public struct CandidateEntry
         {
@@ -355,20 +401,30 @@ namespace Genix.Diagnostics
             [SerializeField, HideInInspector] private bool _accepted;
             [SerializeField, HideInInspector] private string _rejectionReason;
 
+            /// <summary>Gets asset id.</summary>
             public string AssetId => _assetId;
+            /// <summary>Gets position.</summary>
             public Vector3 Position => _position;
+            /// <summary>Gets rotation.</summary>
             public Quaternion Rotation => _rotation;
+            /// <summary>Gets bounds.</summary>
             public Bounds Bounds => _bounds;
+            /// <summary>Gets placement type.</summary>
             public string PlacementType => _placementType;
+            /// <summary>Indicates whether accepted.</summary>
             public bool Accepted => _accepted;
+            /// <summary>Gets rejection reason.</summary>
             public string RejectionReason => _rejectionReason;
 
             [SerializeField, HideInInspector] private string _relatedObjectName;
             [SerializeField, HideInInspector] private string _objectName;
 
+            /// <summary>Gets object name.</summary>
             public string ObjectName => _objectName;
+            /// <summary>Gets related object name.</summary>
             public string RelatedObjectName => _relatedObjectName;
 
+            /// <summary>Initializes a new instance of candidate entry.</summary>
             public CandidateEntry(
                 string assetId,
                 string objectName,
@@ -392,6 +448,7 @@ namespace Genix.Diagnostics
             }
         }
 
+        /// <summary>Stores one serialized placement measurement.</summary>
         [Serializable]
         public struct PlacementEntry
         {
@@ -401,12 +458,18 @@ namespace Genix.Diagnostics
             [SerializeField, HideInInspector] private string _objectName;
             [SerializeField, HideInInspector] private string _placementType;
 
+            /// <summary>Gets asset id.</summary>
             public string AssetId => _assetId;
+            /// <summary>Gets position.</summary>
             public Vector3 Position => _position;
+            /// <summary>Gets rotation.</summary>
             public Quaternion Rotation => _rotation;
+            /// <summary>Gets object name.</summary>
             public string ObjectName => _objectName;
+            /// <summary>Gets placement type.</summary>
             public string PlacementType => _placementType;
 
+            /// <summary>Initializes a new instance of placement entry.</summary>
             public PlacementEntry(
                 string assetId,
                 string objectName,

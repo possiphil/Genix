@@ -8,10 +8,12 @@ using UnityEngine;
 
 namespace Genix.Editor.Genix.Editor.Diagnostics
 {
+    /// <summary>Provides project-level diagnostics catalog operations.</summary>
     public static class DiagnosticsCatalogService
     {
         private const string CatalogPath = ProjectContentPaths.Diagnostics + "/DiagnosticsCatalog.asset";
 
+        /// <summary>Returns the diagnostics catalog, creating it when absent.</summary>
         public static DiagnosticsCatalog GetOrCreate()
         {
             DiagnosticsCatalog catalog = AssetDatabase.LoadAssetAtPath<DiagnosticsCatalog>(CatalogPath);
@@ -26,6 +28,7 @@ namespace Genix.Editor.Genix.Editor.Diagnostics
             return catalog;
         }
 
+        /// <summary>Reloads the backing assets and refreshes derived editor state.</summary>
         public static void Refresh()
         {
             DiagnosticsCatalog catalog = GetOrCreate();
@@ -37,6 +40,7 @@ namespace Genix.Editor.Genix.Editor.Diagnostics
             AssetDatabase.SaveAssets();
         }
 
+        /// <summary>Adds a diagnostics report to the project catalog.</summary>
         public static void RegisterReport(DiagnosticsReport report)
         {
             DiagnosticsCatalog catalog = GetOrCreate();
@@ -48,6 +52,7 @@ namespace Genix.Editor.Genix.Editor.Diagnostics
             AssetDatabase.SaveAssets();
         }
 
+        /// <summary>Deletes a diagnostics report and removes it from the catalog.</summary>
         public static void DeleteReport(DiagnosticsReport report)
         {
             if (!report)
@@ -65,6 +70,7 @@ namespace Genix.Editor.Genix.Editor.Diagnostics
             Refresh();
         }
 
+        /// <summary>Clears the stored state.</summary>
         public static void Clear()
         {
             DiagnosticsCatalog catalog = GetOrCreate();
@@ -86,6 +92,7 @@ namespace Genix.Editor.Genix.Editor.Diagnostics
             AssetDatabase.Refresh();
         }
 
+        /// <summary>Clears reports.</summary>
         public static void ClearReports(DiagnosticsMode mode)
         {
             DiagnosticsCatalog catalog = GetOrCreate();

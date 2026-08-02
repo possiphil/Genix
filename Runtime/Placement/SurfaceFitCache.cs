@@ -8,6 +8,10 @@ using UnityEngine;
 
 namespace Genix.Placement
 {
+    /// <summary>
+    /// Memoizes adaptive surface-fit probes for equivalent candidate, asset, collider, layer, and target inputs.
+    /// </summary>
+    /// <remarks>The cache is owned by one generation context and never crosses run boundaries.</remarks>
     internal sealed class SurfaceFitCache
     {
         private const float PositionPrecision = 1000f;
@@ -23,6 +27,7 @@ namespace Genix.Placement
                 : new Dictionary<Key, Entry>();
         }
 
+        /// <summary>Returns a cached fit or evaluates and stores one through the area's surface projector.</summary>
         public bool TryEvaluate(
             PlacementArea area,
             Vector3 surfaceCenter,

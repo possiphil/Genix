@@ -7,6 +7,13 @@ using UnityEngine;
 
 namespace Genix.Areas
 {
+    /// <summary>
+    /// Applies target-area containment using voxel occupancy, extracted regions, and optional physics surface probes.
+    /// </summary>
+    /// <remarks>
+    /// The selected surface-discovery mode decides which representation is authoritative. Adaptive floor and ceiling
+    /// assets delegate footprint support to <see cref="SurfaceProjector"/>; volume targets use voxel occupancy.
+    /// </remarks>
     internal sealed class AreaContainment
     {
         private const float FootprintBoundsTolerance = 0.001f;
@@ -36,6 +43,7 @@ namespace Genix.Areas
 
         public bool HasVolumeCells => _occupancy.HasVolumeCells;
 
+        /// <summary>Tests an axis-aligned floor footprint against the active area representation.</summary>
         public bool ContainsFootprint(Bounds candidateBounds)
         {
             if (_settings.UsesAllMatchingSurfaceSearch)
@@ -54,6 +62,7 @@ namespace Genix.Areas
                    _projector.HasFloorSurfaceAt(new Vector3(candidateBounds.max.x, candidateBounds.center.y, candidateBounds.max.z));
         }
 
+        /// <summary>Tests the oriented physical footprint of a candidate and asset against its target surface.</summary>
         public bool ContainsPlacementFootprint(
             PlacementCandidate candidate,
             AssetDefinition asset,
@@ -122,6 +131,7 @@ namespace Genix.Areas
                 profiler);
         }
 
+        /// <summary>Tests whether every required sample of an oriented box lies in valid volume cells.</summary>
         public bool ContainsVolume(OrientedBounds candidateBounds) =>
             _occupancy.ContainsVolume(candidateBounds);
 

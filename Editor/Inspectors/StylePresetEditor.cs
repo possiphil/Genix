@@ -10,6 +10,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Inspectors
 {
+    /// <summary>Provides the custom Inspector for style preset.</summary>
     [CustomEditor(typeof(StylePreset))]
     public sealed class StylePresetEditor : UnityEditor.Editor
     {
@@ -39,6 +40,7 @@ namespace Genix.Editor.Inspectors
             _pendingFeedbackMessage = null;
         }
 
+        /// <summary>Draws and applies the custom Inspector interface.</summary>
         public override void OnInspectorGUI()
         {
             bool changed = false;

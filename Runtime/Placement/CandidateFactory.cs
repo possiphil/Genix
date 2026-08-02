@@ -7,10 +7,12 @@ using UnityEngine;
 
 namespace Genix.Placement
 {
+    /// <summary>Creates candidate instances.</summary>
     public static class CandidateFactory
     {
         private const int RandomRotationAttempts = 8;
 
+        /// <summary>Builds an asset-specific placement candidate from a reusable seed.</summary>
         public static PlacementCandidate Create(
             CandidateSeed seed,
             GenerationContext context,
@@ -63,9 +65,11 @@ namespace Genix.Placement
                 surfaceFit);
         }
 
+        /// <summary>Builds the candidate's oriented bounds from the asset dimensions.</summary>
         public static OrientedBounds GetBounds(PlacementCandidate candidate, AssetDefinition asset) =>
             new(candidate.Position, AssetAttemptPlanner.Dimensions(asset), candidate.Rotation);
 
+        /// <summary>Returns the number of deterministic rotation variants evaluated for this asset and target.</summary>
         public static int GetRotationAttemptCount(
             GenerationContext context,
             AssetDefinition asset,
@@ -77,6 +81,7 @@ namespace Genix.Placement
             return UsesRandomRotation(context, asset, placementType) ? RandomRotationAttempts : 1;
         }
 
+        /// <summary>Determines whether the orientation mode randomizes yaw.</summary>
         public static bool UsesRandomYaw(
             GenerationContext context,
             AssetDefinition asset,

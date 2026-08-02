@@ -7,14 +7,19 @@ using UnityEngine;
 
 namespace Genix.Editor.Genix.Editor.Common
 {
+    /// <summary>Draws category-aware semantic tag fields with single- and multi-select behavior.</summary>
     public static class TagSelectionField
     {
+        /// <summary>Non-tag choices available in a semantic tag field.</summary>
         public enum SpecialSelection
         {
+            /// <summary>No tag or wildcard is selected.</summary>
             None,
+            /// <summary>Any tag in the category is accepted.</summary>
             Any
         }
 
+        /// <summary>Draws a tag field and reports normalized selections through the supplied callback.</summary>
         public static void Draw(string label, TagCategory category, IEnumerable<SemanticTag> availableTags, IEnumerable<SemanticTag> selectedTags, Action<IReadOnlyList<SemanticTag>> onChanged,
             bool forceMultiSelect = false, bool anySelected = false, Action<IReadOnlyList<SemanticTag>, SpecialSelection> onChangedWithSpecialSelection = null, bool showNoneOption = true)
         {

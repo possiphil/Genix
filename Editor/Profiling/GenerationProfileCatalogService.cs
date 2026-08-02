@@ -8,6 +8,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Profiling
 {
+    /// <summary>Maintains the project-level catalog of persisted generation profile reports.</summary>
     internal static class GenerationProfileCatalogService
     {
         private const string CatalogPath = ProjectContentPaths.Profiles + "/GenerationProfileCatalog.asset";

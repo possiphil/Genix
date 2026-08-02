@@ -3,6 +3,10 @@ using UnityEngine;
 
 namespace Genix.Sampling.PoissonSampling
 {
+    /// <summary>
+    /// Stateful Bridson sampler that grows samples from a randomized active list across progressive requests.
+    /// </summary>
+    /// <remarks>Progressive growth preserves global Poisson spacing instead of creating independent local batches.</remarks>
     internal sealed class ProgressiveBridsonPoissonDiskSampler
     {
         private const float OuterRadiusFactor = 2f;

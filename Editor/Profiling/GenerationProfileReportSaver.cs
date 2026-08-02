@@ -7,6 +7,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Profiling
 {
+    /// <summary>Persists an in-memory profile as a timestamped report asset.</summary>
     internal static class GenerationProfileReportSaver
     {
         public static GenerationProfileReport Save(GenerationProfile profile)

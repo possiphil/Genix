@@ -5,14 +5,18 @@ using UnityEngine;
 
 namespace Genix.Semantics
 {
+    /// <summary>Attaches semantic tags and category-level wildcard matches to a scene object.</summary>
     public sealed class SemanticTagSet : MonoBehaviour
     {
         [SerializeField] private List<SemanticTag> semanticTags = new();
         [SerializeField] private List<TagCategory> anyTagCategories = new();
 
+        /// <summary>Gets semantic tags.</summary>
         public IReadOnlyList<SemanticTag> SemanticTags => semanticTags;
+        /// <summary>Gets any tag categories.</summary>
         public IReadOnlyList<TagCategory> AnyTagCategories => anyTagCategories;
 
+        /// <summary>Sets tags for category.</summary>
         public void SetTagsForCategory(
             TagCategory category,
             IEnumerable<SemanticTag> tags,
@@ -42,12 +46,14 @@ namespace Genix.Semantics
             semanticTags.AddRange(validTags);
         }
 
+        /// <summary>Clears the stored state.</summary>
         public void Clear()
         {
             semanticTags.Clear();
             anyTagCategories.Clear();
         }
 
+        /// <summary>Determines whether an asset satisfies this semantic tag set.</summary>
         public bool MatchesAsset(AssetDefinition asset)
         {
             return SemanticTagMatcher.MatchesAssetRequirements(

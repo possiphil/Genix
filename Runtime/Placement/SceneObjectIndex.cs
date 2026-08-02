@@ -7,6 +7,10 @@ using UnityEngine;
 
 namespace Genix.Placement
 {
+    /// <summary>
+    /// Broad-phase index of existing generated or fixed scene objects used by overlap and spacing validation.
+    /// </summary>
+    /// <remarks>Collection caches are invalidated explicitly when hierarchy or project state changes.</remarks>
     internal sealed class SceneObjectIndex
     {
         private const int MaxCachedEntries = 16;
@@ -30,6 +34,7 @@ namespace Genix.Placement
             FixedCache.Clear();
         }
 
+        /// <summary>Returns a cached generated-object index for a hierarchy parent when still valid.</summary>
         public static SceneObjectIndex CollectGeneratedCached(Transform generatedParent)
         {
             string cacheKey = CreateGeneratedCacheKey(generatedParent);
@@ -73,6 +78,7 @@ namespace Genix.Placement
             return CollectFixed(areaSource, generatedParent, default, 0f, false);
         }
 
+        /// <summary>Returns a cached fixed-object index scoped to the area source and generated hierarchy.</summary>
         public static SceneObjectIndex CollectFixedCached(
             IAreaSource areaSource,
             Transform generatedParent,

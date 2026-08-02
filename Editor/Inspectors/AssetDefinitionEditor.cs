@@ -11,9 +11,29 @@ using UnityEngine;
 
 namespace Genix.Editor.Inspectors
 {
+    /// <summary>Provides guided authoring for asset placement, bounds, orientation, and semantic metadata.</summary>
     [CustomEditor(typeof(AssetDefinition))]
     public sealed class AssetDefinitionEditor : UnityEditor.Editor
     {
+        private static readonly GUIContent AssetNameLabel = new(
+            "Asset Name",
+            "Designer-facing name used in pools, diagnostics, and generated object names.");
+        private static readonly GUIContent PrefabLabel = new(
+            "Prefab",
+            "Prefab instantiated for accepted placements. Assigning it refreshes the placement bounds.");
+        private static readonly GUIContent PlacementTypeLabel = new(
+            "Placement Type",
+            "Surface or volume target this asset can use: Floor, Wall, Ceiling, or Inside Space.");
+        private static readonly GUIContent OrientationModeLabel = new(
+            "Orientation",
+            "None keeps the sampled orientation. Face Target turns the asset toward the nearest active relative-placement anchor.");
+        private static readonly GUIContent BoundsSizeLabel = new(
+            "Size",
+            "World-space size used for containment, spacing, overlap, and surface-fit validation.");
+        private static readonly GUIContent BoundsCenterLabel = new(
+            "Center Offset",
+            "Offset from the prefab transform origin to the center of its placement bounds.");
+
         private SerializedProperty _prefab;
         private SerializedProperty _semanticTags;
         private SerializedProperty _anyTagCategories;
@@ -57,6 +77,7 @@ namespace Genix.Editor.Inspectors
             _randomRollRotation = serializedObject.FindProperty("randomRollRotation");
         }
 
+        /// <summary>Draws and applies the custom Inspector interface.</summary>
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
@@ -83,7 +104,7 @@ namespace Genix.Editor.Inspectors
         {
             EditorGUI.BeginChangeCheck();
 
-            string assetName = EditorGUILayout.DelayedTextField("Asset Name", target.name);
+            string assetName = EditorGUILayout.DelayedTextField(AssetNameLabel, target.name);
 
             if (!EditorGUI.EndChangeCheck())
                 return;
@@ -100,7 +121,7 @@ namespace Genix.Editor.Inspectors
         {
             EditorGUI.BeginChangeCheck();
 
-            EditorGUILayout.PropertyField(_prefab);
+            EditorGUILayout.PropertyField(_prefab, PrefabLabel);
 
             if (EditorGUI.EndChangeCheck())
                 UpdateBoundsFromPrefab();
@@ -110,46 +131,64 @@ namespace Genix.Editor.Inspectors
         {
             EditorGUILayout.LabelField("Placement", EditorStyles.boldLabel);
 
-            EditorGUILayout.PropertyField(_placementType);
+            EditorGUILayout.PropertyField(_placementType, PlacementTypeLabel);
 
             if (IsWallPlacementType())
             {
-                EditorGUILayout.PropertyField(_placementHeight);
-                EditorGUILayout.PropertyField(_useHeightOffset);
+                EditorGUILayout.PropertyField(_placementHeight, new GUIContent(
+                    "Placement Height",
+                    "Height above the sampled wall position at which the asset pivot is placed."));
+                EditorGUILayout.PropertyField(_useHeightOffset, new GUIContent(
+                    "Random Height Offset",
+                    "Randomize the wall placement height within the configured maximum offset."));
 
                 if (_useHeightOffset.boolValue)
-                    EditorGUILayout.PropertyField(_maxHeightOffset);
+                    EditorGUILayout.PropertyField(_maxHeightOffset, new GUIContent(
+                        "Max Height Offset",
+                        "Maximum absolute random offset from Placement Height."));
             }
             else if (IsInsideSpacePlacementType())
             {
-                EditorGUILayout.PropertyField(_randomYawRotation, new GUIContent("Random Yaw"));
-                EditorGUILayout.PropertyField(_randomPitchRotation, new GUIContent("Random Pitch"));
-                EditorGUILayout.PropertyField(_randomRollRotation, new GUIContent("Random Roll"));
+                EditorGUILayout.PropertyField(_randomYawRotation, RotationLabel("Yaw", "vertical axis"));
+                EditorGUILayout.PropertyField(_randomPitchRotation, RotationLabel("Pitch", "side axis"));
+                EditorGUILayout.PropertyField(_randomRollRotation, RotationLabel("Roll", "forward axis"));
             }
             else
             {
-                EditorGUILayout.PropertyField(_randomYawRotation, new GUIContent("Random Yaw"));
+                EditorGUILayout.PropertyField(_randomYawRotation, RotationLabel("Yaw", "surface normal"));
                 DrawSurfaceFitSection();
             }
 
-            EditorGUILayout.PropertyField(_orientationMode);
+            EditorGUILayout.PropertyField(_orientationMode, OrientationModeLabel);
         }
 
         private void DrawSurfaceFitSection()
         {
             EditorGUILayout.Space(2f);
-            EditorGUILayout.PropertyField(_surfaceFitMode, new GUIContent("Surface Fit"));
+            EditorGUILayout.PropertyField(_surfaceFitMode, new GUIContent(
+                "Surface Fit",
+                "Strict requires the footprint to fit its sampled region. Adaptive probes the real surface and is recommended for uneven terrain."));
 
             if (!IsAdaptiveSurfaceFit())
                 return;
 
             using (new EditorGUI.IndentLevelScope())
             {
-                EditorGUILayout.PropertyField(_surfaceAlignmentMode, new GUIContent("Rotation"));
-                EditorGUILayout.PropertyField(_surfaceHeightMode, new GUIContent("Height"));
-                EditorGUILayout.PropertyField(_maxSurfaceHeightDifference, new GUIContent("Max Height Difference"));
-                EditorGUILayout.PropertyField(_minSurfaceSupport, new GUIContent("Min Support"));
-                EditorGUILayout.PropertyField(_surfaceSinkOffset, new GUIContent("Sink Offset"));
+                EditorGUILayout.PropertyField(_surfaceAlignmentMode, new GUIContent(
+                    "Rotation",
+                    "Align To Surface follows the fitted normal. Keep Upright uses the fitted height without tilting."));
+                EditorGUILayout.PropertyField(_surfaceHeightMode, new GUIContent(
+                    "Height",
+                    "Choose the Average, Lowest, or Highest supported probe height as the placement height."));
+                EditorGUILayout.PropertyField(_maxSurfaceHeightDifference, new GUIContent(
+                    "Max Height Difference",
+                    "Reject the placement when supported footprint probes span a larger vertical range."));
+                EditorGUILayout.PropertyField(_minSurfaceSupport, new GUIContent(
+                    "Min Support",
+                    "Minimum fraction of footprint probes that must find a compatible surface."));
+                EditorGUILayout.PropertyField(_surfaceSinkOffset, new GUIContent(
+                    "Sink Offset",
+                    "Move the fitted asset into the support surface by this distance to avoid visible gaps."));
             }
         }
 
@@ -163,13 +202,16 @@ namespace Genix.Editor.Inspectors
 
                 using (new EditorGUI.DisabledScope(!_prefab.objectReferenceValue))
                 {
-                    if (GUILayout.Button("Generate From Prefab", GUILayout.Width(140f)))
+                    if (GUILayout.Button(new GUIContent(
+                            "Generate From Prefab",
+                            "Recalculate placement size and center offset from the prefab renderers and colliders."),
+                        GUILayout.Width(140f)))
                         UpdateBoundsFromPrefab();
                 }
             }
 
-            EditorGUILayout.PropertyField(_boundsSize, GUIContent.none);
-            EditorGUILayout.PropertyField(_boundsCenterOffset, new GUIContent("Center Offset"));
+            EditorGUILayout.PropertyField(_boundsSize, BoundsSizeLabel);
+            EditorGUILayout.PropertyField(_boundsCenterOffset, BoundsCenterLabel);
         }
 
         private void DrawSemanticTagsSection()
@@ -387,5 +429,8 @@ namespace Genix.Editor.Inspectors
 
             return _surfaceFitMode.enumNames[_surfaceFitMode.enumValueIndex] == nameof(SurfaceFitMode.Adaptive);
         }
+
+        private static GUIContent RotationLabel(string name, string axis) =>
+            new($"Random {name}", $"Apply a random rotation around the asset's {axis}.");
     }
 }

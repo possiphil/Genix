@@ -9,6 +9,7 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Editor.Generation
 {
+    /// <summary>Builds a placement plan from a resolved context without modifying the Unity scene.</summary>
     internal static class GenerationEngine
     {
         public static GenerationOutcome BuildPlan(
@@ -323,6 +324,7 @@ namespace Genix.Editor.Generation
         }
     }
 
+    /// <summary>Completion state, accepted count, and designer-facing message returned by planning.</summary>
     internal readonly struct GenerationOutcome
     {
         public bool ShouldApply { get; }

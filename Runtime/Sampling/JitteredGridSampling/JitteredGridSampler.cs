@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace Genix.Sampling.JitteredGridSampling
 {
+    /// <summary>Offsets regular-grid samples within their cells using the run's deterministic random stream.</summary>
     internal sealed class JitteredGridSampler : ISampler
     {
         public List<Vector3> SamplePositions(SamplingContext context)

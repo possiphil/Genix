@@ -446,22 +446,32 @@ namespace Genix.Editor.Windows
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                _assetSearch = EditorGUILayout.TextField("Search", _assetSearch);
+                _assetSearch = EditorGUILayout.TextField(
+                    new GUIContent("Search", "Filter assets by display name."),
+                    _assetSearch);
 
-                _filterByPlacementType = EditorGUILayout.Toggle("Filter By Placement Type", _filterByPlacementType);
+                _filterByPlacementType = EditorGUILayout.Toggle(
+                    new GUIContent("Filter By Placement Type", "Show assets assigned to one surface or volume target."),
+                    _filterByPlacementType);
 
                 if (_filterByPlacementType)
                 {
                     using (new EditorGUI.IndentLevelScope())
-                        _placementTypeFilter = (PlacementType)EditorGUILayout.EnumPopup("Placement Type", _placementTypeFilter);
+                        _placementTypeFilter = (PlacementType)EditorGUILayout.EnumPopup(
+                            new GUIContent("Placement Type", "Placement target assets must match."),
+                            _placementTypeFilter);
                 }
 
-                _filterByOrientationMode = EditorGUILayout.Toggle("Filter By Orientation Mode", _filterByOrientationMode);
+                _filterByOrientationMode = EditorGUILayout.Toggle(
+                    new GUIContent("Filter By Orientation", "Show assets with one relative-orientation behavior."),
+                    _filterByOrientationMode);
 
                 if (_filterByOrientationMode)
                 {
                     using (new EditorGUI.IndentLevelScope())
-                        _orientationModeFilter = (OrientationMode)EditorGUILayout.EnumPopup("Orientation Mode", _orientationModeFilter);
+                        _orientationModeFilter = (OrientationMode)EditorGUILayout.EnumPopup(
+                            new GUIContent("Orientation", "Orientation behavior assets must match."),
+                            _orientationModeFilter);
                 }
 
                 DrawCategoryAssetFilters(catalog);

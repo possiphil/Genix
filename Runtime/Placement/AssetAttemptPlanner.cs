@@ -6,13 +6,14 @@ using UnityEngine;
 
 namespace Genix.Placement
 {
+    /// <summary>Builds deterministic, weighted asset-attempt orders for placement candidates.</summary>
     public static class AssetAttemptPlanner
     {
-        private const float DimensionEpsilon = 0.001f;
-
+        /// <summary>Creates catalog.</summary>
         public static Catalog CreateCatalog(IReadOnlyList<AssetDefinition> assets) =>
             new(assets);
 
+        /// <summary>Creates order.</summary>
         public static List<AssetDefinition> CreateOrder(
             IReadOnlyList<AssetDefinition> assets,
             PlacementType placementType,
@@ -21,104 +22,41 @@ namespace Genix.Placement
             return CreateCatalog(assets).CreateOrder(placementType, random);
         }
 
-        public static void PruneDominated(
-            List<AssetDefinition> remaining,
-            PlacementType placementType,
-            AssetDefinition failedAsset,
-            RejectionReason rejection)
-        {
-            PruneDominated(remaining, 0, placementType, failedAsset, rejection);
-        }
-
-        public static void PruneDominated(
+        /// <summary>Removes remaining asset attempts that can no longer produce a valid placement.</summary>
+        public static void PruneRemaining(
             List<AssetDefinition> remaining,
             int startIndex,
-            PlacementType placementType,
-            AssetDefinition failedAsset,
             RejectionReason rejection)
         {
-            if (remaining.Count == 0 || !failedAsset)
+            if (remaining == null || remaining.Count == 0)
                 return;
 
-            Vector3 failedSize = Dimensions(failedAsset);
             startIndex = Mathf.Clamp(startIndex, 0, remaining.Count);
 
             for (int i = remaining.Count - 1; i >= startIndex; i--)
             {
-                if (ShouldPrune(remaining[i], placementType, failedAsset, failedSize, rejection))
+                if (ShouldPrune(remaining[i], rejection))
                     remaining.RemoveAt(i);
             }
         }
 
         private static bool ShouldPrune(
             AssetDefinition asset,
-            PlacementType placementType,
-            AssetDefinition failedAsset,
-            Vector3 failedSize,
             RejectionReason rejection)
         {
             if (!asset || !asset.Prefab)
                 return true;
 
-            if (ShouldPreserveAdaptiveCandidate(asset, placementType, failedAsset, rejection))
-                return false;
-
-            Vector3 size = Dimensions(asset);
-
-            return rejection switch
-            {
-                RejectionReason.TooCloseToGenerated => true,
-                RejectionReason.ExceedsTargetHeight => size.y >= failedSize.y - DimensionEpsilon,
-                RejectionReason.OutsideTargetArea => DominatesFootprint(placementType, size, failedSize),
-                RejectionReason.OutsideTargetVolume => DominatesVolume(size, failedSize),
-                RejectionReason.OverlapsGenerated => DominatesVolume(size, failedSize),
-                RejectionReason.OverlapsFixed => DominatesVolume(size, failedSize),
-                RejectionReason.TooCloseToFixed => DominatesVolume(size, failedSize),
-                _ => false
-            };
+            return rejection == RejectionReason.TooCloseToGenerated;
         }
 
-        private static bool ShouldPreserveAdaptiveCandidate(
-            AssetDefinition asset,
-            PlacementType placementType,
-            AssetDefinition failedAsset,
-            RejectionReason rejection)
-        {
-            return rejection == RejectionReason.OutsideTargetArea &&
-                   placementType is PlacementType.Floor or PlacementType.Ceiling &&
-                   failedAsset &&
-                   failedAsset.SurfaceFitMode == SurfaceFitMode.Strict &&
-                   asset.SurfaceFitMode == SurfaceFitMode.Adaptive;
-        }
-
+        /// <summary>Returns the number of voxel cells along each axis.</summary>
         public static Vector3 Dimensions(AssetDefinition asset)
         {
             return new Vector3(
                 Mathf.Max(0.01f, asset.Width),
                 Mathf.Max(0.01f, asset.Height),
                 Mathf.Max(0.01f, asset.Depth));
-        }
-
-        private static bool DominatesFootprint(
-            PlacementType placementType,
-            Vector3 size,
-            Vector3 failedSize)
-        {
-            return placementType switch
-            {
-                PlacementType.Wall => size.x >= failedSize.x - DimensionEpsilon &&
-                                      size.y >= failedSize.y - DimensionEpsilon,
-                PlacementType.InsideSpace => DominatesVolume(size, failedSize),
-                _ => size.x >= failedSize.x - DimensionEpsilon &&
-                     size.z >= failedSize.z - DimensionEpsilon
-            };
-        }
-
-        private static bool DominatesVolume(Vector3 size, Vector3 failedSize)
-        {
-            return size.x >= failedSize.x - DimensionEpsilon &&
-                   size.y >= failedSize.y - DimensionEpsilon &&
-                   size.z >= failedSize.z - DimensionEpsilon;
         }
 
         private static float FootprintArea(PlacementType placementType, Vector3 size) =>
@@ -145,10 +83,10 @@ namespace Genix.Placement
                 _ => Mathf.Min(size.x, size.z)
             };
 
+        /// <summary>Indexes eligible asset definitions by placement type for repeated planning queries.</summary>
         public sealed class Catalog
         {
             private readonly Dictionary<PlacementType, List<Entry>> _entriesByType = new();
-            private readonly Dictionary<AssetDefinition, Vector3> _dimensionsByAsset = new();
 
             internal Catalog(IReadOnlyList<AssetDefinition> assets)
             {
@@ -161,7 +99,6 @@ namespace Genix.Placement
                         continue;
 
                     Vector3 dimensions = Dimensions(asset);
-                    _dimensionsByAsset[asset] = dimensions;
 
                     if (!_entriesByType.TryGetValue(asset.PlacementType, out List<Entry> entries))
                     {
@@ -176,6 +113,7 @@ namespace Genix.Placement
                     SortEntries(entry.Key, entry.Value);
             }
 
+            /// <summary>Creates order.</summary>
             public List<AssetDefinition> CreateOrder(
                 PlacementType placementType,
                 GenerationRandom random)
@@ -185,6 +123,7 @@ namespace Genix.Placement
                 return order;
             }
 
+            /// <summary>Creates order.</summary>
             public void CreateOrder(
                 PlacementType placementType,
                 GenerationRandom random,
@@ -216,51 +155,6 @@ namespace Genix.Placement
                     order.Add(entries[i].Asset);
 
                 ShuffleRange(order, largerStart, order.Count, random);
-            }
-
-            public void PruneDominated(
-                List<AssetDefinition> remaining,
-                PlacementType placementType,
-                AssetDefinition failedAsset,
-                RejectionReason rejection)
-            {
-                PruneDominated(remaining, 0, placementType, failedAsset, rejection);
-            }
-
-            public void PruneDominated(
-                List<AssetDefinition> remaining,
-                int startIndex,
-                PlacementType placementType,
-                AssetDefinition failedAsset,
-                RejectionReason rejection)
-            {
-                if (remaining.Count == 0 || !failedAsset)
-                    return;
-
-                Vector3 failedSize = GetDimensions(failedAsset);
-                startIndex = Mathf.Clamp(startIndex, 0, remaining.Count);
-
-                for (int i = remaining.Count - 1; i >= startIndex; i--)
-                {
-                    if (ShouldPrune(
-                            remaining[i],
-                            placementType,
-                            failedAsset,
-                            failedSize,
-                            rejection,
-                            this))
-                    {
-                        remaining.RemoveAt(i);
-                    }
-                }
-            }
-
-            internal Vector3 GetDimensions(AssetDefinition asset)
-            {
-                if (asset && _dimensionsByAsset.TryGetValue(asset, out Vector3 dimensions))
-                    return dimensions;
-
-                return Dimensions(asset);
             }
 
             private static void ShuffleRange(
@@ -305,35 +199,6 @@ namespace Genix.Placement
                         : string.Compare(left.Asset.AssetName, right.Asset.AssetName, StringComparison.OrdinalIgnoreCase);
                 });
             }
-        }
-
-        private static bool ShouldPrune(
-            AssetDefinition asset,
-            PlacementType placementType,
-            AssetDefinition failedAsset,
-            Vector3 failedSize,
-            RejectionReason rejection,
-            Catalog catalog)
-        {
-            if (!asset || !asset.Prefab)
-                return true;
-
-            if (ShouldPreserveAdaptiveCandidate(asset, placementType, failedAsset, rejection))
-                return false;
-
-            Vector3 size = catalog.GetDimensions(asset);
-
-            return rejection switch
-            {
-                RejectionReason.TooCloseToGenerated => true,
-                RejectionReason.ExceedsTargetHeight => size.y >= failedSize.y - DimensionEpsilon,
-                RejectionReason.OutsideTargetArea => DominatesFootprint(placementType, size, failedSize),
-                RejectionReason.OutsideTargetVolume => DominatesVolume(size, failedSize),
-                RejectionReason.OverlapsGenerated => DominatesVolume(size, failedSize),
-                RejectionReason.OverlapsFixed => DominatesVolume(size, failedSize),
-                RejectionReason.TooCloseToFixed => DominatesVolume(size, failedSize),
-                _ => false
-            };
         }
 
         private readonly struct Entry

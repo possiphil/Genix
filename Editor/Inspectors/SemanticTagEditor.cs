@@ -8,6 +8,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Inspectors
 {
+    /// <summary>Provides the custom Inspector for semantic tag.</summary>
     [CustomEditor(typeof(SemanticTag))]
     public sealed class SemanticTagEditor : UnityEditor.Editor
     {
@@ -18,6 +19,7 @@ namespace Genix.Editor.Inspectors
             _category = serializedObject.FindProperty("category");
         }
 
+        /// <summary>Draws and applies the custom Inspector interface.</summary>
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
@@ -37,7 +39,9 @@ namespace Genix.Editor.Inspectors
         {
             EditorGUI.BeginChangeCheck();
 
-            string displayName = EditorGUILayout.DelayedTextField("Display Name", target.name);
+            string displayName = EditorGUILayout.DelayedTextField(
+                new GUIContent("Display Name", "Designer-facing semantic label shown in asset, location, and pool selectors."),
+                target.name);
 
             if (!EditorGUI.EndChangeCheck())
                 return;
@@ -66,7 +70,10 @@ namespace Genix.Editor.Inspectors
             if (categories.Count == 0)
             {
                 using (new EditorGUI.DisabledScope(true))
-                    EditorGUILayout.Popup("Category", 0, new[] { "No categories available" });
+                    EditorGUILayout.Popup(
+                        new GUIContent("Category", "Category that defines how this tag combines with related tags."),
+                        0,
+                        new[] { "No categories available" });
 
                 return;
             }
@@ -86,7 +93,10 @@ namespace Genix.Editor.Inspectors
 
             EditorGUI.BeginChangeCheck();
 
-            int newIndex = EditorGUILayout.Popup("Category", selectedIndex, options);
+            int newIndex = EditorGUILayout.Popup(
+                new GUIContent("Category", "Category that groups this tag and controls whether multiple values may be selected."),
+                selectedIndex,
+                options);
 
             if (!EditorGUI.EndChangeCheck())
                 return;

@@ -21,7 +21,13 @@ namespace Genix.Editor.Windows
         {
             AssignDefaultStylePresetIfMissing();
 
-            _selectedStylePreset = AssetDropdown.DrawStylePresetDropdownWithEditButton("Generation Style", _stylePresets, _stylePresetOptions, _selectedStylePreset);
+            _selectedStylePreset = AssetDropdown.DrawStylePresetDropdownWithEditButton(
+                new GUIContent(
+                    "Generation Style",
+                    "Preset that controls the sampling algorithm, candidate budget, spacing, and algorithm-specific distribution settings."),
+                _stylePresets,
+                _stylePresetOptions,
+                _selectedStylePreset);
             if (!_selectedStylePreset)
             {
                 EditorGUILayout.HelpBox("No generation style preset selected. Create or restore a preset named Natural to use it as the default.", MessageType.Warning);
@@ -170,20 +176,8 @@ namespace Genix.Editor.Windows
             _useGenerationSeed = EditorPrefs.GetBool(UseGenerationSeedKey, false);
             _generationSeed = EditorPrefs.GetInt(GenerationSeedKey, _generationSeed);
             _bestEffort = EditorPrefs.GetBool(BestEffortKey, true);
-            _performanceMode = LoadPerformanceMode();
             _detailedDiagnostics = EditorPrefs.GetBool(DetailedDiagnosticsKey, false);
             _relativeSceneLayers = EditorPrefs.GetInt(RelativeSceneLayersKey, _relativeSceneLayers);
-        }
-
-        private static GenerationPerformanceMode LoadPerformanceMode()
-        {
-            int value = EditorPrefs.GetInt(
-                GenerationPerformanceModeKey,
-                (int)DefaultPerformanceMode);
-
-            return Enum.IsDefined(typeof(GenerationPerformanceMode), value)
-                ? (GenerationPerformanceMode)value
-                : DefaultPerformanceMode;
         }
 
         private static float AngleToPositiveNormalYThreshold(float angleDegrees)
@@ -230,7 +224,10 @@ namespace Genix.Editor.Windows
             return -1;
         }
 
-        private static LayerMask DrawLayerMaskField(string label, LayerMask selected)
+        private static LayerMask DrawLayerMaskField(string label, LayerMask selected) =>
+            DrawLayerMaskField(new GUIContent(label), selected);
+
+        private static LayerMask DrawLayerMaskField(GUIContent label, LayerMask selected)
         {
             string[] layers = InternalEditorUtility.layers;
             int editorMask = 0;

@@ -10,6 +10,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Inspectors
 {
+    /// <summary>Provides the custom Inspector for diagnostics report.</summary>
     [CustomEditor(typeof(DiagnosticsReport))]
     public sealed class DiagnosticsReportEditor : UnityEditor.Editor
     {
@@ -31,6 +32,7 @@ namespace Genix.Editor.Inspectors
         private bool _showAcceptedCandidates;
         private bool _showUnusedCandidates;
 
+        /// <summary>Draws and applies the custom Inspector interface.</summary>
         public override void OnInspectorGUI()
         {
             DiagnosticsReport report = (DiagnosticsReport)target;
@@ -57,8 +59,6 @@ namespace Genix.Editor.Inspectors
             DrawStat("Created At", report.CreatedAt);
             DrawStat("Run ID", ShortenRunId(report.RunId));
             DrawStat("Target", report.TargetName);
-            DrawStat("Mode", report.GenerationMode);
-            DrawStat("Performance", GetPerformanceModeLabel(report));
             DrawStat("Best Effort", report.BestEffort ? "Enabled" : "Disabled");
             DrawStat("Run Type", report.DryRun ? "Preview Run" : "Generation");
             DrawStat("Seed", report.RandomSeed.ToString());
@@ -124,13 +124,6 @@ namespace Genix.Editor.Inspectors
 
             if (!string.IsNullOrWhiteSpace(report.StopReason))
                 EditorGUILayout.HelpBox(report.StopReason, MessageType.Warning);
-        }
-
-        private static string GetPerformanceModeLabel(DiagnosticsReport report)
-        {
-            return string.IsNullOrWhiteSpace(report.PerformanceMode)
-                ? "Accurate"
-                : report.PerformanceMode;
         }
 
         private static void DrawTargetBudgetEntries(
@@ -396,13 +389,13 @@ namespace Genix.Editor.Inspectors
             using (new EditorGUI.IndentLevelScope())
             {
                 DiagnosticsPreview.ShowBounds = EditorGUILayout.Toggle(
-                    "Show Bounds",
+                    new GUIContent("Show Bounds", "Draw the recorded target area's world bounds."),
                     DiagnosticsPreview.ShowBounds);
 
                 if (report.SupportsGrid)
                 {
                     DiagnosticsPreview.ShowGrid = EditorGUILayout.Toggle(
-                        "Show Grid",
+                        new GUIContent("Show Grid", "Draw recorded grid cells for Grid and Jittered Grid sampling."),
                         DiagnosticsPreview.ShowGrid);
                 }
                 else
@@ -411,21 +404,21 @@ namespace Genix.Editor.Inspectors
                 }
 
                 DiagnosticsPreview.ShowCandidateSeeds = EditorGUILayout.Toggle(
-                    "Show Candidates",
+                    new GUIContent("Show Candidates", "Draw the raw candidate positions captured in this report."),
                     DiagnosticsPreview.ShowCandidateSeeds);
 
                 DiagnosticsPreview.ShowAccepted = EditorGUILayout.Toggle(
-                    "Show Accepted",
+                    new GUIContent("Show Accepted", "Draw accepted placement attempts from this report."),
                     DiagnosticsPreview.ShowAccepted);
 
                 DiagnosticsPreview.ShowRejected = EditorGUILayout.Toggle(
-                    "Show Rejected",
+                    new GUIContent("Show Rejected", "Draw rejected placement attempts and their recorded bounds."),
                     DiagnosticsPreview.ShowRejected);
 
                 if (report.SupportsClusters)
                 {
                     DiagnosticsPreview.ShowClusters = EditorGUILayout.Toggle(
-                        "Show Clusters",
+                        new GUIContent("Show Clusters", "Draw recorded cluster centers and radii for Cluster sampling."),
                         DiagnosticsPreview.ShowClusters);
                 }
                 else

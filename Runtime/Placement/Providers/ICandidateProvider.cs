@@ -5,6 +5,7 @@ using Genix.Profiling;
 
 namespace Genix.Placement.Providers
 {
+    /// <summary>Creates inexpensive target-specific seeds before prefab geometry is known.</summary>
     internal interface ICandidateProvider
     {
         List<CandidateSeed> CreateCandidateSeeds(

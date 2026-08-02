@@ -10,6 +10,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Windows
 {
+    /// <summary>Provides the diagnostics editor window.</summary>
     public sealed class DiagnosticsWindow : EditorWindow
     {
         private enum ReportFilter
@@ -39,6 +40,7 @@ namespace Genix.Editor.Windows
         private Vector2 _listScroll;
         private Vector2 _detailsScroll;
 
+        /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
         [MenuItem("Tools/Genix/Diagnostics", false, 10)]
         public static void Open()
         {
@@ -417,19 +419,11 @@ namespace Genix.Editor.Windows
 
         private static string GetReportListInfo(DiagnosticsReport report)
         {
-            string mode = string.IsNullOrWhiteSpace(report.GenerationMode)
-                ? "Unknown Mode"
-                : report.GenerationMode;
-
             string style = string.IsNullOrWhiteSpace(report.StyleName)
                 ? "Unknown Style"
                 : report.StyleName;
 
-            string performance = string.IsNullOrWhiteSpace(report.PerformanceMode)
-                ? "Accurate"
-                : report.PerformanceMode;
-
-            return $"Mode: {mode}    Performance: {performance}    Placed: {report.PlacedObjectCount}/{report.RequestedObjectCount}    Seed: {report.RandomSeed}    Style: {style}";
+            return $"Placed: {report.PlacedObjectCount}/{report.RequestedObjectCount}    Seed: {report.RandomSeed}    Style: {style}";
         }
 
         private void DestroySelectedReportEditor()

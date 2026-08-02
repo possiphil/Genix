@@ -7,6 +7,9 @@ using SfsSpace = SpaceFoundationSystem.Space;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>
+    /// Resolves a selected SFS subspace through live data, persistent caches, serialized data, or flood-fill fallback.
+    /// </summary>
     internal static class SfsSubspaceProvider
     {
         private const int MaxFloodFillCells = 2_000_000;
@@ -221,6 +224,7 @@ namespace Genix.SpaceFoundation.Editor
         }
     }
 
+    /// <summary>Explains which source produced subspace cells and whether caches were read or populated.</summary>
     internal readonly struct SfsSubspaceResolutionInfo
     {
         public SfsSubspaceResolutionSource Source { get; }
@@ -338,6 +342,7 @@ namespace Genix.SpaceFoundation.Editor
                 cacheKey);
     }
 
+    /// <summary>Source that ultimately supplied a resolved SFS subspace.</summary>
     internal enum SfsSubspaceResolutionSource
     {
         Live,

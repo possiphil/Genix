@@ -21,6 +21,7 @@ namespace Genix.Placement
         }
     }
 
+    /// <summary>Resolves scene and planned-object anchors used by relative-placement constraints.</summary>
     public static class RelativeAnchorProvider
     {
         internal static bool IsCandidateInRange(
@@ -47,6 +48,7 @@ namespace Genix.Placement
             return false;
         }
 
+        /// <summary>Determines whether the active relative-placement source contains any anchor.</summary>
         public static bool HasAnyAnchor(GenerationContext context)
         {
             if (context?.RelativePlacement == null || !context.RelativePlacement.IsEnabled)

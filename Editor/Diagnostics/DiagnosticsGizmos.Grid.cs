@@ -6,6 +6,7 @@ using UnityEngine.Rendering;
 
 namespace Genix.Editor.Diagnostics
 {
+    /// <summary>Draws scene-view diagnostics for candidate grids and placement outcomes.</summary>
     public static partial class DiagnosticsGizmos
     {
         private static void DrawGrid(SceneViewData data)

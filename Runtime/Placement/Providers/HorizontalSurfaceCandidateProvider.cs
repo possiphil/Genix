@@ -11,6 +11,9 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Placement.Providers
 {
+    /// <summary>
+    /// Generates floor or ceiling seeds from explicit regions, complete-volume projection, or both.
+    /// </summary>
     internal sealed class PlacementTargetCandidateProvider : CandidateProviderBase
     {
         private readonly PlacementTarget _targets;
@@ -213,6 +216,7 @@ namespace Genix.Placement.Providers
         }
     }
 
+    /// <summary>Compatibility provider that samples extracted horizontal regions without physics projection.</summary>
     internal sealed class HorizontalSurfaceCandidateProvider : CandidateProviderBase
     {
         private readonly Dictionary<SurfaceRegion, ProgressiveBridsonPoissonDiskSampler> _poissonSamplers = new();
@@ -382,6 +386,7 @@ namespace Genix.Placement.Providers
 
     }
 
+    /// <summary>Generates ceiling seeds and projects them upward onto valid downward-facing surfaces.</summary>
     internal sealed class CeilingCandidateProvider : CandidateProviderBase
     {
         private readonly Dictionary<SurfaceRegion, ProgressiveBridsonPoissonDiskSampler> _poissonSamplers = new();

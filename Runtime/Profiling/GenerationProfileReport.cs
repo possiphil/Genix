@@ -9,6 +9,7 @@ using UnityEngine;
 
 namespace Genix.Profiling
 {
+    /// <summary>Stores a serializable generation profile.</summary>
     public sealed class GenerationProfileReport : ScriptableObject
     {
         [SerializeField, HideInInspector] private bool _initialized;
@@ -17,8 +18,6 @@ namespace Genix.Profiling
         [SerializeField, HideInInspector] private string _targetName;
         [SerializeField, HideInInspector] private string _styleName;
         [SerializeField, HideInInspector] private string _runType;
-        [SerializeField, HideInInspector] private string _generationMode;
-        [SerializeField, HideInInspector] private string _performanceMode;
         [SerializeField, HideInInspector] private string _placementTargets;
         [SerializeField, HideInInspector] private string _distributionMode;
         [SerializeField, HideInInspector] private string _samplingAlgorithm;
@@ -41,36 +40,60 @@ namespace Genix.Profiling
         [SerializeField, HideInInspector] private List<PlanningStepEntry> _planningSteps = new();
         [SerializeField, HideInInspector] private List<TargetEntry> _targets = new();
 
+        /// <summary>Gets created at.</summary>
         public string CreatedAt => _createdAt;
+        /// <summary>Gets run id.</summary>
         public string RunId => _runId;
+        /// <summary>Gets target name.</summary>
         public string TargetName => _targetName;
+        /// <summary>Gets style name.</summary>
         public string StyleName => _styleName;
+        /// <summary>Gets run type.</summary>
         public string RunType => _runType;
-        public string GenerationMode => _generationMode;
-        public string PerformanceMode => _performanceMode;
+        /// <summary>Gets placement targets.</summary>
         public string PlacementTargets => _placementTargets;
+        /// <summary>Gets distribution mode.</summary>
         public string DistributionMode => _distributionMode;
+        /// <summary>Gets sampling algorithm.</summary>
         public string SamplingAlgorithm => _samplingAlgorithm;
+        /// <summary>Gets candidate source.</summary>
         public string CandidateSource => _candidateSource;
+        /// <summary>Gets stop reason.</summary>
         public string StopReason => _stopReason;
+        /// <summary>Gets the number of requested object items.</summary>
         public int RequestedObjectCount => _requestedObjectCount;
+        /// <summary>Gets the number of placed object items.</summary>
         public int PlacedObjectCount => _placedObjectCount;
+        /// <summary>Gets random seed.</summary>
         public int RandomSeed => _randomSeed;
-        public bool UseRandomSeed => _useRandomSeed;
+        /// <summary>Indicates whether fixed seed.</summary>
+        public bool UseFixedSeed => _useRandomSeed;
+        /// <summary>Gets the measured planning unattributed time in milliseconds.</summary>
         public float PlanningUnattributedMilliseconds => _planningUnattributedMilliseconds;
+        /// <summary>Indicates whether managed runtime stats.</summary>
         public bool HasManagedRuntimeStats => _hasManagedRuntimeStats;
+        /// <summary>Gets garbage collections gen0.</summary>
         public int GarbageCollectionsGen0 => _garbageCollectionsGen0;
+        /// <summary>Gets garbage collections gen1.</summary>
         public int GarbageCollectionsGen1 => _garbageCollectionsGen1;
+        /// <summary>Gets garbage collections gen2.</summary>
         public int GarbageCollectionsGen2 => _garbageCollectionsGen2;
+        /// <summary>Gets managed memory before bytes.</summary>
         public long ManagedMemoryBeforeBytes => _managedMemoryBeforeBytes;
+        /// <summary>Gets managed memory after bytes.</summary>
         public long ManagedMemoryAfterBytes => _managedMemoryAfterBytes;
+        /// <summary>Gets managed memory delta bytes.</summary>
         public long ManagedMemoryDeltaBytes => _managedMemoryAfterBytes - _managedMemoryBeforeBytes;
+        /// <summary>Gets area build steps.</summary>
         public IReadOnlyList<AreaBuildStepEntry> AreaBuildSteps =>
             _areaBuildSteps != null ? _areaBuildSteps : Array.Empty<AreaBuildStepEntry>();
+        /// <summary>Gets planning steps.</summary>
         public IReadOnlyList<PlanningStepEntry> PlanningSteps =>
             _planningSteps != null ? _planningSteps : Array.Empty<PlanningStepEntry>();
+        /// <summary>Gets targets.</summary>
         public IReadOnlyList<TargetEntry> Targets => _targets;
 
+        /// <summary>Initializes the instance from the supplied runtime or serialized data.</summary>
         public void Initialize(GenerationProfile profile, DateTime createdAt)
         {
             if (_initialized)
@@ -85,8 +108,6 @@ namespace Genix.Profiling
             _targetName = profile.TargetName;
             _styleName = profile.StyleName;
             _runType = profile.RunType;
-            _generationMode = profile.GenerationMode;
-            _performanceMode = profile.PerformanceMode;
             _placementTargets = profile.PlacementTargets;
             _distributionMode = profile.DistributionMode;
             _samplingAlgorithm = profile.SamplingAlgorithm;
@@ -95,7 +116,7 @@ namespace Genix.Profiling
             _requestedObjectCount = profile.RequestedObjectCount;
             _placedObjectCount = profile.PlacedObjectCount;
             _randomSeed = profile.RandomSeed;
-            _useRandomSeed = profile.UseRandomSeed;
+            _useRandomSeed = profile.UseFixedSeed;
             _planningUnattributedMilliseconds = profile.PlanningUnattributedMilliseconds;
             _hasManagedRuntimeStats = profile.HasManagedRuntimeStats;
             _garbageCollectionsGen0 = profile.GarbageCollectionsGen0;
@@ -119,6 +140,7 @@ namespace Genix.Profiling
                 .ToList();
         }
 
+        /// <summary>Returns phase time.</summary>
         public float GetPhaseTime(GenerationProfilePhase phase)
         {
             foreach (PhaseEntry entry in _phases)
@@ -142,6 +164,7 @@ namespace Genix.Profiling
             return profile.CandidateCacheHit ? "Cache" : "Generated";
         }
 
+        /// <summary>Stores one serialized area build step measurement.</summary>
         [Serializable]
         public sealed class AreaBuildStepEntry
         {
@@ -149,10 +172,14 @@ namespace Genix.Profiling
             [SerializeField] private float milliseconds;
             [SerializeField] private int calls;
 
+            /// <summary>Gets step.</summary>
             public string Step => step;
+            /// <summary>Gets the measured  time in milliseconds.</summary>
             public float Milliseconds => milliseconds;
+            /// <summary>Gets the number of recorded  calls.</summary>
             public int Calls => calls;
 
+            /// <summary>Initializes a new instance of area build step entry.</summary>
             public AreaBuildStepEntry(string step, float milliseconds, int calls)
             {
                 this.step = step;
@@ -161,15 +188,19 @@ namespace Genix.Profiling
             }
         }
 
+        /// <summary>Stores one serialized phase measurement.</summary>
         [Serializable]
         public sealed class PhaseEntry
         {
             [SerializeField] private GenerationProfilePhase phase;
             [SerializeField] private float milliseconds;
 
+            /// <summary>Gets phase.</summary>
             public GenerationProfilePhase Phase => phase;
+            /// <summary>Gets the measured  time in milliseconds.</summary>
             public float Milliseconds => milliseconds;
 
+            /// <summary>Initializes a new instance of phase entry.</summary>
             public PhaseEntry(GenerationProfilePhase phase, float milliseconds)
             {
                 this.phase = phase;
@@ -177,6 +208,7 @@ namespace Genix.Profiling
             }
         }
 
+        /// <summary>Stores one serialized planning step measurement.</summary>
         [Serializable]
         public sealed class PlanningStepEntry
         {
@@ -184,10 +216,14 @@ namespace Genix.Profiling
             [SerializeField] private float milliseconds;
             [SerializeField] private int calls;
 
+            /// <summary>Gets step.</summary>
             public string Step => step;
+            /// <summary>Gets the measured  time in milliseconds.</summary>
             public float Milliseconds => milliseconds;
+            /// <summary>Gets the number of recorded  calls.</summary>
             public int Calls => calls;
 
+            /// <summary>Initializes a new instance of planning step entry.</summary>
             public PlanningStepEntry(string step, float milliseconds, int calls)
             {
                 this.step = step;
@@ -196,6 +232,7 @@ namespace Genix.Profiling
             }
         }
 
+        /// <summary>Stores one serialized target measurement.</summary>
         [Serializable]
         public sealed class TargetEntry
         {
@@ -219,29 +256,49 @@ namespace Genix.Profiling
             [SerializeField] private List<ValidationStepEntry> validationSteps = new();
             [SerializeField] private List<RejectionEntry> rejections = new();
 
+            /// <summary>Gets placement type.</summary>
             public string PlacementType => placementType;
+            /// <summary>Gets raw samples.</summary>
             public int RawSamples => rawSamples;
+            /// <summary>Gets candidate seeds.</summary>
             public int CandidateSeeds => candidateSeeds;
+            /// <summary>Gets tested seeds.</summary>
             public int TestedSeeds => testedSeeds;
+            /// <summary>Gets projection attempts.</summary>
             public int ProjectionAttempts => projectionAttempts;
+            /// <summary>Gets projection hits.</summary>
             public int ProjectionHits => projectionHits;
+            /// <summary>Gets projection misses.</summary>
             public int ProjectionMisses => projectionMisses;
+            /// <summary>Gets the number of recorded raycast calls.</summary>
             public int RaycastCalls => raycastCalls;
+            /// <summary>Gets raycast hits.</summary>
             public int RaycastHits => raycastHits;
+            /// <summary>Gets asset attempts.</summary>
             public int AssetAttempts => assetAttempts;
+            /// <summary>Gets accepted attempts.</summary>
             public int AcceptedAttempts => acceptedAttempts;
+            /// <summary>Gets rejected attempts.</summary>
             public int RejectedAttempts => rejectedAttempts;
+            /// <summary>Gets the measured seed generation time in milliseconds.</summary>
             public float SeedGenerationMilliseconds => seedGenerationMilliseconds;
+            /// <summary>Gets the measured sampling time in milliseconds.</summary>
             public float SamplingMilliseconds => samplingMilliseconds;
+            /// <summary>Gets the measured projection time in milliseconds.</summary>
             public float ProjectionMilliseconds => projectionMilliseconds;
+            /// <summary>Gets the measured raycast time in milliseconds.</summary>
             public float RaycastMilliseconds => raycastMilliseconds;
+            /// <summary>Gets the measured validation time in milliseconds.</summary>
             public float ValidationMilliseconds => validationMilliseconds;
+            /// <summary>Gets validation steps.</summary>
             public IReadOnlyList<ValidationStepEntry> ValidationSteps =>
                 validationSteps != null ? validationSteps : Array.Empty<ValidationStepEntry>();
 
+            /// <summary>Gets rejections.</summary>
             public IReadOnlyList<RejectionEntry> Rejections =>
                 rejections != null ? rejections : Array.Empty<RejectionEntry>();
 
+            /// <summary>Initializes a new instance of target entry.</summary>
             public TargetEntry(GenerationTargetProfile target)
             {
                 placementType = target.PlacementType.ToDisplayName();
@@ -275,6 +332,7 @@ namespace Genix.Profiling
             }
         }
 
+        /// <summary>Stores one serialized validation step measurement.</summary>
         [Serializable]
         public sealed class ValidationStepEntry
         {
@@ -282,10 +340,14 @@ namespace Genix.Profiling
             [SerializeField] private float milliseconds;
             [SerializeField] private int calls;
 
+            /// <summary>Gets step.</summary>
             public string Step => step;
+            /// <summary>Gets the measured  time in milliseconds.</summary>
             public float Milliseconds => milliseconds;
+            /// <summary>Gets the number of recorded  calls.</summary>
             public int Calls => calls;
 
+            /// <summary>Initializes a new instance of validation step entry.</summary>
             public ValidationStepEntry(string step, float milliseconds, int calls)
             {
                 this.step = step;
@@ -294,15 +356,19 @@ namespace Genix.Profiling
             }
         }
 
+        /// <summary>Stores one serialized rejection measurement.</summary>
         [Serializable]
         public sealed class RejectionEntry
         {
             [SerializeField] private string reason;
             [SerializeField] private int count;
 
+            /// <summary>Gets reason.</summary>
             public string Reason => reason;
+            /// <summary>Gets the number of stored items.</summary>
             public int Count => count;
 
+            /// <summary>Initializes a new instance of rejection entry.</summary>
             public RejectionEntry(string reason, int count)
             {
                 this.reason = reason;

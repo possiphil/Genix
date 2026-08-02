@@ -5,41 +5,55 @@ using UnityEngine;
 
 namespace Genix.Areas
 {
+    /// <summary>Controls which geometry is exposed as floor, wall, and ceiling placement surfaces.</summary>
     public enum SurfaceDiscoveryMode
     {
+        /// <summary>Uses voxel-derived SFS boundary regions without physics-surface projection.</summary>
         SfsBoundaries,
+        /// <summary>Projects matching physics surfaces only near voxel-derived SFS boundaries.</summary>
         NearSfsBoundaries,
+        /// <summary>Searches matching physics surfaces throughout the complete target volume.</summary>
         AllMatchingSurfacesInVolume
     }
 
+    /// <summary>Configures target-specific spatial data construction for one generation request.</summary>
     [Serializable]
     public struct AreaBuildSettings
     {
+        /// <summary>Stores decomposition mode.</summary>
         public AreaDecompositionMode decompositionMode;
-        public bool usePlacementSurfaceCheck;
+        /// <summary>Stores surface discovery mode.</summary>
         public SurfaceDiscoveryMode surfaceDiscoveryMode;
+        /// <summary>Stores placement surface layers.</summary>
         public LayerMask placementSurfaceLayers;
+        /// <summary>Stores floor surface layers.</summary>
         public LayerMask floorSurfaceLayers;
+        /// <summary>Stores wall surface layers.</summary>
         public LayerMask wallSurfaceLayers;
+        /// <summary>Stores ceiling surface layers.</summary>
         public LayerMask ceilingSurfaceLayers;
+        /// <summary>Stores surface raycast height.</summary>
         public float surfaceRaycastHeight;
+        /// <summary>Stores surface raycast distance.</summary>
         public float surfaceRaycastDistance;
-        public float minSurfaceNormalY;
+        /// <summary>Stores floor normal y threshold.</summary>
         public float floorNormalYThreshold;
+        /// <summary>Stores ceiling normal y threshold.</summary>
         public float ceilingNormalYThreshold;
+        /// <summary>Targets for which spatial data should be built; not serialized with presets.</summary>
         [NonSerialized] public PlacementTarget placementTargets;
+        /// <summary>Optional timing sink populated while constructing the area; not serialized.</summary>
         [NonSerialized] public AreaBuildProfile profile;
 
+        /// <summary>Initializes a new instance of area build settings.</summary>
         public AreaBuildSettings(
             AreaDecompositionMode decompositionMode,
-            bool usePlacementSurfaceCheck,
             LayerMask placementSurfaceLayers,
             LayerMask floorSurfaceLayers = default,
             LayerMask wallSurfaceLayers = default,
             LayerMask ceilingSurfaceLayers = default,
             float surfaceRaycastHeight = 100f,
             float surfaceRaycastDistance = 250f,
-            float minSurfaceNormalY = 0.65f,
             float floorNormalYThreshold = 0.5f,
             float ceilingNormalYThreshold = -0.5f,
             PlacementTarget placementTargets = PlacementTarget.All,
@@ -47,10 +61,7 @@ namespace Genix.Areas
             SurfaceDiscoveryMode surfaceDiscoveryMode = SurfaceDiscoveryMode.AllMatchingSurfacesInVolume)
         {
             this.decompositionMode = decompositionMode;
-            this.surfaceDiscoveryMode = usePlacementSurfaceCheck
-                ? NormalizeSurfaceDiscoveryMode(surfaceDiscoveryMode)
-                : SurfaceDiscoveryMode.SfsBoundaries;
-            this.usePlacementSurfaceCheck = this.surfaceDiscoveryMode != SurfaceDiscoveryMode.SfsBoundaries;
+            this.surfaceDiscoveryMode = NormalizeSurfaceDiscoveryMode(surfaceDiscoveryMode);
             this.placementSurfaceLayers = placementSurfaceLayers;
 
             bool hasSpecificSurfaceLayers =
@@ -63,7 +74,6 @@ namespace Genix.Areas
             this.ceilingSurfaceLayers = hasSpecificSurfaceLayers ? ceilingSurfaceLayers : placementSurfaceLayers;
             this.surfaceRaycastHeight = surfaceRaycastHeight;
             this.surfaceRaycastDistance = surfaceRaycastDistance;
-            this.minSurfaceNormalY = minSurfaceNormalY;
             this.floorNormalYThreshold = Mathf.Clamp(floorNormalYThreshold, -1f, 1f);
             this.ceilingNormalYThreshold = Mathf.Clamp(ceilingNormalYThreshold, -1f, 1f);
             this.placementTargets = placementTargets == PlacementTarget.None
@@ -72,20 +82,23 @@ namespace Genix.Areas
             this.profile = profile;
         }
 
+        /// <summary>Gets effective surface discovery mode.</summary>
         public readonly SurfaceDiscoveryMode EffectiveSurfaceDiscoveryMode =>
-            usePlacementSurfaceCheck
-                ? NormalizeEnabledSurfaceDiscoveryMode(surfaceDiscoveryMode)
-                : SurfaceDiscoveryMode.SfsBoundaries;
+            NormalizeSurfaceDiscoveryMode(surfaceDiscoveryMode);
 
+        /// <summary>Indicates whether collider-based surface projection is enabled.</summary>
         public readonly bool UsesPhysicsSurfaceProjection =>
             EffectiveSurfaceDiscoveryMode != SurfaceDiscoveryMode.SfsBoundaries;
 
+        /// <summary>Indicates whether collider projection is limited to SFS boundary regions.</summary>
         public readonly bool UsesBoundarySurfaceProjection =>
             EffectiveSurfaceDiscoveryMode == SurfaceDiscoveryMode.NearSfsBoundaries;
 
+        /// <summary>Indicates whether matching colliders are searched throughout the target volume.</summary>
         public readonly bool UsesAllMatchingSurfaceSearch =>
             EffectiveSurfaceDiscoveryMode == SurfaceDiscoveryMode.AllMatchingSurfacesInVolume;
 
+        /// <summary>Gets the physics layer mask for a placement type.</summary>
         public readonly LayerMask GetSurfaceLayers(PlacementType placementType)
         {
             return placementType switch
@@ -96,6 +109,7 @@ namespace Genix.Areas
             };
         }
 
+        /// <summary>Returns a copy limited to the supplied effective placement targets.</summary>
         public readonly AreaBuildSettings WithPlacementTargets(PlacementTarget targets)
         {
             AreaBuildSettings copy = this;
@@ -105,6 +119,7 @@ namespace Genix.Areas
             return copy;
         }
 
+        /// <summary>Returns a copy that records area-construction steps into the supplied profile.</summary>
         public readonly AreaBuildSettings WithProfile(AreaBuildProfile areaBuildProfile)
         {
             AreaBuildSettings copy = this;
@@ -119,12 +134,5 @@ namespace Genix.Areas
                 : SurfaceDiscoveryMode.AllMatchingSurfacesInVolume;
         }
 
-        private static SurfaceDiscoveryMode NormalizeEnabledSurfaceDiscoveryMode(SurfaceDiscoveryMode mode)
-        {
-            mode = NormalizeSurfaceDiscoveryMode(mode);
-            return mode == SurfaceDiscoveryMode.SfsBoundaries
-                ? SurfaceDiscoveryMode.AllMatchingSurfacesInVolume
-                : mode;
-        }
     }
 }

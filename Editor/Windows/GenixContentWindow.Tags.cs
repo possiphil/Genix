@@ -34,14 +34,21 @@ namespace Genix.Editor.Windows
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                _categorySearch = EditorGUILayout.TextField("Search", _categorySearch);
-                _filterCategoriesByMode = EditorGUILayout.Toggle("Filter By Mode", _filterCategoriesByMode);
+                _categorySearch = EditorGUILayout.TextField(
+                    new GUIContent("Search", "Filter semantic categories by display name."),
+                    _categorySearch);
+                _filterCategoriesByMode = EditorGUILayout.Toggle(
+                    new GUIContent("Filter By Mode", "Filter categories by whether assets may select one or several tags."),
+                    _filterCategoriesByMode);
 
                 if (_filterCategoriesByMode)
                 {
                     string[] labels = { "Multiple Tags", "Single Tag" };
                     int selectedIndex = _categoryModeFilterAllowsMultiple ? 0 : 1;
-                    selectedIndex = EditorGUILayout.Popup("Mode", selectedIndex, labels);
+                    selectedIndex = EditorGUILayout.Popup(
+                        new GUIContent("Mode", "Single Tag is exclusive; Multiple Tags allows several values in the category."),
+                        selectedIndex,
+                        labels);
                     _categoryModeFilterAllowsMultiple = selectedIndex == 0;
                 }
             }

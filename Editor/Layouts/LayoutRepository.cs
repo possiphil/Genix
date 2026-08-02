@@ -9,6 +9,7 @@ using UnityEngine.SceneManagement;
 
 namespace Genix.Editor.Layouts
 {
+    /// <summary>Loads, filters, deletes, and bulk-clears saved layout assets.</summary>
     internal static class LayoutRepository
     {
         public static SavedLayout[] LoadAll()

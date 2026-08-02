@@ -2,15 +2,21 @@
     "name": "Genix.Tests.Editor",
     "rootNamespace": "Genix.Tests",
     "references": [
-        "Genix.Runtime"
+        "Genix.Runtime",
+        "Genix.Editor",
+        "Unity.PerformanceTesting"
     ],
     "includePlatforms": [
         "Editor"
     ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "FsCheck.dll",
+        "FSharp.Core.dll",
+        "nunit.framework.dll"
+    ],
     "autoReferenced": false,
     "defineConstraints": [
         "UNITY_INCLUDE_TESTS"

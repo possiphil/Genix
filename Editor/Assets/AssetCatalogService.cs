@@ -10,8 +10,10 @@ using Object = UnityEngine.Object;
 
 namespace Genix.Editor.Genix.Editor.Assets
 {
+    /// <summary>Provides project-level asset catalog operations.</summary>
     public static class AssetCatalogService
     {
+        /// <summary>Returns the project asset catalog, creating and populating it when absent.</summary>
         public static AssetCatalog GetOrCreate()
         {
             EnsureFolders();
@@ -26,6 +28,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             return catalog;
         }
 
+        /// <summary>Reloads the backing assets and refreshes derived editor state.</summary>
         public static void Refresh()
         {
             EnsureFolders();
@@ -45,6 +48,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             Save(catalog);
         }
 
+        /// <summary>Creates category.</summary>
         public static TagCategory CreateCategory(string displayName, bool allowMultipleTags = true)
         {
             string name = AssetFileService.CleanName(displayName, "New Category");
@@ -59,6 +63,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             return category;
         }
 
+        /// <summary>Creates tag.</summary>
         public static SemanticTag CreateTag(string displayName, TagCategory category)
         {
             if (!category)
@@ -80,6 +85,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             return tag;
         }
 
+        /// <summary>Attempts to find tag in category.</summary>
         public static bool TryFindTagInCategory(TagCategory category, string displayName, out SemanticTag existingTag)
         {
             existingTag = null;
@@ -94,6 +100,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             return existingTag;
         }
 
+        /// <summary>Attempts to rename tag.</summary>
         public static bool TryRenameTag(SemanticTag tag, string displayName, out string error)
         {
             if (!tag)
@@ -107,6 +114,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             return renamed;
         }
 
+        /// <summary>Attempts to set tag category.</summary>
         public static bool TrySetTagCategory(SemanticTag tag, TagCategory category, out string error)
         {
             error = null;
@@ -130,6 +138,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             return true;
         }
 
+        /// <summary>Creates asset pool.</summary>
         public static AssetPool CreateAssetPool(string displayName, AssetPoolMode mode)
         {
             string name = AssetFileService.CleanName(displayName, "New Asset Pool");
@@ -143,6 +152,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             return pool;
         }
 
+        /// <summary>Adds an asset definition to the project catalog.</summary>
         public static void RegisterAsset(AssetDefinition asset)
         {
             if (!asset)
@@ -153,6 +163,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             Save(catalog);
         }
 
+        /// <summary>Renames the generated object while preserving Genix metadata.</summary>
         public static void Rename(Object asset, string displayName, string fallbackName)
         {
             if (!AssetFileService.Rename(asset, displayName, fallbackName, out string error))
@@ -161,6 +172,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             SaveAndRefresh();
         }
 
+        /// <summary>Deletes a semantic tag and removes it from the catalog.</summary>
         public static void DeleteTag(SemanticTag tag)
         {
             if (!tag)
@@ -171,6 +183,7 @@ namespace Genix.Editor.Genix.Editor.Assets
             SaveAndRefresh();
         }
 
+        /// <summary>Deletes a tag category and removes it from the catalog.</summary>
         public static void DeleteCategory(TagCategory category)
         {
             if (!category)
@@ -198,12 +211,14 @@ namespace Genix.Editor.Genix.Editor.Assets
             SaveAndRefresh();
         }
 
+        /// <summary>Deletes an asset pool and removes it from the catalog.</summary>
         public static void DeleteAssetPool(AssetPool pool)
         {
             AssetFileService.Delete(pool);
             SaveAndRefresh();
         }
 
+        /// <summary>Deletes an asset definition and removes it from the catalog.</summary>
         public static void DeleteAsset(AssetDefinition asset)
         {
             if (!asset)
@@ -224,18 +239,21 @@ namespace Genix.Editor.Genix.Editor.Assets
             SaveAndRefresh();
         }
 
+        /// <summary>Clears assets.</summary>
         public static void ClearAssets()
         {
             foreach (AssetDefinition asset in GetOrCreate().Assets.Where(asset => asset).ToList())
                 DeleteAsset(asset);
         }
 
+        /// <summary>Clears tags.</summary>
         public static void ClearTags()
         {
             foreach (SemanticTag tag in GetOrCreate().Tags.Where(tag => tag).ToList())
                 DeleteTag(tag);
         }
 
+        /// <summary>Clears tags in category.</summary>
         public static void ClearTagsInCategory(TagCategory category)
         {
             if (!category)
@@ -245,18 +263,21 @@ namespace Genix.Editor.Genix.Editor.Assets
                 DeleteTag(tag);
         }
 
+        /// <summary>Clears categories.</summary>
         public static void ClearCategories()
         {
             foreach (TagCategory category in GetOrCreate().Categories.Where(category => category).ToList())
                 DeleteCategory(category);
         }
 
+        /// <summary>Clears asset pools.</summary>
         public static void ClearAssetPools()
         {
             foreach (AssetPool pool in GetOrCreate().AssetPools.Where(pool => pool).ToList())
                 DeleteAssetPool(pool);
         }
 
+        /// <summary>Clears the stored state.</summary>
         public static void Clear()
         {
             ClearAssets();

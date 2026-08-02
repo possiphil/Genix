@@ -9,6 +9,7 @@ using Object = UnityEngine.Object;
 
 namespace Genix.Editor.Windows
 {
+    /// <summary>Provides the genix content editor window.</summary>
     public sealed partial class GenixContentWindow
     {
         private void DrawSelectedObjectDetails()

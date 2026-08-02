@@ -1,9 +1,13 @@
 using Genix.Placement;
+using Genix.Tests.Framework;
 using NUnit.Framework;
 using UnityEngine;
 
 namespace Genix.Tests
 {
+    [Category(GenixTestCategories.Quick)]
+    [Category(GenixTestCategories.Full)]
+    [Category(GenixTestCategories.GeometryArea)]
     public sealed class OrientedBoundsTests
     {
         [Test]

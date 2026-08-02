@@ -8,8 +8,15 @@ using UnityEngine;
 
 namespace Genix.Core
 {
+    /// <summary>Resolves a validated request into the spatial and scene state used by placement planning.</summary>
     public static class GenerationContextFactory
     {
+        /// <summary>Builds a context without restricting area work to a known resolved asset set.</summary>
+        /// <param name="request">Validated generation request.</param>
+        /// <param name="generatedParent">Parent that owns previously and newly generated objects.</param>
+        /// <returns>A context ready for candidate generation and placement planning.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="request"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">The parent or area source is invalid, or the area cannot be built.</exception>
         public static GenerationContext Create(
             GenerationRequest request,
             Transform generatedParent)
@@ -17,6 +24,13 @@ namespace Genix.Core
             return Create(request, generatedParent, null);
         }
 
+        /// <summary>Builds a context and limits target-specific area work to the supplied assets.</summary>
+        /// <param name="request">Validated generation request.</param>
+        /// <param name="generatedParent">Parent that owns previously and newly generated objects.</param>
+        /// <param name="assets">Resolved compatible assets, or <see langword="null"/> when not yet available.</param>
+        /// <returns>A context ready for candidate generation and placement planning.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="request"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">The parent or area source is invalid, or the area cannot be built.</exception>
         public static GenerationContext Create(
             GenerationRequest request,
             Transform generatedParent,

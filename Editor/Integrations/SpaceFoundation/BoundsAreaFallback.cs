@@ -7,6 +7,7 @@ using UnityEngine;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Builds a conservative bounds-based area when detailed SFS voxel data cannot be resolved.</summary>
     internal static class BoundsAreaFallback
     {
         public static bool TryBuild(
@@ -65,6 +66,7 @@ namespace Genix.SpaceFoundation.Editor
         }
     }
 
+    /// <summary>Calculates aggregate world bounds from extracted surface regions.</summary>
     internal static class SurfaceRegionBounds
     {
         public static Bounds Calculate(

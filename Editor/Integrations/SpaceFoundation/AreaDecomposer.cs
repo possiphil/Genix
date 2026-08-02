@@ -5,6 +5,7 @@ using UnityEngine;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Converts voxel floor or ceiling cells into rectangular surface regions using the selected fidelity mode.</summary>
     internal static class AreaDecomposer
     {
         public static List<SurfaceRegion> CreateHorizontalRegions(

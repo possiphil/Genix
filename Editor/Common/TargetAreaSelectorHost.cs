@@ -7,6 +7,7 @@ using UnityEngine;
 
 namespace Genix.Editor.TargetAreas
 {
+    /// <summary>Owns provider-specific target selectors and preserves their state across editor refreshes.</summary>
     public sealed class TargetAreaSelectorHost
     {
         private readonly Dictionary<string, ITargetAreaSelector> _selectors = new();
@@ -15,6 +16,7 @@ namespace Genix.Editor.TargetAreas
         private string _selectedProviderId;
         private int _selectedProviderIndex;
 
+        /// <summary>Rediscovers providers and refreshes each cached selector.</summary>
         public void Refresh()
         {
             string selectedId = GetSelectedProvider()?.Id ?? _selectedProviderId;
@@ -28,11 +30,18 @@ namespace Genix.Editor.TargetAreas
             _selectedProviderIndex = Mathf.Clamp(_selectedProviderIndex, 0, Mathf.Max(0, _providers.Count - 1));
             _selectedProviderId = GetSelectedProvider()?.Id;
 
+
             foreach (ITargetAreaProvider provider in _providers)
                 GetOrCreateSelector(provider)?.Refresh();
         }
-
+        /// <summary>Draws the active selector using a plain text label.</summary>
         public void Draw(string label)
+        {
+            Draw(new GUIContent(label));
+        }
+
+        /// <summary>Draws provider selection and the active provider-specific target field.</summary>
+        public void Draw(GUIContent label)
         {
             if (_providers.Count == 0)
             {
@@ -48,6 +57,7 @@ namespace Genix.Editor.TargetAreas
             selector?.Draw(label);
         }
 
+        /// <summary>Creates the runtime area adapter for the current target selection.</summary>
         public IAreaSource CreateAreaSource()
         {
             ITargetAreaSelector selector = GetOrCreateSelector(GetSelectedProvider());
@@ -64,7 +74,10 @@ namespace Genix.Editor.TargetAreas
                 .ToArray();
 
             EditorGUI.BeginChangeCheck();
-            int selectedIndex = EditorGUILayout.Popup("Area Provider", _selectedProviderIndex, options);
+            int selectedIndex = EditorGUILayout.Popup(
+                new GUIContent("Area Provider", "Spatial-system integration used to resolve the generation target."),
+                _selectedProviderIndex,
+                options);
 
             if (!EditorGUI.EndChangeCheck())
                 return;

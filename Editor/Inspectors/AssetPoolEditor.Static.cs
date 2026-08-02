@@ -54,7 +54,9 @@ namespace Genix.Editor.Inspectors
             _staticAssets.isExpanded = EditorGUI.Foldout(
                 headerRect,
                 _staticAssets.isExpanded,
-                "Static Assets",
+                new GUIContent(
+                    "Static Assets",
+                    "Explicit assets available to this pool. Missing references and duplicates are ignored."),
                 true,
                 EditorStyles.foldout);
 

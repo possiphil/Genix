@@ -5,6 +5,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Inspectors
 {
+    /// <summary>Provides the custom Inspector for tag category.</summary>
     [CustomEditor(typeof(TagCategory))]
     public sealed class TagCategoryEditor : UnityEditor.Editor
     {
@@ -15,6 +16,7 @@ namespace Genix.Editor.Inspectors
             _allowMultipleTags = serializedObject.FindProperty("allowMultipleTags");
         }
 
+        /// <summary>Draws and applies the custom Inspector interface.</summary>
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
@@ -26,7 +28,8 @@ namespace Genix.Editor.Inspectors
 
             EditorGUILayout.PropertyField(
                 _allowMultipleTags,
-                new GUIContent("Allow Multiple Tags"));
+                new GUIContent("Allow Multiple Tags",
+                    "Allow an object or filter to select several tags from this category. Disable for mutually exclusive choices such as biome or room type."));
 
             serializedObject.ApplyModifiedProperties();
         }
@@ -36,7 +39,7 @@ namespace Genix.Editor.Inspectors
             EditorGUI.BeginChangeCheck();
 
             string displayName = EditorGUILayout.DelayedTextField(
-                "Display Name",
+                new GUIContent("Display Name", "Designer-facing category name shown in tag selectors and filters."),
                 target.name);
 
             if (!EditorGUI.EndChangeCheck())

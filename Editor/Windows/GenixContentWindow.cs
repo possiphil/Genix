@@ -152,6 +152,7 @@ namespace Genix.Editor.Windows
         private readonly LocationPanelHost _locationPanel = new();
         private readonly TargetAreaSelectorHost _layoutTargetAreaSelector = new();
 
+        /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
         [MenuItem("Tools/Genix/Assets", false, 20)]
         public static void Open()
         {

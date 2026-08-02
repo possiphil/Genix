@@ -10,35 +10,44 @@ using SfsSpace = SpaceFoundationSystem.Space;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Adapts a Space Foundation System space to the Genix spatial-area contract.</summary>
     public sealed class SfsAreaSource : IAreaSource, IAreaCacheControl
     {
         private readonly SfsSpace _space;
 
         private SfsAnchor Anchor => _space ? _space.anchor : null;
 
+        /// <summary>Initializes a new instance of sfs area source.</summary>
         public SfsAreaSource(SfsSpace space)
         {
             _space = space;
         }
 
+        /// <summary>Gets parent transform.</summary>
         public Transform ParentTransform => _space ? _space.transform : null;
 
+        /// <summary>Gets clear cache label.</summary>
         public string ClearCacheLabel => "Clear SFS Cache";
 
+        /// <summary>Gets clear cache tooltip.</summary>
         public string ClearCacheTooltip =>
             "Clear Genix's cached Space Foundation subspaces and derived placement areas.";
 
+        /// <summary>Gets source info.</summary>
         public SpatialSourceInfo SourceInfo => new(
             "Space Foundation location",
             _space ? AreaName.ToDesignerName(_space.name) : "Missing Location",
             Anchor ? Anchor.GetUniqueId() : string.Empty);
 
+        /// <summary>Gets semantic tags.</summary>
         public IReadOnlyList<SemanticTag> SemanticTags =>
             GetSemanticTagSet()?.SemanticTags ?? Array.Empty<SemanticTag>();
 
+        /// <summary>Gets any tag categories.</summary>
         public IReadOnlyList<TagCategory> AnyTagCategories =>
             GetSemanticTagSet()?.AnyTagCategories ?? Array.Empty<TagCategory>();
 
+        /// <summary>Attempts to build area.</summary>
         public bool TryBuildArea(AreaBuildSettings settings, out PlacementArea area, out string error)
         {
             area = null;
@@ -147,12 +156,14 @@ namespace Genix.SpaceFoundation.Editor
                 out error);
         }
 
+        /// <summary>Clears persistent subspace cache.</summary>
         public static void ClearPersistentSubspaceCache()
         {
             PersistentSubspaceCache.Clear();
             SfsAreaCache.Clear();
         }
 
+        /// <summary>Clears cache.</summary>
         public void ClearCache()
         {
             ClearPersistentSubspaceCache();
@@ -252,9 +263,10 @@ namespace Genix.SpaceFoundation.Editor
                 : null;
         }
 
+        /// <summary>Determines whether source collider.</summary>
         public bool IsSourceCollider(Collider collider)
         {
-            return collider && collider.GetComponentInParent<SfsSpace>() != null;
+            return collider && collider.GetComponentInParent<SfsSpace>() == _space;
         }
     }
 }

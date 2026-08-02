@@ -2,17 +2,29 @@ using UnityEngine;
 
 namespace Genix.Placement
 {
+    /// <summary>Immutable oriented box used by containment, spacing, and overlap validation.</summary>
     public readonly struct OrientedBounds
     {
+        /// <summary>Gets the world-space center of the box.</summary>
         public Vector3 Center { get; }
+        /// <summary>Gets the full local-axis dimensions of the box.</summary>
         public Vector3 Size { get; }
+        /// <summary>Gets the orientation of the box in world space.</summary>
         public Quaternion Rotation { get; }
 
+        /// <summary>Gets half of <see cref="Size"/> along each local axis.</summary>
         public Vector3 Extents => Size * 0.5f;
+        /// <summary>Gets the box's world-space local X axis.</summary>
         public Vector3 Right => Rotation * Vector3.right;
+        /// <summary>Gets the box's world-space local Y axis.</summary>
         public Vector3 Up => Rotation * Vector3.up;
+        /// <summary>Gets the box's world-space local Z axis.</summary>
         public Vector3 Forward => Rotation * Vector3.forward;
 
+        /// <summary>Initializes an oriented box and clamps each dimension to a small positive value.</summary>
+        /// <param name="center">World-space box center.</param>
+        /// <param name="size">Full dimensions along the box's local axes.</param>
+        /// <param name="rotation">World-space box orientation.</param>
         public OrientedBounds(Vector3 center, Vector3 size, Quaternion rotation)
         {
             Center = center;
@@ -23,11 +35,15 @@ namespace Genix.Placement
             Rotation = rotation;
         }
 
+        /// <summary>Returns bounds with the box center and local size, without applying its rotation.</summary>
+        /// <returns>Bounds expressed directly from <see cref="Center"/> and <see cref="Size"/>.</returns>
         public Bounds ToLocalBounds()
         {
             return new Bounds(Center, Size);
         }
 
+        /// <summary>Returns the world-axis-aligned bounds enclosing this oriented box.</summary>
+        /// <returns>The smallest axis-aligned bounds that encloses all box corners.</returns>
         public Bounds ToAxisAlignedBounds()
         {
             Vector3 extents = Extents;
@@ -43,11 +59,15 @@ namespace Genix.Placement
             return new Bounds(Center, axisAlignedExtents * 2f);
         }
 
+        /// <summary>Determines whether this oriented box overlaps the supplied axis-aligned bounds.</summary>
+        /// <param name="axisAlignedBounds">World-axis-aligned bounds to test.</param>
+        /// <returns><see langword="true"/> when the two volumes overlap.</returns>
         public bool Intersects(Bounds axisAlignedBounds)
         {
             return Intersects(new OrientedBounds(axisAlignedBounds.center, axisAlignedBounds.size, Quaternion.identity));
         }
 
+        /// <summary>Tests intersection using the fifteen separating axes of two oriented boxes.</summary>
         public bool Intersects(OrientedBounds other)
         {
             const float epsilon = 0.0001f;

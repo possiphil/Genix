@@ -5,31 +5,64 @@ using UnityEngine;
 
 namespace Genix.Core
 {
+    /// <summary>
+    /// Describes one immutable generation operation before spatial data and assets are resolved.
+    /// </summary>
+    /// <remarks>
+    /// A request contains designer intent only. Use <see cref="GenerationPreflight"/> to validate it and
+    /// <see cref="GenerationContextFactory"/> to resolve its area and scene-dependent state.
+    /// </remarks>
     public sealed class GenerationRequest
     {
+        /// <summary>Gets area source.</summary>
         public IAreaSource AreaSource { get; }
+        /// <summary>Gets area build settings.</summary>
         public AreaBuildSettings AreaBuildSettings { get; }
+        /// <summary>Gets asset pool.</summary>
         public AssetPool AssetPool { get; }
+        /// <summary>Gets the number of object items.</summary>
         public int ObjectCount { get; }
 
-        public GenerationMode GenerationMode { get; }
-        public GenerationPerformanceMode PerformanceMode { get; }
+        /// <summary>Gets placement targets.</summary>
         public PlacementTarget PlacementTargets { get; }
+        /// <summary>Gets target distribution mode.</summary>
         public TargetDistributionMode TargetDistributionMode { get; }
+        /// <summary>Gets target distribution weights.</summary>
         public TargetDistributionWeights TargetDistributionWeights { get; }
+        /// <summary>Gets style name.</summary>
         public string StyleName { get; }
+        /// <summary>Gets style settings.</summary>
         public StyleSettings StyleSettings { get; }
+        /// <summary>Gets relative placement.</summary>
         public RelativePlacementSettings RelativePlacement { get; }
-        public bool UseRandomSeed { get; }
+        /// <summary>Indicates whether fixed seed.</summary>
+        public bool UseFixedSeed { get; }
+        /// <summary>Gets random seed.</summary>
         public int RandomSeed { get; }
+        /// <summary>Indicates whether best effort.</summary>
         public bool BestEffort { get; }
+        /// <summary>Indicates whether detailed diagnostics.</summary>
         public bool DetailedDiagnostics { get; }
 
+        /// <summary>Creates a generation request.</summary>
+        /// <param name="areaSource">Provider for the target area's spatial representation.</param>
+        /// <param name="assetPool">Pool from which compatible asset definitions are resolved.</param>
+        /// <param name="objectCount">Requested number of accepted placements.</param>
+        /// <param name="placementTargets">Allowed surface and volume target types.</param>
+        /// <param name="targetDistributionMode">Policy for sharing placements among selected targets.</param>
+        /// <param name="targetDistributionWeights">Relative target weights used by weighted distribution.</param>
+        /// <param name="styleSettings">Sampling and spacing configuration.</param>
+        /// <param name="areaBuildSettings">Surface-discovery and area-construction configuration.</param>
+        /// <param name="relativePlacement">Optional proximity constraint relative to generated or scene objects.</param>
+        /// <param name="styleName">Display name recorded in diagnostics and profiling.</param>
+        /// <param name="useFixedSeed">Whether to use <paramref name="randomSeed"/> instead of creating a new seed.</param>
+        /// <param name="randomSeed">Deterministic seed used when <paramref name="useFixedSeed"/> is true.</param>
+        /// <param name="bestEffort">Whether a valid partial plan may be returned.</param>
+        /// <param name="detailedDiagnostics">Whether per-attempt diagnostic geometry should be retained.</param>
         public GenerationRequest(
             IAreaSource areaSource,
             AssetPool assetPool,
             int objectCount,
-            GenerationMode generationMode,
             PlacementTarget placementTargets,
             TargetDistributionMode targetDistributionMode,
             TargetDistributionWeights targetDistributionWeights,
@@ -37,25 +70,22 @@ namespace Genix.Core
             AreaBuildSettings areaBuildSettings,
             RelativePlacementSettings relativePlacement = null,
             string styleName = "",
-            bool useRandomSeed = false,
+            bool useFixedSeed = false,
             int randomSeed = 0,
             bool bestEffort = true,
-            GenerationPerformanceMode performanceMode = GenerationPerformanceMode.Accurate,
             bool detailedDiagnostics = false)
         {
             AreaSource = areaSource;
             AreaBuildSettings = areaBuildSettings;
             AssetPool = assetPool;
             ObjectCount = objectCount;
-            GenerationMode = generationMode;
-            PerformanceMode = performanceMode;
             PlacementTargets = placementTargets;
             TargetDistributionMode = targetDistributionMode;
             TargetDistributionWeights = targetDistributionWeights;
             StyleName = styleName;
             StyleSettings = styleSettings;
             RelativePlacement = relativePlacement ?? RelativePlacementSettings.Disabled;
-            UseRandomSeed = useRandomSeed;
+            UseFixedSeed = useFixedSeed;
             RandomSeed = randomSeed;
             BestEffort = bestEffort;
             DetailedDiagnostics = detailedDiagnostics;

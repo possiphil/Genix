@@ -3,6 +3,7 @@ using Genix.Profiling;
 
 namespace Genix.Editor.Profiling
 {
+    /// <summary>Owns profiling enablement, recorder creation, and last-run profile handoff.</summary>
     internal static class GenerationProfilerService
     {
         public static event Action Changed;

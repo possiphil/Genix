@@ -3,10 +3,12 @@ using UnityEngine;
 
 namespace Genix.Editor.Utilities
 {
+    /// <summary>Provides shared IMGUI controls and layout helpers for Genix editor interfaces.</summary>
     public static class EditorGui
     {
         private const float FoldoutTextOffset = -4f;
 
+        /// <summary>Draws a shortcut that selects the supplied asset for editing.</summary>
         public static void DrawEditAssetButton(Object asset, float width = 48f)
         {
             using (new EditorGUI.DisabledScope(!asset))
@@ -16,6 +18,7 @@ namespace Genix.Editor.Utilities
             }
         }
 
+        /// <summary>Selects and reveals the object in the Unity Inspector.</summary>
         public static void ShowObjectInInspector(Object obj)
         {
             if (!obj) return;
@@ -28,6 +31,7 @@ namespace Genix.Editor.Utilities
             EditorApplication.ExecuteMenuItem("Window/General/Inspector");
         }
 
+        /// <summary>Draws an indented foldout and returns its expanded state.</summary>
         public static bool DrawIndentedFoldout(bool isExpanded, string label)
         {
             int previousIndentLevel = EditorGUI.indentLevel;
@@ -50,11 +54,13 @@ namespace Genix.Editor.Utilities
             );
         }
 
+        /// <summary>Returns a label that marks values differing from their defaults.</summary>
         public static GUIContent ChangedLabel(string label, bool hasChanged)
         {
             return new GUIContent(hasChanged ? $"{label} *" : label);
         }
 
+        /// <summary>Clears text field focus.</summary>
         public static void ClearTextFieldFocus()
         {
             GUI.FocusControl(null);
@@ -62,6 +68,7 @@ namespace Genix.Editor.Utilities
             EditorGUIUtility.editingTextField = false;
         }
 
+        /// <summary>Draws a help box when the supplied message is not empty.</summary>
         public static void DrawHelpBox(string message, MessageType messageType, float height = 42f)
         {
             Rect rect = EditorGUILayout.GetControlRect(false, height);

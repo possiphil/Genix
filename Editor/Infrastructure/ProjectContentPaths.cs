@@ -1,5 +1,6 @@
 namespace Genix.Editor.Infrastructure
 {
+    /// <summary>Canonical Unity project paths for user-authored and generated Genix content.</summary>
     internal static class ProjectContentPaths
     {
         public const string Root = "Assets/Genix";

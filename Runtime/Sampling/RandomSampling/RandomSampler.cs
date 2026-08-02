@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace Genix.Sampling.RandomSampling
 {
+    /// <summary>Produces independent uniformly distributed samples over the XZ bounds.</summary>
     internal sealed class RandomSampler : ISampler
     {
         public List<Vector3> SamplePositions(SamplingContext context)

@@ -13,6 +13,7 @@ using SfsSpace = SpaceFoundationSystem.Space;
 
 namespace Genix.SpaceFoundation.Editor
 {
+    /// <summary>Caches fully built placement areas in memory and as compressed project-local assets.</summary>
     internal static class SfsAreaCache
     {
         private const int CacheVersion = 6;
@@ -345,6 +346,7 @@ namespace Genix.SpaceFoundation.Editor
         }
     }
 
+    /// <summary>Serialized bounded store from stable area keys to reconstructable placement-area data.</summary>
     internal sealed class SfsAreaCacheAsset : ScriptableObject
     {
         [SerializeField] private List<PersistentEntry> entries = new();

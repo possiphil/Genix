@@ -6,15 +6,19 @@ using UnityEngine;
 
 namespace Genix.Core
 {
+    /// <summary>Mutable collection of accepted placements and the spatial indices used while constructing it.</summary>
     public sealed class GenerationPlan
     {
         private readonly List<PlannedObject> _objects;
         private readonly SpatialBoundsIndex _spatialIndex;
         private readonly SpatialPointIndex2D _horizontalSpacingIndex;
 
+        /// <summary>Gets objects.</summary>
         public IReadOnlyList<PlannedObject> Objects => _objects;
+        /// <summary>Gets the number of stored items.</summary>
         public int Count => _objects.Count;
 
+        /// <summary>Initializes a new instance of generation plan.</summary>
         public GenerationPlan(int capacity = 0)
         {
             int safeCapacity = Mathf.Max(0, capacity);
@@ -25,6 +29,7 @@ namespace Genix.Core
             _horizontalSpacingIndex = new SpatialPointIndex2D(capacity: safeCapacity);
         }
 
+        /// <summary>Adds an accepted placement and updates overlap and horizontal-spacing indices.</summary>
         public void Add(
             AssetDefinition asset,
             PlacementCandidate candidate,
@@ -43,18 +48,21 @@ namespace Genix.Core
             _horizontalSpacingIndex.Add(axisAlignedBounds.center, objectIndex);
         }
 
+        /// <summary>Enumerates planned objects whose indexed bounds may intersect the supplied bounds.</summary>
         public IEnumerable<PlannedObject> Query(Bounds axisAlignedBounds)
         {
             foreach (int index in _spatialIndex.Query(axisAlignedBounds))
                 yield return _objects[index];
         }
 
+        /// <summary>Enumerates planned objects within index cells that overlap a horizontal search radius.</summary>
         public IEnumerable<PlannedObject> QueryHorizontalSpacing(Bounds candidateBounds, float radius)
         {
             foreach (int index in _horizontalSpacingIndex.Query(candidateBounds.center, radius))
                 yield return _objects[index];
         }
 
+        /// <summary>Clears the stored state.</summary>
         public void Clear()
         {
             _objects.Clear();
@@ -183,13 +191,19 @@ namespace Genix.Core
         }
     }
 
+    /// <summary>Immutable accepted asset placement retained by a generation plan.</summary>
     public readonly struct PlannedObject
     {
+        /// <summary>Gets asset.</summary>
         public AssetDefinition Asset { get; }
+        /// <summary>Gets candidate.</summary>
         public PlacementCandidate Candidate { get; }
+        /// <summary>Gets object name.</summary>
         public string ObjectName { get; }
+        /// <summary>Gets bounds.</summary>
         public OrientedBounds Bounds { get; }
 
+        /// <summary>Initializes a new instance of planned object.</summary>
         public PlannedObject(
             AssetDefinition asset,
             PlacementCandidate candidate,

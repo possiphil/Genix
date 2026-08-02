@@ -29,14 +29,21 @@ namespace Genix.Editor.Windows
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                _poolSearch = EditorGUILayout.TextField("Search", _poolSearch);
-                _filterAssetPoolsByMode = EditorGUILayout.Toggle("Filter By Mode", _filterAssetPoolsByMode);
+                _poolSearch = EditorGUILayout.TextField(
+                    new GUIContent("Search", "Filter asset pools by display name."),
+                    _poolSearch);
+                _filterAssetPoolsByMode = EditorGUILayout.Toggle(
+                    new GUIContent("Filter By Mode", "Show only Static or Dynamic pools."),
+                    _filterAssetPoolsByMode);
 
                 if (_filterAssetPoolsByMode)
                     _poolModeFilter = DrawPoolModeFilterPopup(_poolModeFilter);
 
                 string[] assetStateLabels = { "All", "Has Assets", "Empty" };
-                int selectedAssetState = EditorGUILayout.Popup("Asset State", (int)_poolAssetStateFilter, assetStateLabels);
+                int selectedAssetState = EditorGUILayout.Popup(
+                    new GUIContent("Asset State", "Filter by whether the pool currently resolves at least one asset."),
+                    (int)_poolAssetStateFilter,
+                    assetStateLabels);
                 _poolAssetStateFilter = (PoolAssetStateFilter)selectedAssetState;
             }
         }
@@ -68,7 +75,10 @@ namespace Genix.Editor.Windows
             if (selectedIndex < 0)
                 selectedIndex = 0;
 
-            selectedIndex = EditorGUILayout.Popup("Mode", selectedIndex, labels);
+            selectedIndex = EditorGUILayout.Popup(
+                new GUIContent("Mode", "Static stores an explicit list; Dynamic resolves current catalog matches."),
+                selectedIndex,
+                labels);
             return modes[selectedIndex];
         }
 
@@ -169,4 +179,3 @@ namespace Genix.Editor.Windows
 
     }
 }
-

@@ -12,12 +12,20 @@ using UnityEngine;
 
 namespace Genix.Placement
 {
+    /// <summary>
+    /// Allocates target-specific candidate budgets, invokes providers, and optionally reuses deterministic seed sets.
+    /// </summary>
+    /// <remarks>
+    /// Cache keys include spatial identity, style, target distribution, surface settings, requested count, and random
+    /// state. Reusing an entry also restores the random state after generation so downstream choices remain stable.
+    /// </remarks>
     internal static class CandidateSeedFactory
     {
         private const int LazyBatchCandidateMultiplier = 2;
         private const int LazyMinimumBatchCandidateCount = 64;
         private const int LazyMaxBatchCount = 64;
 
+        /// <summary>Creates one candidate pool containing all requested placement targets.</summary>
         public static CandidatePool CreatePool(
             GenerationContext context,
             IDiagnosticsSink diagnostics,
@@ -57,6 +65,7 @@ namespace Genix.Placement
                 maxBatchCount);
         }
 
+        /// <summary>Creates independent pools for target-distribution policies that consume targets separately.</summary>
         public static Dictionary<PlacementType, CandidatePool> CreatePoolsByPlacementType(
             GenerationContext context,
             IDiagnosticsSink diagnostics,
@@ -102,6 +111,7 @@ namespace Genix.Placement
             return pools;
         }
 
+        /// <summary>Creates or retrieves deterministic candidate seeds for the requested target mask.</summary>
         public static List<CandidateSeed> Create(
             GenerationContext context,
             IDiagnosticsSink diagnostics,
@@ -244,12 +254,6 @@ namespace Genix.Placement
             int minimumCandidateCount = -1,
             int candidateCount = -1)
         {
-            if (context.GenerationMode != GenerationMode.TargetPlacement)
-                throw new ArgumentOutOfRangeException(
-                    nameof(context.GenerationMode),
-                    context.GenerationMode,
-                    $"Unsupported generation mode: {context.GenerationMode.ToDisplayName()}.");
-
             yield return new PlacementTargetCandidateProvider(
                 targets ?? context.PlacementTargets,
                 requestedCount,
@@ -347,7 +351,7 @@ namespace Genix.Placement
 
         private static string CreateCacheKey(GenerationContext context, PlacementTarget? targets)
         {
-            if (context == null || !context.UseRandomSeed)
+            if (context == null || !context.UseFixedSeed)
                 return string.Empty;
 
             Bounds bounds = context.TargetBounds;
@@ -356,9 +360,12 @@ namespace Genix.Placement
             return string.Join("|",
                 context.Area.SourceInfo.SourceId,
                 context.Area.SourceInfo.SourceName,
-                context.GenerationMode,
-                context.PerformanceMode,
                 targets ?? context.PlacementTargets,
+                context.TargetDistributionMode,
+                context.TargetDistributionWeights.Floor,
+                context.TargetDistributionWeights.Wall,
+                context.TargetDistributionWeights.Ceiling,
+                context.TargetDistributionWeights.InsideSpace,
                 context.Count,
                 context.RandomSeed,
                 context.Area.SurfaceSettingsCacheKey,
@@ -384,6 +391,7 @@ namespace Genix.Placement
         private static int FloatKey(float value) => Mathf.RoundToInt(value * 10_000f);
     }
 
+    /// <summary>Immutable cached seeds plus the random-stream state immediately after their creation.</summary>
     internal sealed class CandidateSeedCacheEntry
     {
         public IReadOnlyList<CandidateSeed> Seeds { get; }
@@ -396,6 +404,7 @@ namespace Genix.Placement
         }
     }
 
+    /// <summary>Small process-local LRU cache for deterministic candidate generation results.</summary>
     internal static class CandidateSeedCache
     {
         private const int MaxEntries = 32;

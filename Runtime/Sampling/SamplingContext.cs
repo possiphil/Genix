@@ -8,6 +8,7 @@ using UnityEngine;
 
 namespace Genix.Sampling
 {
+    /// <summary>Immutable bounds, count, settings, random stream, and diagnostics supplied to a sampler.</summary>
     internal readonly struct SamplingContext
     {
         public Bounds Bounds { get; }

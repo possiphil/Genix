@@ -3,8 +3,10 @@ using UnityEditor;
 
 namespace Genix.Editor.Genix.Editor.Common
 {
+    /// <summary>Groups a compound editor mutation into one user-visible Unity Undo operation.</summary>
     public static class UndoStep
     {
+        /// <summary>Executes an action and collapses every nested mutation into one named Undo step.</summary>
         public static void ExecuteAsSingleStep(string undoName, Action action)
         {
             if (action == null)

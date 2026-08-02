@@ -9,17 +9,20 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Placement
 {
+    /// <summary>Validates placement constraints.</summary>
     public static class PlacementValidator
     {
         private const int InitialOverlapBufferSize = 64;
 
         [ThreadStatic] private static Collider[] _overlapBuffer;
 
+        /// <summary>Determines whether valid candidate.</summary>
         public static bool IsValidCandidate(PlacementCandidate candidate, Bounds candidateBounds, GenerationContext context)
         {
             return TryValidateCandidate(candidate, candidateBounds, context, out _, out _);
         }
 
+        /// <summary>Attempts to validate candidate.</summary>
         public static bool TryValidateCandidate(
             PlacementCandidate candidate,
             Bounds candidateBounds,
@@ -30,6 +33,7 @@ namespace Genix.Placement
             return TryValidateCandidate(candidate, candidateBounds, context, null, out rejectionReason, out relatedObjectName);
         }
 
+        /// <summary>Attempts to validate candidate.</summary>
         public static bool TryValidateCandidate(
             PlacementCandidate candidate,
             Bounds candidateBounds,
@@ -51,6 +55,7 @@ namespace Genix.Placement
                 profiler);
         }
 
+        /// <summary>Attempts to validate candidate.</summary>
         public static bool TryValidateCandidate(
             PlacementCandidate candidate,
             OrientedBounds candidateBounds,

@@ -9,11 +9,13 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Placement.Providers
 {
+    /// <summary>
+    /// Generates volume seeds, preferring direct random occupancy-cell sampling when valid cells are available.
+    /// </summary>
     internal sealed class InsideSpaceCandidateProvider : CandidateProviderBase
     {
         private const int RandomOversampling = 4;
         private const int MaxGeneratedSeeds = 50_000;
-        private const int FastVolumeMaxGeneratedSeeds = 10_000;
 
         public InsideSpaceCandidateProvider(
             int requestedCount = -1,
@@ -81,23 +83,22 @@ namespace Genix.Placement.Providers
             GenerationContext context,
             SamplingContext samplingContext)
         {
-            if (context.PerformanceMode == GenerationPerformanceMode.Fast && context.Area.HasVolumeCells)
-                return CreateFastVolumePositions(context, samplingContext);
-
             return context.StyleSettings.algorithm switch
             {
                 SamplingAlgorithm.Grid => CreateGridPositions(context, samplingContext, false),
                 SamplingAlgorithm.JitteredGrid => CreateGridPositions(context, samplingContext, true),
-                _ => CreateRandomPositions(context, samplingContext)
+                _ => context.Area.HasVolumeCells
+                    ? CreateVolumeCellPositions(context, samplingContext)
+                    : CreateRandomPositions(context, samplingContext)
             };
         }
 
-        private static IEnumerable<Vector3> CreateFastVolumePositions(
+        private static IEnumerable<Vector3> CreateVolumeCellPositions(
             GenerationContext context,
             SamplingContext samplingContext)
         {
             int count = Mathf.Min(
-                FastVolumeMaxGeneratedSeeds,
+                MaxGeneratedSeeds,
                 Mathf.Max(samplingContext.CandidateCount, context.Count * RandomOversampling));
 
             for (int i = 0; i < count; i++)

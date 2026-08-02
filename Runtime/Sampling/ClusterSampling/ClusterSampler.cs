@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace Genix.Sampling.ClusterSampling
 {
+    /// <summary>Distributes samples around random centers, optionally enforcing center separation.</summary>
     internal sealed class ClusterSampler : ISampler
     {
         private const int MaxAttemptsPerCandidate = 32;

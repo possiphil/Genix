@@ -8,6 +8,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Drawers
 {
+    /// <summary>Renders a read-only, grouped preview of a generation style in the editor.</summary>
     public sealed class StylePreview
     {
         private bool _showTechnicalDetails;
@@ -18,6 +19,7 @@ namespace Genix.Editor.Drawers
         private bool _showClusterSettings = true;
         private bool _showPoissonSettings = true;
 
+        /// <summary>Draws the control in the current editor layout.</summary>
         public void Draw(StylePreset preset)
         {
             if (!preset)
@@ -26,6 +28,7 @@ namespace Genix.Editor.Drawers
             Draw(preset.Settings);
         }
 
+        /// <summary>Draws the control in the current editor layout.</summary>
         public void Draw(StyleSettings settings)
         {
             EditorGUILayout.Space(4);

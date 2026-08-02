@@ -9,6 +9,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Utilities
 {
+    /// <summary>Provides the create tag editor dialog.</summary>
     public sealed class CreateTagDialog : EditorWindow
     {
         private const string NameControlName = "GenixTagName";
@@ -18,6 +19,7 @@ namespace Genix.Editor.Utilities
         private Action<string, TagCategory> _onConfirm;
         private bool _focusedInput;
 
+        /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
         public static void Open(TagCategory defaultCategory, Action<string, TagCategory> onConfirm)
         {
             CreateTagDialog window = CreateInstance<CreateTagDialog>();
@@ -42,7 +44,9 @@ namespace Genix.Editor.Utilities
             EditorGUILayout.Space(8f);
 
             GUI.SetNextControlName(NameControlName);
-            _tagName = EditorGUILayout.TextField("Tag Name", _tagName);
+            _tagName = EditorGUILayout.TextField(
+                new GUIContent("Tag Name", "Designer-facing semantic label used to classify assets and target areas."),
+                _tagName);
 
             FocusInputOnce();
 
@@ -77,7 +81,10 @@ namespace Genix.Editor.Utilities
             if (categories.Count == 0)
             {
                 using (new EditorGUI.DisabledScope(true))
-                    EditorGUILayout.Popup("Category", 0, new[] { "No categories available" });
+                    EditorGUILayout.Popup(
+                        new GUIContent("Category", "Category that groups this tag and controls whether multiple values may be selected."),
+                        0,
+                        new[] { "No categories available" });
 
                 _category = null;
                 return;
@@ -96,7 +103,10 @@ namespace Genix.Editor.Utilities
 
             EditorGUI.BeginChangeCheck();
 
-            int newIndex = EditorGUILayout.Popup("Category", selectedIndex, options);
+            int newIndex = EditorGUILayout.Popup(
+                new GUIContent("Category", "Category that groups this tag and controls whether multiple values may be selected."),
+                selectedIndex,
+                options);
 
             if (!EditorGUI.EndChangeCheck())
                 return;

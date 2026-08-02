@@ -6,6 +6,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Utilities
 {
+    /// <summary>Provides the create asset pool editor dialog.</summary>
     public sealed class CreateAssetPoolDialog : EditorWindow
     {
         private const string NameControlName = "GenixPoolName";
@@ -27,6 +28,7 @@ namespace Genix.Editor.Utilities
             AssetPoolMode.Dynamic.ToDisplayName()
         };
 
+        /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
         public static void Open(
             AssetPoolMode defaultMode,
             Action<string, AssetPoolMode> onConfirm)
@@ -52,11 +54,13 @@ namespace Genix.Editor.Utilities
             EditorGUILayout.Space(8f);
 
             GUI.SetNextControlName(NameControlName);
-            _poolName = EditorGUILayout.TextField("Asset Pool Name", _poolName);
+            _poolName = EditorGUILayout.TextField(
+                new GUIContent("Asset Pool Name", "Designer-facing name shown when selecting the source assets for generation."),
+                _poolName);
 
             FocusInputOnce();
 
-            _mode = DrawModeDropdown("Mode", _mode);
+            _mode = DrawModeDropdown(_mode);
 
             EditorGUILayout.Space(8f);
 
@@ -72,14 +76,17 @@ namespace Genix.Editor.Utilities
             }
         }
 
-        private static AssetPoolMode DrawModeDropdown(string label, AssetPoolMode currentMode)
+        private static AssetPoolMode DrawModeDropdown(AssetPoolMode currentMode)
         {
             int currentIndex = Array.IndexOf(PoolModes, currentMode);
 
             if (currentIndex < 0)
                 currentIndex = 0;
 
-            int selectedIndex = EditorGUILayout.Popup(label, currentIndex, PoolModeLabels);
+            int selectedIndex = EditorGUILayout.Popup(
+                new GUIContent("Mode", "Static stores a curated list. Dynamic resolves matching catalog assets from filters and is better for reusable semantic rules."),
+                currentIndex,
+                PoolModeLabels);
 
             return PoolModes[selectedIndex];
         }

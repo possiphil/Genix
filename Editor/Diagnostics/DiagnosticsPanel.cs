@@ -13,6 +13,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Diagnostics
 {
+    /// <summary>Draws the diagnostics editor panel.</summary>
     public sealed class DiagnosticsPanel
     {
         private bool _showDiagnostics = true;
@@ -21,6 +22,7 @@ namespace Genix.Editor.Diagnostics
         private bool _showRejectedObjects;
         private bool _showSceneViewOptions;
 
+        /// <summary>Draws the control in the current editor layout.</summary>
         public void Draw()
         {
             EditorGUILayout.Space(8f);
@@ -54,8 +56,6 @@ namespace Genix.Editor.Diagnostics
 
             DrawStat("Run ID", ShortenRunId(diagnostics.RunId));
             DrawStat("Target", diagnostics.TargetName);
-            DrawStat("Mode", diagnostics.GenerationMode.ToDisplayName());
-            DrawStat("Performance", diagnostics.PerformanceMode.ToDisplayName());
             DrawStat("Best Effort", diagnostics.BestEffort ? "Enabled" : "Disabled");
             DrawStat("Run Type", diagnostics.DryRun ? "Preview Run" : "Generation");
             DrawStat("Seed", diagnostics.RandomSeed.ToString());
@@ -66,16 +66,13 @@ namespace Genix.Editor.Diagnostics
                 DrawStat("Relative Radius", diagnostics.RelativePlacement.Radius.ToString("0.##"));
             }
 
-            if (diagnostics.GenerationMode == GenerationMode.TargetPlacement)
-            {
-                DrawStat("Targets", FormatPlacementTargets(diagnostics.PlacementTargets));
-                DrawStat("Distribution", diagnostics.TargetDistributionMode.ToDisplayName());
+            DrawStat("Targets", FormatPlacementTargets(diagnostics.PlacementTargets));
+            DrawStat("Distribution", diagnostics.TargetDistributionMode.ToDisplayName());
 
-                if (diagnostics.TargetDistributionMode == TargetDistributionMode.Weighted)
-                    DrawStat("Weights", FormatTargetWeights(diagnostics.TargetDistributionWeights));
+            if (diagnostics.TargetDistributionMode == TargetDistributionMode.Weighted)
+                DrawStat("Weights", FormatTargetWeights(diagnostics.TargetDistributionWeights));
 
-                DrawTargetBudgetSummary(diagnostics);
-            }
+            DrawTargetBudgetSummary(diagnostics);
 
             _showStyleSettings = DrawFoldoutStat(_showStyleSettings, "Style", GetStyleDisplayName(diagnostics));
 
@@ -385,15 +382,27 @@ namespace Genix.Editor.Diagnostics
 
             using (new EditorGUI.IndentLevelScope())
             {
-                DiagnosticsStore.ShowTargetBounds = EditorGUILayout.Toggle("Show Bounds", DiagnosticsStore.ShowTargetBounds);
+                DiagnosticsStore.ShowTargetBounds = EditorGUILayout.Toggle(
+                    new GUIContent("Show Bounds", "Draw the selected target area's world bounds."),
+                    DiagnosticsStore.ShowTargetBounds);
 
-                DiagnosticsStore.ShowGrid = isGridBased && EditorGUILayout.Toggle("Show Grid", DiagnosticsStore.ShowGrid);
+                DiagnosticsStore.ShowGrid = isGridBased && EditorGUILayout.Toggle(
+                    new GUIContent("Show Grid", "Draw grid cells for Grid and Jittered Grid sampling."),
+                    DiagnosticsStore.ShowGrid);
 
-                DiagnosticsStore.ShowCandidateSeeds = EditorGUILayout.Toggle("Show Candidates", DiagnosticsStore.ShowCandidateSeeds);
-                DiagnosticsStore.ShowAcceptedCandidates = EditorGUILayout.Toggle("Show Accepted", DiagnosticsStore.ShowAcceptedCandidates);
-                DiagnosticsStore.ShowRejectedCandidates = EditorGUILayout.Toggle("Show Rejected", DiagnosticsStore.ShowRejectedCandidates);
+                DiagnosticsStore.ShowCandidateSeeds = EditorGUILayout.Toggle(
+                    new GUIContent("Show Candidates", "Draw raw sampled candidate positions."),
+                    DiagnosticsStore.ShowCandidateSeeds);
+                DiagnosticsStore.ShowAcceptedCandidates = EditorGUILayout.Toggle(
+                    new GUIContent("Show Accepted", "Draw placements accepted into the preview plan."),
+                    DiagnosticsStore.ShowAcceptedCandidates);
+                DiagnosticsStore.ShowRejectedCandidates = EditorGUILayout.Toggle(
+                    new GUIContent("Show Rejected", "Draw rejected attempts. Detailed Diagnostics provides the richest geometry."),
+                    DiagnosticsStore.ShowRejectedCandidates);
 
-                DiagnosticsStore.ShowClusters = isClustered && EditorGUILayout.Toggle("Show Clusters", DiagnosticsStore.ShowClusters);
+                DiagnosticsStore.ShowClusters = isClustered && EditorGUILayout.Toggle(
+                    new GUIContent("Show Clusters", "Draw cluster centers and radii for Cluster sampling."),
+                    DiagnosticsStore.ShowClusters);
             }
 
             if (EditorGUI.EndChangeCheck())

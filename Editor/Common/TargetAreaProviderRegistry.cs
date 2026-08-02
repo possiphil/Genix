@@ -5,8 +5,10 @@ using UnityEditor;
 
 namespace Genix.Editor.TargetAreas
 {
+    /// <summary>Discovers and orders installed target-area integrations through Unity's type cache.</summary>
     public static class TargetAreaProviderRegistry
     {
+        /// <summary>Creates every constructible provider, ordered by priority and display name.</summary>
         public static IReadOnlyList<ITargetAreaProvider> CreateProviders()
         {
             return TypeCache.GetTypesDerivedFrom<ITargetAreaProvider>()

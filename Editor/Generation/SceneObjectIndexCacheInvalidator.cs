@@ -5,6 +5,7 @@ using UnityEngine.SceneManagement;
 
 namespace Genix.Editor.Generation
 {
+    /// <summary>Invalidates placement scene indices when editor hierarchy or scene state changes.</summary>
     [InitializeOnLoad]
     internal static class SceneObjectIndexCacheInvalidator
     {
