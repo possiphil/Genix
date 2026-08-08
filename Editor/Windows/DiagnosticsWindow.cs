@@ -24,8 +24,6 @@ namespace Genix.Editor.Windows
             NewestFirst,
             OldestFirst,
             TargetAscending,
-            TargetDescending,
-            PlacedCountDescending,
             PlacedCountAscending,
             Style
         }
@@ -198,8 +196,6 @@ namespace Genix.Editor.Windows
                 ReportSortMode.NewestFirst,
                 ReportSortMode.OldestFirst,
                 ReportSortMode.TargetAscending,
-                ReportSortMode.TargetDescending,
-                ReportSortMode.PlacedCountDescending,
                 ReportSortMode.PlacedCountAscending,
                 ReportSortMode.Style
             };
@@ -208,10 +204,8 @@ namespace Genix.Editor.Windows
             {
                 "Newest First",
                 "Oldest First",
-                "Target Ascending",
-                "Target Descending",
-                "Placed Count Descending",
-                "Placed Count Ascending",
+                "Target (A-Z)",
+                "Fewest Placed First",
                 "Style"
             };
 
@@ -220,7 +214,10 @@ namespace Genix.Editor.Windows
             if (selectedIndex < 0)
                 selectedIndex = 0;
 
-            GUILayout.Label("Sort by", EditorStyles.label, GUILayout.Width(42f));
+            GUILayout.Label(
+                new GUIContent("Sort by", "Choose how reports in this list are ordered."),
+                EditorStyles.label,
+                GUILayout.Width(42f));
 
             selectedIndex = EditorGUILayout.Popup(
                 selectedIndex,
@@ -375,16 +372,6 @@ namespace Genix.Editor.Windows
 
                 ReportSortMode.TargetAscending => reports
                     .OrderBy(report => report.TargetName, StringComparer.OrdinalIgnoreCase)
-                    .ThenByDescending(report => report.CreatedAt, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                ReportSortMode.TargetDescending => reports
-                    .OrderByDescending(report => report.TargetName, StringComparer.OrdinalIgnoreCase)
-                    .ThenByDescending(report => report.CreatedAt, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                ReportSortMode.PlacedCountDescending => reports
-                    .OrderByDescending(report => report.PlacedObjectCount)
                     .ThenByDescending(report => report.CreatedAt, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
 

@@ -38,6 +38,9 @@ namespace Genix.Editor.Windows
                 if (_tab == ContentTab.Layouts && selectedObject is SavedLayout selectedLayout)
                     DrawLayoutDetails(selectedLayout);
 
+                if (_tab == ContentTab.SceneSetup)
+                    DrawSelectedSceneSetupValidation();
+
                 if (_selectedObjectEditorTarget != selectedObject)
                 {
                     DestroySelectedObjectEditor();
@@ -64,7 +67,10 @@ namespace Genix.Editor.Windows
                     DrawAssetPreviewStat("Bounds", FormatVector(asset.BoundsSize));
                     DrawAssetPreviewStat("Center Offset", FormatVector(asset.BoundsCenterOffset));
                     DrawAssetPreviewStat("Surface Fit", asset.SurfaceFitMode.ToDisplayName());
-                    DrawAssetPreviewStat("Random Yaw", asset.RandomYawRotation ? "On" : "Off");
+                    if (asset.PlacementType == PlacementType.Wall)
+                        DrawAssetPreviewStat("Random Roll", asset.RandomRollRotation ? "On" : "Off");
+                    else
+                        DrawAssetPreviewStat("Random Yaw", asset.RandomYawRotation ? "On" : "Off");
 
                     if (asset.PlacementType == PlacementType.InsideSpace)
                     {
@@ -139,6 +145,7 @@ namespace Genix.Editor.Windows
                 ContentTab.Locations => false,
                 ContentTab.AssetPools => _selectedPool,
                 ContentTab.Layouts => _selectedLayout,
+                ContentTab.SceneSetup => _selectedSceneSetupObject,
                 _ => false
             };
         }
@@ -173,6 +180,7 @@ namespace Genix.Editor.Windows
                 ContentTab.Locations => "Select a location.",
                 ContentTab.AssetPools => "Select an asset pool.",
                 ContentTab.Layouts => "Select a layout.",
+                ContentTab.SceneSetup => "Select a scene surface or exclusion region.",
                 _ => "Select an item."
             };
         }

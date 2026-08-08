@@ -7,8 +7,7 @@ namespace Genix.Tests.Framework
     {
         Quick,
         Full,
-        Stress,
-        Performance
+        Stress
     }
 
     /// <summary>Shares the selected dashboard preset with property tests in the same editor process.</summary>

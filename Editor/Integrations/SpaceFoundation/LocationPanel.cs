@@ -21,8 +21,6 @@ namespace Genix.SpaceFoundation.Editor
         private enum LocationSortMode
         {
             AlphabeticalAscending,
-            AlphabeticalDescending,
-            TagCountDescending,
             TagCountAscending,
             Hierarchy
         }
@@ -72,7 +70,7 @@ namespace Genix.SpaceFoundation.Editor
         private void DrawCategoryFilters(AssetCatalog catalog)
         {
             foreach (TagCategory category in catalog.Categories
-                         .Where(category => category)
+                         .Where(category => category && category.SupportsAssets)
                          .OrderBy(category => category.DisplayName))
             {
                 DrawCategoryFilter(catalog, category);
@@ -116,7 +114,7 @@ namespace Genix.SpaceFoundation.Editor
             TagCategory category,
             IReadOnlyList<SemanticTag> selectedTags)
         {
-            if (!category)
+            if (!category || !category.SupportsAssets)
                 return;
 
             List<SemanticTag> validTags = selectedTags
@@ -184,18 +182,14 @@ namespace Genix.SpaceFoundation.Editor
             LocationSortMode[] modes =
             {
                 LocationSortMode.AlphabeticalAscending,
-                LocationSortMode.AlphabeticalDescending,
-                LocationSortMode.TagCountDescending,
                 LocationSortMode.TagCountAscending,
                 LocationSortMode.Hierarchy
             };
 
             string[] labels =
             {
-                "Alphabetical Ascending",
-                "Alphabetical Descending",
-                "Tag Count Descending",
-                "Tag Count Ascending",
+                "Name (A-Z)",
+                "Fewest Tags First",
                 "Hierarchy"
             };
 
@@ -294,13 +288,15 @@ namespace Genix.SpaceFoundation.Editor
             });
 
             List<TagCategory> categories = catalog.Categories
-                .Where(category => category)
+                .Where(category => category && category.SupportsAssets)
                 .OrderBy(category => category.DisplayName)
                 .ToList();
 
             if (categories.Count == 0)
             {
-                EditorGUILayout.HelpBox("No tag categories available.", MessageType.Info);
+                EditorGUILayout.HelpBox(
+                    "No Asset or Asset and Surface tag categories are available.",
+                    MessageType.Info);
                 return;
             }
 
@@ -454,18 +450,22 @@ namespace Genix.SpaceFoundation.Editor
             if (!tagSet || tagSet.SemanticTags.Count == 0)
             {
                 if (tagSet && tagSet.AnyTagCategories.Count > 0)
-                    return string.Join(", ", tagSet.AnyTagCategories.Where(category => category).Select(category => $"{category.DisplayName}: Any"));
+                {
+                    return string.Join(", ", tagSet.AnyTagCategories
+                        .Where(category => category && category.SupportsAssets)
+                        .Select(category => $"{category.DisplayName}: Any"));
+                }
 
                 return "Any";
             }
 
             List<string> labels = tagSet.SemanticTags
-                .Where(tag => tag)
+                .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
                 .Select(GetTagDisplayLabel)
                 .ToList();
 
             labels.AddRange(tagSet.AnyTagCategories
-                .Where(category => category)
+                .Where(category => category && category.SupportsAssets)
                 .Select(category => $"{category.DisplayName}: Any"));
 
             return string.Join(", ", labels);
@@ -496,15 +496,6 @@ namespace Genix.SpaceFoundation.Editor
         {
             return _locationSortMode switch
             {
-                LocationSortMode.AlphabeticalDescending => anchors
-                    .OrderByDescending(anchor => anchor.name, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                LocationSortMode.TagCountDescending => anchors
-                    .OrderByDescending(anchor => GetLocationTagCount(catalog, anchor))
-                    .ThenBy(anchor => anchor.name, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
                 LocationSortMode.TagCountAscending => anchors
                     .OrderBy(anchor => GetLocationTagCount(catalog, anchor))
                     .ThenBy(anchor => anchor.name, StringComparer.OrdinalIgnoreCase)
@@ -531,12 +522,14 @@ namespace Genix.SpaceFoundation.Editor
             IEnumerable<SemanticTag> tags,
             IEnumerable<TagCategory> anyCategories)
         {
-            int count = tags.Count(tag => tag);
+            int count = tags.Count(tag => tag && tag.Category && tag.Category.SupportsAssets);
 
             if (catalog == null)
                 return count;
 
-            foreach (TagCategory category in anyCategories.Where(category => category).Distinct())
+            foreach (TagCategory category in anyCategories
+                         .Where(category => category && category.SupportsAssets)
+                         .Distinct())
                 count += catalog.Tags.Count(tag => tag && tag.Category == category);
 
             return count;
@@ -580,6 +573,9 @@ namespace Genix.SpaceFoundation.Editor
 
             foreach (KeyValuePair<TagCategory, List<SemanticTag>> filter in _locationCategoryFilters)
             {
+                if (!filter.Key || !filter.Key.SupportsAssets)
+                    continue;
+
                 List<SemanticTag> selectedTags = filter.Value
                     .Where(tag => tag && tag.Category == filter.Key)
                     .Distinct()

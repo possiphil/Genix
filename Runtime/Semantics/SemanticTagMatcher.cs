@@ -22,7 +22,7 @@ namespace Genix.Semantics
                 return true;
 
             foreach (IGrouping<TagCategory, SemanticTag> group in requiredTags
-                         .Where(tag => tag && tag.Category)
+                         .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
                          .GroupBy(tag => tag.Category))
             {
                 if (anyCategories.Contains(group.Key))
@@ -44,7 +44,7 @@ namespace Genix.Semantics
             TagCategory category,
             IEnumerable<SemanticTag> filterTags)
         {
-            if (!asset || !category)
+            if (!asset || !category || !category.SupportsAssets)
                 return false;
 
             if (filterTags == null)
@@ -70,7 +70,7 @@ namespace Genix.Semantics
 
             foreach (TagCategory category in categories)
             {
-                if (category)
+                if (category && category.SupportsAssets)
                     result.Add(category);
             }
 

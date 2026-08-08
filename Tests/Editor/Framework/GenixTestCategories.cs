@@ -6,8 +6,6 @@ namespace Genix.Tests.Framework
         public const string Quick = "Genix.Preset.Quick";
         public const string Full = "Genix.Preset.Full";
         public const string Stress = "Genix.Preset.Stress";
-        public const string Performance = "Genix.Preset.Performance";
-
         public const string Property = "Genix.Kind.Property";
         public const string Snapshot = "Genix.Kind.Snapshot";
         public const string Integration = "Genix.Kind.Integration";

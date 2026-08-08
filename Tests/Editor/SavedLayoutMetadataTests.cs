@@ -2,6 +2,7 @@ using System;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Layouts;
+using Genix.Semantics;
 using Genix.Tests.Framework;
 using NUnit.Framework;
 using UnityEngine;
@@ -115,6 +116,27 @@ namespace Genix.Tests
 
             Assert.That(metadata.PlacementTarget, Is.EqualTo(expectedTarget));
             Assert.That(metadata.hideFlags, Is.EqualTo(HideFlags.HideInInspector));
+        }
+
+        [Test]
+        public void GeneratedObjectMetadataRetainsConcreteSupportSurface()
+        {
+            _root = new GameObject("Generated Object With Support");
+            GameObject supportObject = new("Support Surface");
+
+            try
+            {
+                PlacementSurfaceDescriptor support = supportObject.AddComponent<PlacementSurfaceDescriptor>();
+                GeneratedObjectMetadata metadata = _root.AddComponent<GeneratedObjectMetadata>();
+
+                metadata.Initialize(PlacementType.Floor, support);
+
+                Assert.That(metadata.SupportSurface, Is.SameAs(support));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(supportObject);
+            }
         }
     }
 }

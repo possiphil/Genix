@@ -70,6 +70,22 @@ namespace Genix.Tests
             plan.Clear();
 
             Assert.That(plan.Query(new Bounds(Vector3.zero, Vector3.one * 3f)).ToList().Count, Is.EqualTo(0));
+            Assert.That(plan.GetAssetCount(asset), Is.Zero);
+        }
+
+        [Test]
+        public void AssetCountsTrackAcceptedObjects()
+        {
+            AssetDefinition first = CreateAsset(Vector3.one);
+            AssetDefinition second = CreateAsset(Vector3.one);
+            GenerationPlan plan = new();
+
+            plan.Add(first, new PlacementCandidate(Vector3.zero, Quaternion.identity), "First A");
+            plan.Add(first, new PlacementCandidate(Vector3.right * 2f, Quaternion.identity), "First B");
+            plan.Add(second, new PlacementCandidate(Vector3.forward * 2f, Quaternion.identity), "Second");
+
+            Assert.That(plan.GetAssetCount(first), Is.EqualTo(2));
+            Assert.That(plan.GetAssetCount(second), Is.EqualTo(1));
         }
 
         private AssetDefinition CreateAsset(Vector3 size)

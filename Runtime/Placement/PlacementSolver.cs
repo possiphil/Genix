@@ -61,6 +61,12 @@ namespace Genix.Placement
             diagnostics ??= NullDiagnosticsSink.Instance;
             profiler ??= NullGenerationProfiler.Instance;
 
+            if (!asset || asset.HasReachedPlacementLimit(context?.Plan?.GetAssetCount(asset) ?? 0))
+            {
+                candidate = default;
+                return false;
+            }
+
             while (true)
             {
                 long iterationStart = StartPlanningStep(profiler);
@@ -153,8 +159,17 @@ namespace Genix.Placement
                 attemptCatalog.CreateOrder(
                     seed.PlacementType,
                     context.Random,
-                    remaining);
+                    remaining,
+                    asset => !asset.HasReachedPlacementLimit(context.Plan.GetAssetCount(asset)));
                 StopAndRecordPlanningStep(profiler, PlanningProfileStep.AssetOrder, orderStart);
+
+                if (remaining.Count == 0)
+                {
+                    if (AreAllAssetsAtPlacementLimit(assets, context))
+                        break;
+
+                    continue;
+                }
                 int remainingIndex = 0;
 
                 while (remainingIndex < remaining.Count)
@@ -192,6 +207,28 @@ namespace Genix.Placement
             return false;
         }
 
+        private static bool AreAllAssetsAtPlacementLimit(
+            IReadOnlyList<AssetDefinition> assets,
+            GenerationContext context)
+        {
+            bool foundUsableAsset = false;
+
+            for (int i = 0; i < assets.Count; i++)
+            {
+                AssetDefinition asset = assets[i];
+
+                if (!asset || !asset.Prefab)
+                    continue;
+
+                foundUsableAsset = true;
+
+                if (!asset.HasReachedPlacementLimit(context.Plan.GetAssetCount(asset)))
+                    return false;
+            }
+
+            return foundUsableAsset;
+        }
+
         private static bool TryEvaluateAsset(
             GenerationContext context,
             AssetDefinition asset,
@@ -225,6 +262,48 @@ namespace Genix.Placement
                 }
 
                 return objectNameValue;
+            }
+
+            Stopwatch supportRulesStopwatch = profiler.IsEnabled ? Stopwatch.StartNew() : null;
+            bool supportRulesValid = PlacementSupportRules.TryValidate(
+                seed,
+                asset,
+                context,
+                out RejectionReason supportRejection,
+                out string supportObjectName);
+            supportRulesStopwatch?.Stop();
+
+            if (!supportRulesValid)
+            {
+                float validationMilliseconds = supportRulesStopwatch != null
+                    ? (float)supportRulesStopwatch.Elapsed.TotalMilliseconds
+                    : 0f;
+                PlacementCandidate supportAttempt = new(
+                    seed.Position,
+                    seed.Rotation,
+                    seed.SurfaceCollider,
+                    seed.SurfaceNormal,
+                    seed.VoxelLayer,
+                    seed.PlacementType);
+                OrientedBounds supportBounds = new(
+                    seed.Position,
+                    AssetAttemptPlanner.Dimensions(asset),
+                    seed.Rotation);
+                profiler.RecordAssetAttempt(
+                    seed.PlacementType,
+                    false,
+                    supportRejection,
+                    validationMilliseconds);
+                RecordRejectedCandidate(
+                    diagnostics,
+                    asset,
+                    supportAttempt,
+                    supportBounds,
+                    supportRejection,
+                    supportObjectName,
+                    profiler);
+                pruningReason = supportRejection;
+                return false;
             }
 
             Stopwatch earlyValidationStopwatch = profiler.IsEnabled ? Stopwatch.StartNew() : null;
@@ -352,7 +431,7 @@ namespace Genix.Placement
             }
 
             int rotationCount = CandidateFactory.GetRotationAttemptCount(context, asset, seed.PlacementType);
-            float yawBase = CandidateFactory.UsesRandomYaw(context, asset, seed.PlacementType)
+            float yawBase = CandidateFactory.UsesRandomPlanarRotation(context, asset, seed.PlacementType)
                 ? context.Random.Range(0f, 360f)
                 : 0f;
 
@@ -484,7 +563,7 @@ namespace Genix.Placement
             long stepStart = StartValidationStep(profiler);
             Bounds axisAlignedBounds = new(seed.Position, dimensions);
 
-            if (!FitsTargetHeight(axisAlignedBounds, context.TargetBounds))
+            if (!PlacementValidator.FitsTargetHeight(axisAlignedBounds, context.TargetBounds))
             {
                 validationMilliseconds = StopAndRecordValidationStep(
                     profiler,
@@ -546,10 +625,5 @@ namespace Genix.Placement
             profiler.RecordPlanningStep(step, milliseconds);
         }
 
-        private static bool FitsTargetHeight(Bounds candidateBounds, Bounds targetBounds)
-        {
-            return candidateBounds.min.y >= targetBounds.min.y &&
-                   candidateBounds.max.y <= targetBounds.max.y;
-        }
     }
 }

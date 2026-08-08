@@ -6,6 +6,7 @@ using Genix.Core;
 using Genix.Diagnostics;
 using Genix.SpaceFoundation.Editor;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 using SfsAnchor = SpaceFoundationSystem.Anchor;
 using SfsFoundation = SpaceFoundationSystem.SpaceFoundation;
@@ -161,6 +162,69 @@ namespace Genix.Tests.SpaceFoundation
         }
 
         [Test]
+        public void FoundationCacheIdentityUsesPersistentUnityObjectIdentity()
+        {
+            string prefabPath = $"Assets/GenixSfsCacheIdentityTest_{System.Guid.NewGuid():N}.prefab";
+
+            try
+            {
+                GameObject source = CreateGameObject("Persistent SFS Foundation");
+                source.AddComponent<SfsFoundation>().assetName = "Identity Test";
+
+                GameObject prefab = PrefabUtility.SaveAsPrefabAsset(source, prefabPath);
+                SfsFoundation firstFoundation = prefab.GetComponent<SfsFoundation>();
+                string first = PersistentSubspaceCacheKey
+                    .CreateLiveSnapshot(firstFoundation, "a0")
+                    .ToStableString();
+
+                AssetDatabase.ImportAsset(prefabPath, ImportAssetOptions.ForceUpdate);
+                SfsFoundationUtility.ClearCacheIdentitiesForTests();
+                GameObject reloadedPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+                string reloaded = PersistentSubspaceCacheKey
+                    .CreateLiveSnapshot(reloadedPrefab.GetComponent<SfsFoundation>(), "a0")
+                    .ToStableString();
+
+                Assert.That(first, Does.StartWith("global:"));
+                Assert.That(reloaded, Is.EqualTo(first));
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(prefabPath);
+            }
+        }
+
+        [Test]
+        public void PersistentCacheAssetsHaveMonoScriptsAndReloadAsConcreteTypes()
+        {
+            string suffix = System.Guid.NewGuid().ToString("N");
+            string subspacePath = $"Assets/GenixSubspaceCacheAssetTest_{suffix}.asset";
+            string areaPath = $"Assets/GenixAreaCacheAssetTest_{suffix}.asset";
+
+            try
+            {
+                SfsSubspaceCacheAsset subspace = ScriptableObject.CreateInstance<SfsSubspaceCacheAsset>();
+                SfsAreaCacheAsset area = ScriptableObject.CreateInstance<SfsAreaCacheAsset>();
+
+                Assert.That(MonoScript.FromScriptableObject(subspace), Is.Not.Null);
+                Assert.That(MonoScript.FromScriptableObject(area), Is.Not.Null);
+
+                AssetDatabase.CreateAsset(subspace, subspacePath);
+                AssetDatabase.CreateAsset(area, areaPath);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ImportAsset(subspacePath, ImportAssetOptions.ForceUpdate);
+                AssetDatabase.ImportAsset(areaPath, ImportAssetOptions.ForceUpdate);
+
+                Assert.That(AssetDatabase.LoadAssetAtPath<SfsSubspaceCacheAsset>(subspacePath), Is.Not.Null);
+                Assert.That(AssetDatabase.LoadAssetAtPath<SfsAreaCacheAsset>(areaPath), Is.Not.Null);
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(subspacePath);
+                AssetDatabase.DeleteAsset(areaPath);
+            }
+        }
+
+        [Test]
         public void PreciseAreaDecompositionPreservesMissingCells()
         {
             HashSet<Vector3Int> cells = new()
@@ -177,7 +241,7 @@ namespace Genix.Tests.SpaceFoundation
                 SurfaceKind.Floor);
 
             Assert.That(regions, Has.Count.EqualTo(2));
-            Assert.That(regions.Any(region => region.ContainsXZ(new Vector3(3f, 0f, 3f))), Is.False);
+            Assert.That(regions.Any(region => region.ContainsXZ(new Vector3(2f, 0f, 2f))), Is.False);
             Assert.That(regions.Sum(region => region.Bounds.size.x * region.Bounds.size.z), Is.EqualTo(12f).Within(0.001f));
         }
 
@@ -198,7 +262,7 @@ namespace Genix.Tests.SpaceFoundation
                 SurfaceKind.Floor);
 
             Assert.That(regions, Has.Count.EqualTo(1));
-            Assert.That(regions[0].ContainsXZ(new Vector3(3f, 0f, 3f)), Is.True);
+            Assert.That(regions[0].ContainsXZ(new Vector3(2f, 0f, 2f)), Is.True);
             Assert.That(regions[0].VoxelLayer, Is.EqualTo(0));
         }
 
@@ -212,7 +276,7 @@ namespace Genix.Tests.SpaceFoundation
                 SurfaceKind.Ceiling);
 
             Assert.That(regions, Has.Count.EqualTo(1));
-            Assert.That(regions[0].SurfaceY, Is.EqualTo(8f));
+            Assert.That(regions[0].SurfaceY, Is.EqualTo(7f));
             Assert.That(regions[0].Normal, Is.EqualTo(Vector3.down));
             Assert.That(regions[0].VoxelLayer, Is.EqualTo(3));
         }
@@ -327,7 +391,7 @@ namespace Genix.Tests.SpaceFoundation
             Assert.That(restored.CeilingRegions, Has.Count.EqualTo(1));
             Assert.That(restored.FloorCells, Is.EquivalentTo(original.FloorCells));
             Assert.That(restored.CeilingCells, Is.EquivalentTo(original.CeilingCells));
-            Assert.That(restored.ContainsVolumePoint(new Vector3(1f, 1f, 1f)), Is.True);
+            Assert.That(restored.ContainsVolumePoint(Vector3.zero), Is.True);
         }
 
         [Test]
@@ -482,11 +546,19 @@ namespace Genix.Tests.SpaceFoundation
                 out string error);
 
             Assert.That(built, Is.True, error);
-            Assert.That(Vector3.Distance(area.WorldBounds.center, Vector3.one), Is.LessThan(0.001f));
+            Assert.That(Vector3.Distance(area.WorldBounds.center, Vector3.zero), Is.LessThan(0.001f));
             Assert.That(Vector3.Distance(area.WorldBounds.size, Vector3.one * 2.02f), Is.LessThan(0.001f));
             Assert.That(area.FloorRegions, Has.Count.EqualTo(1));
             Assert.That(area.CeilingRegions, Has.Count.EqualTo(1));
             Assert.That(area.WallRegions, Has.Count.EqualTo(4));
+            Assert.That(area.FloorRegions[0].SurfaceY, Is.EqualTo(-1f));
+            Assert.That(area.CeilingRegions[0].SurfaceY, Is.EqualTo(1f));
+            Assert.That(area.WallRegions.All(region =>
+            {
+                float normalAxis = Mathf.Abs(region.Normal.x) > 0.5f ? region.Normal.x : region.Normal.z;
+                float plane = Mathf.Abs(region.Normal.x) > 0.5f ? region.WallStart.x : region.WallStart.z;
+                return Mathf.Approximately(plane, -normalAxis);
+            }), Is.True);
             Assert.That(area.SupportsPlacementType(PlacementType.InsideSpace), Is.True);
         }
 

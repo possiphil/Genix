@@ -927,6 +927,8 @@ namespace Genix.Editor.Profiling
                 ValidationProfileStep.FixedSpacing => "Fixed Spacing",
                 ValidationProfileStep.GeneratedSceneSpacing => "Generated Scene Spacing",
                 ValidationProfileStep.Relative => "Relative",
+                ValidationProfileStep.Exclusion => "Exclusion Region",
+                ValidationProfileStep.WallRelationship => "Wall Relationship",
                 _ => step.ToString()
             };
 

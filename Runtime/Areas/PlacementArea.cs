@@ -37,13 +37,16 @@ namespace Genix.Areas
         public SurfaceDiscoveryMode SurfaceDiscoveryMode => _settings.EffectiveSurfaceDiscoveryMode;
         /// <summary>Indicates whether candidate projection may search all matching surfaces inside the volume.</summary>
         public bool UsesAllMatchingSurfaceSearch => _settings.UsesAllMatchingSurfaceSearch;
+        /// <summary>Indicates whether the area contains wall-classified terrain sampled without physics raycasts.</summary>
+        public bool HasTerrainSurfaces => _projector.HasTerrainSurfaces;
+        internal IReadOnlyList<WallSurfaceSource> WallSurfaceSources => _projector.WallSurfaceSources;
 
         /// <summary>Determines whether the area contains data for the requested placement type.</summary>
         public bool SupportsPlacementType(PlacementType placementType) =>
             placementType switch
             {
                 PlacementType.Floor => HasHorizontalSurfaceSupport(PlacementType.Floor, FloorRegions.Count),
-                PlacementType.Wall => HasSurfaceSupport(PlacementType.Wall, WallRegions.Count),
+                PlacementType.Wall => HasWallSurfaceSupport(),
                 PlacementType.Ceiling => HasHorizontalSurfaceSupport(PlacementType.Ceiling, CeilingRegions.Count),
                 PlacementType.InsideSpace => HasVolumeCells || HasUsableVolumeBounds(WorldBounds),
                 _ => false
@@ -61,6 +64,17 @@ namespace Genix.Areas
                        _settings.GetSurfaceLayers(placementType).value != 0;
 
             return HasSurfaceSupport(placementType, regionCount);
+        }
+
+        private bool HasWallSurfaceSupport()
+        {
+            if (_settings.UsesAllMatchingSurfaceSearch)
+            {
+                return HasUsableVolumeBounds(WorldBounds) &&
+                       _settings.GetSurfaceLayers(PlacementType.Wall).value != 0;
+            }
+
+            return HasSurfaceSupport(PlacementType.Wall, WallRegions.Count);
         }
 
         private bool HasSurfaceSupport(PlacementType placementType, int regionCount)
@@ -191,6 +205,14 @@ namespace Genix.Areas
             List<SurfacePoint> points,
             IGenerationProfiler profiler = null) =>
             _projector.CollectCeilingSurfaces(position, points, profiler);
+
+        internal int CollectWallSurfaces(
+            WallSurfaceSource source,
+            WallSurfaceSampleAxis axis,
+            Vector3 position,
+            List<SurfacePoint> points,
+            IGenerationProfiler profiler = null) =>
+            _projector.CollectWallSurfaces(source, axis, position, points, profiler);
 
         /// <summary>Attempts to project to wall.</summary>
         public bool TryProjectToWall(

@@ -9,7 +9,7 @@ namespace Genix.Areas
         public Vector3 Position { get; }
         /// <summary>Gets normal.</summary>
         public Vector3 Normal { get; }
-        /// <summary>Gets height difference.</summary>
+        /// <summary>Gets the supported height or wall-depth variation.</summary>
         public float HeightDifference { get; }
         /// <summary>Gets support ratio.</summary>
         public float SupportRatio { get; }

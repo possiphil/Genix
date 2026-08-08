@@ -21,7 +21,8 @@ namespace Genix.Editor.Genix.Editor.Common
 
         /// <summary>Draws a tag field and reports normalized selections through the supplied callback.</summary>
         public static void Draw(string label, TagCategory category, IEnumerable<SemanticTag> availableTags, IEnumerable<SemanticTag> selectedTags, Action<IReadOnlyList<SemanticTag>> onChanged,
-            bool forceMultiSelect = false, bool anySelected = false, Action<IReadOnlyList<SemanticTag>, SpecialSelection> onChangedWithSpecialSelection = null, bool showNoneOption = true)
+            bool forceMultiSelect = false, bool anySelected = false, Action<IReadOnlyList<SemanticTag>, SpecialSelection> onChangedWithSpecialSelection = null,
+            bool showNoneOption = true, bool showAnyOption = true)
         {
             if (!category)
                 return;
@@ -38,7 +39,7 @@ namespace Genix.Editor.Genix.Editor.Common
             Rect rowRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
             Rect fieldRect = EditorGUI.PrefixLabel(rowRect, new GUIContent(label));
 
-            bool hasSelectableOptions = tags.Count > 0 || showNoneOption;
+            bool hasSelectableOptions = tags.Count > 0 || showNoneOption || showAnyOption;
 
             using (new EditorGUI.DisabledScope(!hasSelectableOptions))
             {
@@ -46,38 +47,52 @@ namespace Genix.Editor.Genix.Editor.Common
                 {
                     if (EditorGUI.DropdownButton(fieldRect, new GUIContent(GetSelectionLabel(selection, anySelected, showNoneOption)), FocusType.Keyboard, EditorStyles.popup))
                     {
-                        PopupWindow.Show(fieldRect, new TagSelectionPopup(tags, selection, anySelected, onChanged, onChangedWithSpecialSelection, showNoneOption, fieldRect.width));
+                        PopupWindow.Show(fieldRect, new TagSelectionPopup(
+                            tags,
+                            selection,
+                            anySelected,
+                            onChanged,
+                            onChangedWithSpecialSelection,
+                            showNoneOption,
+                            showAnyOption,
+                            fieldRect.width));
                     }
 
                     return;
                 }
 
-                DrawSingleSelectPopup(fieldRect, tags, selection, anySelected, onChanged, onChangedWithSpecialSelection, showNoneOption);
+                DrawSingleSelectPopup(
+                    fieldRect,
+                    tags,
+                    selection,
+                    anySelected,
+                    onChanged,
+                    onChangedWithSpecialSelection,
+                    showNoneOption,
+                    showAnyOption);
             }
         }
 
         private static void DrawSingleSelectPopup(Rect fieldRect, IReadOnlyList<SemanticTag> tags, IReadOnlyList<SemanticTag> selection, bool anySelected,
-            Action<IReadOnlyList<SemanticTag>> onChanged, Action<IReadOnlyList<SemanticTag>, SpecialSelection> onChangedWithSpecialSelection, bool showNoneOption)
+            Action<IReadOnlyList<SemanticTag>> onChanged, Action<IReadOnlyList<SemanticTag>, SpecialSelection> onChangedWithSpecialSelection,
+            bool showNoneOption, bool showAnyOption)
         {
-            int specialOptionCount = showNoneOption ? 2 : 1;
+            int specialOptionCount = (showNoneOption ? 1 : 0) + (showAnyOption ? 1 : 0);
             string[] options = new string[tags.Count + specialOptionCount];
+            int optionIndex = 0;
 
             if (showNoneOption)
-            {
-                options[0] = "None";
-                options[1] = "Any";
-            }
-            else
-            {
-                options[0] = "Any";
-            }
+                options[optionIndex++] = "None";
+
+            if (showAnyOption)
+                options[optionIndex++] = "Any";
 
             for (int i = 0; i < tags.Count; i++)
                 options[i + specialOptionCount] = tags[i].DisplayName;
 
-            int selectedIndex = showNoneOption ? 0 : 0;
+            int selectedIndex = 0;
 
-            if (anySelected)
+            if (showAnyOption && anySelected)
             {
                 selectedIndex = showNoneOption ? 1 : 0;
             }
@@ -94,13 +109,23 @@ namespace Genix.Editor.Genix.Editor.Common
             if (!EditorGUI.EndChangeCheck())
                 return;
 
-            if (!showNoneOption)
+            if (!showNoneOption && showAnyOption)
             {
                 if (newIndex == 0)
                     NotifyChanged(onChanged, onChangedWithSpecialSelection, Array.Empty<SemanticTag>(), SpecialSelection.Any);
                 else
                     NotifyChanged(onChanged, onChangedWithSpecialSelection, new[] { tags[newIndex - 1] }, SpecialSelection.None);
 
+                return;
+            }
+
+            if (showNoneOption && !showAnyOption)
+            {
+                NotifyChanged(
+                    onChanged,
+                    onChangedWithSpecialSelection,
+                    newIndex == 0 ? Array.Empty<SemanticTag>() : new[] { tags[newIndex - 1] },
+                    SpecialSelection.None);
                 return;
             }
 
@@ -172,12 +197,13 @@ namespace Genix.Editor.Genix.Editor.Common
             private readonly Action<IReadOnlyList<SemanticTag>> _onChanged;
             private readonly Action<IReadOnlyList<SemanticTag>, SpecialSelection> _onChangedWithSpecialSelection;
             private readonly bool _showNoneOption;
+            private readonly bool _showAnyOption;
             private readonly float _width;
 
             private Vector2 _scroll;
 
             public TagSelectionPopup(IReadOnlyList<SemanticTag> tags, IReadOnlyList<SemanticTag> selection, bool anySelected, Action<IReadOnlyList<SemanticTag>> onChanged,
-                Action<IReadOnlyList<SemanticTag>, SpecialSelection> onChangedWithSpecialSelection, bool showNoneOption, float width)
+                Action<IReadOnlyList<SemanticTag>, SpecialSelection> onChangedWithSpecialSelection, bool showNoneOption, bool showAnyOption, float width)
             {
                 _tags = tags.Where(tag => tag).ToList();
                 _selection = selection.Where(tag => tag).ToList();
@@ -185,12 +211,13 @@ namespace Genix.Editor.Genix.Editor.Common
                 _onChanged = onChanged;
                 _onChangedWithSpecialSelection = onChangedWithSpecialSelection;
                 _showNoneOption = showNoneOption;
+                _showAnyOption = showAnyOption;
                 _width = Mathf.Max(180f, width);
             }
 
             public override Vector2 GetWindowSize()
             {
-                int specialRows = _showNoneOption ? 2 : 1;
+                int specialRows = (_showNoneOption ? 1 : 0) + (_showAnyOption ? 1 : 0);
                 float targetHeight = VerticalPadding * 2f + (_tags.Count + specialRows) * RowHeight;
                 return new Vector2(_width, Mathf.Min(MaxHeight, targetHeight));
             }
@@ -202,9 +229,11 @@ namespace Genix.Editor.Genix.Editor.Common
                 if (_showNoneOption)
                     DrawRow("None", !_anySelected && _selection.Count == 0, SelectNone);
 
-                bool anyRowSelected = _showNoneOption ? _anySelected : _selection.Count == 0;
-
-                DrawRow("Any", anyRowSelected, SelectAny);
+                if (_showAnyOption)
+                {
+                    bool anyRowSelected = _showNoneOption ? _anySelected : _selection.Count == 0;
+                    DrawRow("Any", anyRowSelected, SelectAny);
+                }
 
                 foreach (SemanticTag tag in _tags)
                     DrawTagRow(tag);

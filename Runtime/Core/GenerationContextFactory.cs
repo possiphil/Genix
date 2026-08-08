@@ -36,6 +36,27 @@ namespace Genix.Core
             Transform generatedParent,
             IReadOnlyList<AssetDefinition> assets)
         {
+            return Create(request, generatedParent, assets, collectTiming: true);
+        }
+
+        /// <summary>
+        /// Builds the same generation context without internal timing probes. Use this only when an external
+        /// benchmark timer owns the complete measurement boundary.
+        /// </summary>
+        public static GenerationContext CreateUninstrumented(
+            GenerationRequest request,
+            Transform generatedParent,
+            IReadOnlyList<AssetDefinition> assets)
+        {
+            return Create(request, generatedParent, assets, collectTiming: false);
+        }
+
+        private static GenerationContext Create(
+            GenerationRequest request,
+            Transform generatedParent,
+            IReadOnlyList<AssetDefinition> assets,
+            bool collectTiming)
+        {
             if (request == null)
                 throw new ArgumentNullException(nameof(request));
 
@@ -45,11 +66,11 @@ namespace Genix.Core
             if (request.AreaSource == null)
                 throw new ArgumentException("Generation could not start because no target area/location is selected.", nameof(request));
 
-            AreaBuildProfile areaBuildProfile = new();
+            AreaBuildProfile areaBuildProfile = collectTiming ? new AreaBuildProfile() : null;
             AreaBuildSettings areaSettings = request.AreaBuildSettings
                 .WithPlacementTargets(GetEffectivePlacementTargets(request, assets))
                 .WithProfile(areaBuildProfile);
-            Stopwatch areaStopwatch = Stopwatch.StartNew();
+            Stopwatch areaStopwatch = collectTiming ? Stopwatch.StartNew() : null;
             bool areaBuilt = request.AreaSource.TryBuildArea(
                 areaSettings,
                 out Genix.Areas.PlacementArea area,
@@ -57,11 +78,11 @@ namespace Genix.Core
 
             if (!areaBuilt)
             {
-                areaStopwatch.Stop();
+                areaStopwatch?.Stop();
                 throw new ArgumentException(error, nameof(request));
             }
 
-            Stopwatch sceneIndexStopwatch = Stopwatch.StartNew();
+            Stopwatch sceneIndexStopwatch = collectTiming ? Stopwatch.StartNew() : null;
             float fixedIndexExpansion = CalculateFixedIndexExpansion(request, assets);
             SceneObjectIndex generatedSceneObjects = SceneObjectIndex.CollectGeneratedCached(generatedParent);
             SceneObjectIndex fixedSceneObjects = SceneObjectIndex.CollectFixedCached(
@@ -69,17 +90,21 @@ namespace Genix.Core
                 generatedParent,
                 area.WorldBounds,
                 fixedIndexExpansion);
-            sceneIndexStopwatch.Stop();
-            areaBuildProfile.AddStepTime(
-                AreaBuildProfileStep.SceneIndex,
-                (float)sceneIndexStopwatch.Elapsed.TotalMilliseconds);
-            areaStopwatch.Stop();
+            sceneIndexStopwatch?.Stop();
+
+            if (collectTiming)
+            {
+                areaBuildProfile.AddStepTime(
+                    AreaBuildProfileStep.SceneIndex,
+                    (float)sceneIndexStopwatch.Elapsed.TotalMilliseconds);
+                areaStopwatch.Stop();
+            }
 
             return new GenerationContext(
                 request,
                 generatedParent,
                 area,
-                (float)areaStopwatch.Elapsed.TotalMilliseconds,
+                collectTiming ? (float)areaStopwatch.Elapsed.TotalMilliseconds : 0f,
                 areaBuildProfile,
                 generatedSceneObjects,
                 fixedSceneObjects);

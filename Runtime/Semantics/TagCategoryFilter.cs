@@ -19,7 +19,7 @@ namespace Genix.Semantics
         public IReadOnlyList<SemanticTag> Tags => tags;
 
         /// <summary>Indicates whether active.</summary>
-        public bool IsActive => category && tags.Any(tag => tag);
+        public bool IsActive => category && category.SupportsAssets && tags.Any(tag => tag);
 
         /// <summary>Initializes the instance from the supplied runtime or serialized data.</summary>
         public void Initialize(
@@ -34,7 +34,7 @@ namespace Genix.Semantics
         public void SetTags(IEnumerable<SemanticTag> tags)
         {
             this.tags = tags?
-                .Where(tag => tag && tag.Category == category)
+                .Where(tag => category && category.SupportsAssets && tag && tag.Category == category)
                 .Distinct()
                 .ToList() ?? new List<SemanticTag>();
         }
@@ -66,7 +66,7 @@ namespace Genix.Semantics
                 return;
             }
 
-            tags.RemoveAll(tag => !tag || tag.Category != category);
+            tags.RemoveAll(tag => !category.SupportsAssets || !tag || tag.Category != category);
         }
     }
 }

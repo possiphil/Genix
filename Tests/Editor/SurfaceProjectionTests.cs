@@ -7,6 +7,7 @@ using Genix.Diagnostics;
 using Genix.Placement;
 using Genix.Placement.Providers;
 using Genix.Profiling;
+using Genix.Layouts;
 using Genix.Sampling;
 using Genix.Sampling.ClusterSampling;
 using Genix.Sampling.GridSampling;
@@ -92,6 +93,27 @@ namespace Genix.Tests
             Assert.That(point.SurfaceCollider, Is.SameAs(_ceiling));
             Assert.That(point.Position.y, Is.EqualTo(5f).Within(0.001f));
             Assert.That(Vector3.Dot(point.Normal, Vector3.down), Is.GreaterThan(0.99f));
+        }
+
+        [Test]
+        public void GeneratedColliderWithSurfaceDescriptorRemainsProjectableInLaterRun()
+        {
+            GameObject generatedRoot = CreateObject("Generated Support Root");
+            generatedRoot.AddComponent<GeneratedObjectMetadata>().Initialize(PlacementType.Floor);
+            GameObject supportObject = CreateObject("Generated Desk Top");
+            supportObject.transform.SetParent(generatedRoot.transform);
+            BoxCollider support = supportObject.AddComponent<BoxCollider>();
+            supportObject.transform.position = new Vector3(0f, 1.5f, 0f);
+            supportObject.transform.localScale = new Vector3(4f, 1f, 4f);
+            supportObject.layer = TestLayer;
+            supportObject.AddComponent<PlacementSurfaceDescriptor>();
+            Physics.SyncTransforms();
+
+            bool projected = _area.TryProjectToFloor(new Vector3(0f, 4f, 0f), out SurfacePoint point);
+
+            Assert.That(projected, Is.True);
+            Assert.That(point.SurfaceCollider, Is.SameAs(support));
+            Assert.That(point.Position.y, Is.EqualTo(2f).Within(0.001f));
         }
 
         [Test]
@@ -201,6 +223,46 @@ namespace Genix.Tests
             Assert.That(point.SurfaceCollider, Is.SameAs(wall));
             Assert.That(point.Position.z, Is.EqualTo(0f).Within(0.001f));
             Assert.That(Vector3.Dot(point.Normal, Vector3.forward), Is.GreaterThan(0.99f));
+        }
+
+        [Test]
+        public void WallProjectionFindsPositiveBoundaryAtCenteredVoxelEdge()
+        {
+            GameObject wallObject = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            _objects.Add(wallObject);
+            wallObject.name = "Positive Boundary Plane";
+            wallObject.layer = TestLayer;
+            wallObject.transform.position = new Vector3(0f, 0f, 0.5f);
+            wallObject.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);
+            wallObject.transform.localScale = new Vector3(0.1f, 1f, 0.1f);
+            MeshCollider wall = wallObject.GetComponent<MeshCollider>();
+            Physics.SyncTransforms();
+
+            int mask = 1 << TestLayer;
+            AreaBuildSettings settings = new(
+                AreaDecompositionMode.Precise,
+                mask,
+                surfaceRaycastDistance: 20f,
+                surfaceDiscoveryMode: SurfaceDiscoveryMode.NearSfsBoundaries);
+            PlacementArea occupiedArea = new(
+                new SpatialSourceInfo("Test", "Occupied Projection Area", "occupied-projection-area"),
+                new Bounds(Vector3.zero, Vector3.one),
+                null,
+                null,
+                cellSize: 1f,
+                settings: settings,
+                subspaceCells: new[] { Vector3Int.zero });
+
+            bool projected = occupiedArea.TryProjectToWall(
+                new Vector3(0f, 0f, 0.5f),
+                Vector3.back,
+                null,
+                out SurfacePoint point);
+
+            Assert.That(projected, Is.True);
+            Assert.That(point.SurfaceCollider, Is.SameAs(wall));
+            Assert.That(point.Position.z, Is.EqualTo(0.5f).Within(0.001f));
+            Assert.That(Vector3.Dot(point.Normal, Vector3.back), Is.GreaterThan(0.99f));
         }
 
         [Test]
@@ -316,8 +378,53 @@ namespace Genix.Tests
                 _asset,
                 _floor,
                 null,
-                PlacementType.Wall,
+                PlacementType.InsideSpace,
                 out _), Is.False);
+        }
+
+        [Test]
+        public void WallSurfaceFitProbesTheWallFacingFootprint()
+        {
+            BoxCollider wall = CreateBox(
+                "Adaptive Wall",
+                new Vector3(0f, 2.5f, -4.75f),
+                new Vector3(8f, 5f, 0.5f));
+            Physics.SyncTransforms();
+
+            bool valid = _area.TryEvaluateSurfaceFit(
+                new Vector3(0f, 2.5f, -4.5f),
+                Quaternion.LookRotation(Vector3.forward, Vector3.up),
+                _asset,
+                wall,
+                null,
+                PlacementType.Wall,
+                out SurfaceFitResult result);
+
+            Assert.That(valid, Is.True);
+            Assert.That(result.SupportRatio, Is.EqualTo(1f).Within(0.0001f));
+            Assert.That(result.HeightDifference, Is.LessThan(0.001f));
+            Assert.That(Vector3.Dot(result.Normal, Vector3.forward), Is.GreaterThan(0.99f));
+        }
+
+        [Test]
+        public void WallSurfaceFitRejectsFootprintWithoutRequiredSupport()
+        {
+            BoxCollider wall = CreateBox(
+                "Narrow Adaptive Wall",
+                new Vector3(0f, 2.5f, -4.75f),
+                new Vector3(0.5f, 5f, 0.5f));
+            Physics.SyncTransforms();
+
+            bool valid = _area.TryEvaluateSurfaceFit(
+                new Vector3(0f, 2.5f, -4.5f),
+                Quaternion.LookRotation(Vector3.forward, Vector3.up),
+                _asset,
+                wall,
+                null,
+                PlacementType.Wall,
+                out _);
+
+            Assert.That(valid, Is.False);
         }
 
         [Test]
@@ -379,11 +486,12 @@ namespace Genix.Tests
         [Test]
         public void AllMatchingWallProviderProjectsOntoPhysicalBoundaryWalls()
         {
-            CreateBox("South Wall", new Vector3(0f, 2.5f, -4.75f), new Vector3(10f, 6f, 0.5f));
-            CreateBox("North Wall", new Vector3(0f, 2.5f, 4.75f), new Vector3(10f, 6f, 0.5f));
-            CreateBox("West Wall", new Vector3(-4.75f, 2.5f, 0f), new Vector3(0.5f, 6f, 10f));
-            CreateBox("East Wall", new Vector3(4.75f, 2.5f, 0f), new Vector3(0.5f, 6f, 10f));
+            BoxCollider south = CreateBox("South Wall", new Vector3(0f, 2.5f, -4.75f), new Vector3(10f, 6f, 0.5f));
+            BoxCollider north = CreateBox("North Wall", new Vector3(0f, 2.5f, 4.75f), new Vector3(10f, 6f, 0.5f));
+            BoxCollider west = CreateBox("West Wall", new Vector3(-4.75f, 2.5f, 0f), new Vector3(0.5f, 6f, 10f));
+            BoxCollider east = CreateBox("East Wall", new Vector3(4.75f, 2.5f, 0f), new Vector3(0.5f, 6f, 10f));
             Physics.SyncTransforms();
+            _area = CreateAllMatchingArea("Boundary Wall Area");
 
             List<CandidateSeed> seeds = new WallCandidateProvider(candidateCount: 32)
                 .CreateCandidateSeeds(CreateContext(PlacementTarget.Wall, SamplingAlgorithm.Random));
@@ -392,6 +500,63 @@ namespace Genix.Tests
             Assert.That(seeds, Has.All.Matches<CandidateSeed>(seed =>
                 seed.PlacementType == PlacementType.Wall &&
                 Mathf.Abs(seed.SurfaceNormal.y) < 0.01f));
+            Assert.That(seeds, Has.Some.Matches<CandidateSeed>(seed =>
+                seed.SurfaceCollider == south ||
+                seed.SurfaceCollider == north ||
+                seed.SurfaceCollider == west ||
+                seed.SurfaceCollider == east));
+            Assert.That(seeds.Count, Is.LessThanOrEqualTo(32));
+        }
+
+        [Test]
+        public void AllMatchingWallProviderDiscoversWallInsideTheVolume()
+        {
+            GameObject wallObject = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            _objects.Add(wallObject);
+            wallObject.name = "Interior Wall Plane";
+            wallObject.layer = TestLayer;
+            wallObject.transform.position = new Vector3(0f, 2.5f, 0f);
+            wallObject.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            wallObject.transform.localScale = new Vector3(0.8f, 1f, 0.5f);
+            MeshCollider interiorWall = wallObject.GetComponent<MeshCollider>();
+            Physics.SyncTransforms();
+            _area = CreateAllMatchingArea("Interior Wall Area");
+
+            List<CandidateSeed> seeds = new WallCandidateProvider(candidateCount: 64)
+                .CreateCandidateSeeds(CreateContext(PlacementTarget.Wall, SamplingAlgorithm.Grid));
+
+            Assert.That(seeds, Has.Some.Matches<CandidateSeed>(seed => seed.SurfaceCollider == interiorWall));
+            Assert.That(seeds.Count, Is.LessThanOrEqualTo(64));
+        }
+
+        [Test]
+        public void AllMatchingWallProviderDiscoversBothSidesOfTerrainRidge()
+        {
+            CreateRidgeTerrain("Provider Ridge Terrain");
+            int mask = 1 << TestLayer;
+            AreaBuildSettings settings = new(
+                AreaDecompositionMode.Precise,
+                mask,
+                surfaceRaycastHeight: 1f,
+                surfaceRaycastDistance: 20f,
+                surfaceDiscoveryMode: SurfaceDiscoveryMode.AllMatchingSurfacesInVolume);
+            _area = new PlacementArea(
+                new SpatialSourceInfo("Test", "Ridge Area", "ridge-area"),
+                new Bounds(new Vector3(0f, 2.5f, 0f), new Vector3(8f, 5f, 8f)),
+                null,
+                null,
+                cellSize: 1f,
+                settings: settings);
+
+            List<CandidateSeed> seeds = new WallCandidateProvider(candidateCount: 128)
+                .CreateCandidateSeeds(CreateContext(PlacementTarget.Wall, SamplingAlgorithm.Grid));
+
+            Assert.That(_area.HasTerrainSurfaces, Is.True);
+            Assert.That(_area.SupportsPlacementType(PlacementType.Wall), Is.True);
+            Assert.That(seeds, Has.Some.Matches<CandidateSeed>(seed => seed.SurfaceNormal.x > 0.25f));
+            Assert.That(seeds, Has.Some.Matches<CandidateSeed>(seed => seed.SurfaceNormal.x < -0.25f));
+            Assert.That(seeds, Has.All.Matches<CandidateSeed>(seed => seed.PlacementType == PlacementType.Wall));
+            Assert.That(seeds.Count, Is.LessThanOrEqualTo(128));
         }
 
         [Test]
@@ -466,6 +631,55 @@ namespace Genix.Tests
             _objects.Add(terrainObject);
             Physics.SyncTransforms();
             return terrainObject.GetComponent<TerrainCollider>();
+        }
+
+        private TerrainCollider CreateRidgeTerrain(string name)
+        {
+            const int resolution = 33;
+            TerrainData data = new()
+            {
+                heightmapResolution = resolution,
+                size = new Vector3(8f, 5f, 8f)
+            };
+            float[,] heights = new float[resolution, resolution];
+
+            for (int z = 0; z < resolution; z++)
+            for (int x = 0; x < resolution; x++)
+            {
+                float normalizedX = x / (float)(resolution - 1);
+                float ridgeDistance = Mathf.Abs(normalizedX - 0.5f);
+                heights[z, x] = ridgeDistance < 0.25f
+                    ? 1f - ridgeDistance / 0.25f
+                    : 0f;
+            }
+
+            data.SetHeights(0, 0, heights);
+            GameObject terrainObject = Terrain.CreateTerrainGameObject(data);
+            terrainObject.name = name;
+            terrainObject.layer = TestLayer;
+            terrainObject.transform.position = new Vector3(-4f, 0f, -4f);
+            _objects.Add(data);
+            _objects.Add(terrainObject);
+            Physics.SyncTransforms();
+            return terrainObject.GetComponent<TerrainCollider>();
+        }
+
+        private PlacementArea CreateAllMatchingArea(string name)
+        {
+            int mask = 1 << TestLayer;
+            AreaBuildSettings settings = new(
+                AreaDecompositionMode.Precise,
+                mask,
+                surfaceRaycastHeight: 1f,
+                surfaceRaycastDistance: 20f,
+                surfaceDiscoveryMode: SurfaceDiscoveryMode.AllMatchingSurfacesInVolume);
+            return new PlacementArea(
+                new SpatialSourceInfo("Test", name, name),
+                new Bounds(new Vector3(0f, 2.5f, 0f), new Vector3(10f, 5f, 10f)),
+                null,
+                null,
+                cellSize: 1f,
+                settings: settings);
         }
 
         private GenerationContext CreateContext(PlacementTarget target, SamplingAlgorithm algorithm)

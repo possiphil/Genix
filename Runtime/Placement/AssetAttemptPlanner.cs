@@ -127,7 +127,8 @@ namespace Genix.Placement
             public void CreateOrder(
                 PlacementType placementType,
                 GenerationRandom random,
-                List<AssetDefinition> order)
+                List<AssetDefinition> order,
+                Func<AssetDefinition, bool> isAvailable = null)
             {
                 if (order == null)
                     throw new ArgumentNullException(nameof(order));
@@ -142,19 +143,28 @@ namespace Genix.Placement
                 order.Clear();
 
                 int startIndex = random.Range(0, entries.Count);
-                order.Add(entries[startIndex].Asset);
+                AddIfAvailable(order, entries[startIndex].Asset, isAvailable);
                 int smallerStart = order.Count;
 
                 for (int i = startIndex + 1; i < entries.Count; i++)
-                    order.Add(entries[i].Asset);
+                    AddIfAvailable(order, entries[i].Asset, isAvailable);
 
                 ShuffleRange(order, smallerStart, order.Count, random);
                 int largerStart = order.Count;
 
                 for (int i = 0; i < startIndex; i++)
-                    order.Add(entries[i].Asset);
+                    AddIfAvailable(order, entries[i].Asset, isAvailable);
 
                 ShuffleRange(order, largerStart, order.Count, random);
+            }
+
+            private static void AddIfAvailable(
+                ICollection<AssetDefinition> order,
+                AssetDefinition asset,
+                Func<AssetDefinition, bool> isAvailable)
+            {
+                if (isAvailable == null || isAvailable(asset))
+                    order.Add(asset);
             }
 
             private static void ShuffleRange(

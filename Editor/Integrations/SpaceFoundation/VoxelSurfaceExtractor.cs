@@ -35,21 +35,22 @@ namespace Genix.SpaceFoundation.Editor
             float voxelSize,
             bool includeFloor,
             bool includeCeiling,
-            bool includeWalls)
+            bool includeWalls,
+            bool collectTiming = true)
         {
             HashSet<Vector3Int> floorCells = includeFloor ? new HashSet<Vector3Int>() : new HashSet<Vector3Int>(0);
             HashSet<Vector3Int> ceilingCells = includeCeiling ? new HashSet<Vector3Int>() : new HashSet<Vector3Int>(0);
             Dictionary<WallRunKey, List<int>> runsByWall = includeWalls ? new Dictionary<WallRunKey, List<int>>() : null;
-            Stopwatch scanStopwatch = Stopwatch.StartNew();
+            Stopwatch scanStopwatch = collectTiming ? Stopwatch.StartNew() : null;
 
             if (!includeFloor && !includeCeiling && !includeWalls)
             {
-                scanStopwatch.Stop();
+                scanStopwatch?.Stop();
                 return new VoxelSurfaceExtraction(
                     floorCells,
                     ceilingCells,
                     new List<SurfaceRegion>(),
-                    (float)scanStopwatch.Elapsed.TotalMilliseconds,
+                    collectTiming ? (float)scanStopwatch.Elapsed.TotalMilliseconds : 0f,
                     0f);
             }
 
@@ -73,20 +74,20 @@ namespace Genix.SpaceFoundation.Editor
                     AddRunCoordinate(runsByWall, new WallRunKey(WallFace.PositiveZ, cell.z + 1, cell.y), cell.x);
             }
 
-            scanStopwatch.Stop();
+            scanStopwatch?.Stop();
 
-            Stopwatch wallStopwatch = Stopwatch.StartNew();
+            Stopwatch wallStopwatch = collectTiming ? Stopwatch.StartNew() : null;
             List<SurfaceRegion> walls = includeWalls
                 ? CreateWallRegionsFromRuns(runsByWall, voxelSize)
                 : new List<SurfaceRegion>();
-            wallStopwatch.Stop();
+            wallStopwatch?.Stop();
 
             return new VoxelSurfaceExtraction(
                 floorCells,
                 ceilingCells,
                 walls,
-                (float)scanStopwatch.Elapsed.TotalMilliseconds,
-                (float)wallStopwatch.Elapsed.TotalMilliseconds);
+                collectTiming ? (float)scanStopwatch.Elapsed.TotalMilliseconds : 0f,
+                collectTiming ? (float)wallStopwatch.Elapsed.TotalMilliseconds : 0f);
         }
 
         private static List<SurfaceRegion> CreateWallRegionsFromRuns(
@@ -146,11 +147,11 @@ namespace Genix.SpaceFoundation.Editor
             int runEnd,
             float voxelSize)
         {
-            float y0 = key.Layer * voxelSize;
-            float y1 = (key.Layer + 1) * voxelSize;
-            float plane = key.Plane * voxelSize;
-            float min = runStart * voxelSize;
-            float max = (runEnd + 1) * voxelSize;
+            float y0 = (key.Layer - 0.5f) * voxelSize;
+            float y1 = (key.Layer + 0.5f) * voxelSize;
+            float plane = (key.Plane - 0.5f) * voxelSize;
+            float min = (runStart - 0.5f) * voxelSize;
+            float max = (runEnd + 0.5f) * voxelSize;
 
             switch (key.Face)
             {

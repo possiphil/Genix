@@ -25,25 +25,22 @@ namespace Genix.Editor.Windows
             Tags,
             Locations,
             AssetPools,
-            Layouts
+            Layouts,
+            SceneSetup
         }
 
         private enum AssetSortMode
         {
             AlphabeticalAscending,
-            AlphabeticalDescending,
             SizeDescending,
             SizeAscending,
             PlacementType,
-            TagCountDescending,
             TagCountAscending
         }
 
         private enum CategorySortMode
         {
             AlphabeticalAscending,
-            AlphabeticalDescending,
-            TagCountDescending,
             TagCountAscending,
             Mode
         }
@@ -51,17 +48,13 @@ namespace Genix.Editor.Windows
         private enum TagSortMode
         {
             AlphabeticalAscending,
-            AlphabeticalDescending,
-            CategoryAscending,
-            CategoryDescending
+            CategoryAscending
         }
 
         private enum PoolSortMode
         {
             AlphabeticalAscending,
-            AlphabeticalDescending,
             AssetCountDescending,
-            AssetCountAscending,
             Mode
         }
 
@@ -75,12 +68,9 @@ namespace Genix.Editor.Windows
         private enum LayoutSortMode
         {
             NewestFirst,
-            OldestFirst,
             NameAscending,
-            NameDescending,
             TargetArea,
-            ObjectCountDescending,
-            ObjectCountAscending
+            ObjectCountDescending
         }
 
         private enum LayoutScopeFilter
@@ -111,6 +101,7 @@ namespace Genix.Editor.Windows
         private SemanticTag _selectedSemanticTag;
         private AssetPool _selectedPool;
         private SavedLayout _selectedLayout;
+        private Object _selectedSceneSetupObject;
 
         private Object _selectedObjectEditorTarget;
         private UnityEditor.Editor _selectedObjectEditor;
@@ -166,10 +157,15 @@ namespace Genix.Editor.Windows
             AssetCatalogService.Refresh();
             _locationPanel.Refresh();
             _layoutTargetAreaSelector.Refresh();
+            EditorApplication.hierarchyChanged += MarkSceneSetupDirty;
+            Undo.undoRedoPerformed += MarkSceneSetupDirty;
+            MarkSceneSetupDirty();
         }
 
         private void OnDisable()
         {
+            EditorApplication.hierarchyChanged -= MarkSceneSetupDirty;
+            Undo.undoRedoPerformed -= MarkSceneSetupDirty;
             DestroySelectedObjectEditor();
         }
 
@@ -178,6 +174,7 @@ namespace Genix.Editor.Windows
             AssetCatalogService.Refresh();
             _locationPanel.Refresh();
             _layoutTargetAreaSelector.Refresh();
+            MarkSceneSetupDirty();
             Repaint();
         }
 
@@ -220,6 +217,10 @@ namespace Genix.Editor.Windows
                 case ContentTab.Layouts:
                     DrawLayoutsTab();
                     break;
+
+                case ContentTab.SceneSetup:
+                    DrawSceneSetupTab(catalog);
+                    break;
             }
 
             EditorGUILayout.Space(8f);
@@ -237,8 +238,8 @@ namespace Genix.Editor.Windows
 
                 _tab = (ContentTab)DrawToolbarTabsWithRightBorder(
                     (int)_tab,
-                    new[] { "Assets", "Tags", "Locations", "Asset Pools", "Layouts" },
-                    390f);
+                    new[] { "Assets", "Tags", "Locations", "Asset Pools", "Layouts", "Scene Setup" },
+                    500f);
 
                 if (_tab != previousTab)
                 {

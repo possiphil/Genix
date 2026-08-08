@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Genix.Assets;
 using Genix.Placement;
+using Genix.Semantics;
 using UnityEngine;
 
 namespace Genix.Core
@@ -12,6 +13,8 @@ namespace Genix.Core
         private readonly List<PlannedObject> _objects;
         private readonly SpatialBoundsIndex _spatialIndex;
         private readonly SpatialPointIndex2D _horizontalSpacingIndex;
+        private readonly Dictionary<PlacementSurfaceDescriptor, int> _supportCounts = new();
+        private readonly Dictionary<AssetDefinition, int> _assetCounts = new();
 
         /// <summary>Gets objects.</summary>
         public IReadOnlyList<PlannedObject> Objects => _objects;
@@ -46,6 +49,24 @@ namespace Genix.Core
             int objectIndex = _objects.Count - 1;
             _spatialIndex.Add(axisAlignedBounds, objectIndex);
             _horizontalSpacingIndex.Add(axisAlignedBounds.center, objectIndex);
+            _assetCounts[asset] = GetAssetCount(asset) + 1;
+
+            PlacementSurfaceDescriptor support = PlacementSupportRules.GetDescriptor(candidate.SurfaceCollider);
+
+            if (support)
+                _supportCounts[support] = GetSupportCount(support) + 1;
+        }
+
+        /// <summary>Returns how many objects in this plan use the supplied semantic support surface.</summary>
+        public int GetSupportCount(PlacementSurfaceDescriptor supportSurface)
+        {
+            return supportSurface && _supportCounts.TryGetValue(supportSurface, out int count) ? count : 0;
+        }
+
+        /// <summary>Returns how many instances of the supplied asset have been accepted in this plan.</summary>
+        public int GetAssetCount(AssetDefinition asset)
+        {
+            return asset && _assetCounts.TryGetValue(asset, out int count) ? count : 0;
         }
 
         /// <summary>Enumerates planned objects whose indexed bounds may intersect the supplied bounds.</summary>
@@ -62,12 +83,24 @@ namespace Genix.Core
                 yield return _objects[index];
         }
 
+        /// <summary>Enumerates planned objects whose bounds may lie within a three-dimensional search radius.</summary>
+        public IEnumerable<PlannedObject> QuerySpatialSpacing(Bounds candidateBounds, float radius)
+        {
+            Bounds queryBounds = candidateBounds;
+            queryBounds.Expand(Mathf.Max(0f, radius) * 2f);
+
+            foreach (int index in _spatialIndex.Query(queryBounds))
+                yield return _objects[index];
+        }
+
         /// <summary>Clears the stored state.</summary>
         public void Clear()
         {
             _objects.Clear();
             _spatialIndex.Clear();
             _horizontalSpacingIndex.Clear();
+            _supportCounts.Clear();
+            _assetCounts.Clear();
         }
     }
 

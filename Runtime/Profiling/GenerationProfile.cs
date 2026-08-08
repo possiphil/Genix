@@ -60,7 +60,11 @@ namespace Genix.Profiling
         /// <summary>Identifies the generated scene spacing profiler step.</summary>
         GeneratedSceneSpacing,
         /// <summary>Identifies the relative profiler step.</summary>
-        Relative
+        Relative,
+        /// <summary>Identifies collider-free exclusion-region validation.</summary>
+        Exclusion,
+        /// <summary>Identifies optional asset-to-wall distance validation.</summary>
+        WallRelationship
     }
 
     /// <summary>Available planning profile step values.</summary>

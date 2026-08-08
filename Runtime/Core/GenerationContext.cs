@@ -49,6 +49,9 @@ namespace Genix.Core
         internal SurfaceFitCache SurfaceFitCache { get; }
         internal IReadOnlyList<RelativeAnchor> SceneRelativeAnchors { get; }
         internal IReadOnlyList<RelativeAnchor> SelectedRelativeAnchors { get; }
+        internal IReadOnlyList<PlacementExclusionRegion> ExclusionRegions { get; }
+        private WallProximityIndex _wallProximity;
+        internal WallProximityIndex WallProximity => _wallProximity ??= WallProximityIndex.Create(Area);
 
         /// <summary>Gets target bounds.</summary>
         public Bounds TargetBounds => Area.WorldBounds;
@@ -115,6 +118,7 @@ namespace Genix.Core
             FixedSceneObjects = fixedSceneObjects ?? SceneObjectIndex.Empty;
             SceneRelativeAnchors = RelativeAnchorProvider.CollectSceneAnchors(this);
             SelectedRelativeAnchors = RelativeAnchorProvider.CollectSelectedAnchors(this);
+            ExclusionRegions = PlacementExclusionRegion.Collect(TargetBounds);
         }
     }
 }

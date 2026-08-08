@@ -303,7 +303,15 @@ namespace Genix.Editor.Diagnostics
             DrawStat("Unused Positions", unusedPositions.ToString());
 
             if (!string.IsNullOrWhiteSpace(diagnostics.TopRejectionReason))
+            {
                 DrawStat("Top Rejection", diagnostics.TopRejectionReason);
+
+                RejectionReason topReason = GetTopRejectionReason(diagnostics);
+                string advice = RejectionReasonGuidance.GetAdvice(topReason);
+
+                if (!string.IsNullOrEmpty(advice))
+                    EditorGUILayout.HelpBox(advice, MessageType.Info);
+            }
 
             if (!string.IsNullOrWhiteSpace(diagnostics.StopReason))
                 EditorGUILayout.HelpBox(diagnostics.StopReason, MessageType.Warning);
@@ -338,6 +346,24 @@ namespace Genix.Editor.Diagnostics
                 if (!hasRejections)
                     EditorGUILayout.LabelField(emptyMessage);
             }
+        }
+
+        private static RejectionReason GetTopRejectionReason(GenerationDiagnostics diagnostics)
+        {
+            if (diagnostics.HasCandidateOutcomeCounts)
+            {
+                return diagnostics.CandidateRejectionCounts
+                    .OrderByDescending(entry => entry.Value)
+                    .Select(entry => entry.Key)
+                    .FirstOrDefault();
+            }
+
+            return diagnostics.Candidates
+                .Where(candidate => !candidate.Accepted)
+                .GroupBy(candidate => candidate.RejectionReason)
+                .OrderByDescending(group => group.Count())
+                .Select(group => group.Key)
+                .FirstOrDefault();
         }
 
         private static void DrawRejectedAssetSummary(GenerationDiagnostics diagnostics)

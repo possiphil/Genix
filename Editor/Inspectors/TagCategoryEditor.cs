@@ -9,10 +9,12 @@ namespace Genix.Editor.Inspectors
     [CustomEditor(typeof(TagCategory))]
     public sealed class TagCategoryEditor : UnityEditor.Editor
     {
+        private SerializedProperty _usage;
         private SerializedProperty _allowMultipleTags;
 
         private void OnEnable()
         {
+            _usage = serializedObject.FindProperty("usage");
             _allowMultipleTags = serializedObject.FindProperty("allowMultipleTags");
         }
 
@@ -25,6 +27,12 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.Space(4f);
 
             DrawDisplayNameField();
+
+            EditorGUILayout.PropertyField(
+                _usage,
+                new GUIContent(
+                    "Usage",
+                    "Asset categories appear in asset, pool, and spatial-context fields. Surface categories appear in support-surface fields. Asset and Surface appears in both."));
 
             EditorGUILayout.PropertyField(
                 _allowMultipleTags,

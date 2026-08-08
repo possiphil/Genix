@@ -11,8 +11,8 @@ namespace Genix.Areas
     /// Applies target-area containment using voxel occupancy, extracted regions, and optional physics surface probes.
     /// </summary>
     /// <remarks>
-    /// The selected surface-discovery mode decides which representation is authoritative. Adaptive floor and ceiling
-    /// assets delegate footprint support to <see cref="SurfaceProjector"/>; volume targets use voxel occupancy.
+    /// The selected surface-discovery mode decides which representation is authoritative. Adaptive surface assets
+    /// delegate footprint support to <see cref="SurfaceProjector"/>; volume targets use voxel occupancy.
     /// </remarks>
     internal sealed class AreaContainment
     {
@@ -72,7 +72,7 @@ namespace Genix.Areas
                 return true;
 
             if (asset.SurfaceFitMode == SurfaceFitMode.Adaptive &&
-                candidate.PlacementType is PlacementType.Floor or PlacementType.Ceiling)
+                candidate.PlacementType != PlacementType.InsideSpace)
             {
                 return candidate.HasSurfaceFit ||
                        ContainsAdaptivePlacementFootprint(candidate, asset, profiler);
@@ -117,8 +117,12 @@ namespace Genix.Areas
             AssetDefinition asset,
             IGenerationProfiler profiler)
         {
-            Vector3 up = NormalizeOrFallback(candidate.Rotation * Vector3.up, candidate.SurfaceNormal, Vector3.up);
-            Vector3 surfaceCenter = candidate.Position - up * (Mathf.Max(0.01f, asset.Height) * 0.5f);
+            bool isWall = candidate.PlacementType == PlacementType.Wall;
+            Vector3 supportNormal = isWall
+                ? NormalizeOrFallback(candidate.SurfaceNormal, candidate.Rotation * Vector3.forward, Vector3.forward)
+                : NormalizeOrFallback(candidate.Rotation * Vector3.up, candidate.SurfaceNormal, Vector3.up);
+            float normalSize = isWall ? asset.Depth : asset.Height;
+            Vector3 surfaceCenter = candidate.Position - supportNormal * (Mathf.Max(0.01f, normalSize) * 0.5f);
 
             return _projector.TryEvaluateSurfaceFit(
                 surfaceCenter,

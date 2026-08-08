@@ -49,12 +49,15 @@ namespace Genix.Editor.Genix.Editor.Assets
         }
 
         /// <summary>Creates category.</summary>
-        public static TagCategory CreateCategory(string displayName, bool allowMultipleTags = true)
+        public static TagCategory CreateCategory(
+            string displayName,
+            bool allowMultipleTags = true,
+            TagCategoryUsage usage = TagCategoryUsage.Asset)
         {
             string name = AssetFileService.CleanName(displayName, "New Category");
             TagCategory category = ScriptableObject.CreateInstance<TagCategory>();
             category.name = name;
-            category.Initialize(allowMultipleTags);
+            category.Initialize(allowMultipleTags, usage);
             AssetDatabase.CreateAsset(category, AssetFileService.UniqueAssetPath(ProjectContentPaths.TagCategories, name));
 
             AssetCatalog catalog = GetOrCreate();

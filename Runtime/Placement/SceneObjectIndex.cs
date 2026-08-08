@@ -3,6 +3,8 @@ using Genix.Areas;
 using Genix.Core;
 using Genix.Extensions;
 using Genix.Geometry;
+using Genix.Layouts;
+using Genix.Semantics;
 using UnityEngine;
 
 namespace Genix.Placement
@@ -20,6 +22,7 @@ namespace Genix.Placement
 
         private readonly List<Entry> _entries = new();
         private readonly SpatialBoundsIndex _spatialIndex = new();
+        private readonly Dictionary<PlacementSurfaceDescriptor, int> _supportCounts = new();
         private Bounds _bounds;
         private bool _hasBounds;
 
@@ -65,7 +68,13 @@ namespace Genix.Placement
                     continue;
                 }
 
-                index.Add(new Entry(bounds, child.name, null));
+                GeneratedObjectMetadata metadata = child.GetComponent<GeneratedObjectMetadata>();
+                index.Add(new Entry(
+                    bounds,
+                    child.name,
+                    null,
+                    child,
+                    metadata ? metadata.SupportSurface : null));
             }
 
             return index;
@@ -130,7 +139,7 @@ namespace Genix.Placement
                 if (hasTargetBounds && !colliderBounds.Intersects(searchBounds))
                     continue;
 
-                index.Add(new Entry(colliderBounds, collider.name, collider));
+                index.Add(new Entry(colliderBounds, collider.name, collider, collider.transform, null));
             }
 
             return index;
@@ -142,10 +151,19 @@ namespace Genix.Placement
                 yield return _entries[index];
         }
 
+        /// <summary>Returns how many indexed generated objects reference the supplied support surface.</summary>
+        public int GetSupportCount(PlacementSurfaceDescriptor supportSurface)
+        {
+            return supportSurface && _supportCounts.TryGetValue(supportSurface, out int count) ? count : 0;
+        }
+
         private void Add(Entry entry)
         {
             _entries.Add(entry);
             _spatialIndex.Add(entry.Bounds, _entries.Count - 1);
+
+            if (entry.SupportSurface)
+                _supportCounts[entry.SupportSurface] = GetSupportCount(entry.SupportSurface) + 1;
 
             if (!_hasBounds)
             {
@@ -276,12 +294,21 @@ namespace Genix.Placement
             public Bounds Bounds { get; }
             public string ObjectName { get; }
             public Collider Collider { get; }
+            public Transform Root { get; }
+            public PlacementSurfaceDescriptor SupportSurface { get; }
 
-            public Entry(Bounds bounds, string objectName, Collider collider)
+            public Entry(
+                Bounds bounds,
+                string objectName,
+                Collider collider,
+                Transform root,
+                PlacementSurfaceDescriptor supportSurface)
             {
                 Bounds = bounds;
                 ObjectName = string.IsNullOrWhiteSpace(objectName) ? "Scene Object" : objectName;
                 Collider = collider;
+                Root = root;
+                SupportSurface = supportSurface;
             }
         }
     }

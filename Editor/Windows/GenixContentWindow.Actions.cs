@@ -23,9 +23,9 @@ namespace Genix.Editor.Windows
                 if (!this)
                     return;
 
-                CreateCategoryDialog.Open((displayName, allowMultipleTags) =>
+                CreateCategoryDialog.Open((displayName, allowMultipleTags, usage) =>
                 {
-                    TagCategory category = AssetCatalogService.CreateCategory(displayName, allowMultipleTags);
+                    TagCategory category = AssetCatalogService.CreateCategory(displayName, allowMultipleTags, usage);
                     AssetCatalogService.Refresh();
 
                     SelectObject(category);
@@ -286,6 +286,7 @@ namespace Genix.Editor.Windows
                 ContentTab.Locations => null,
                 ContentTab.AssetPools => _selectedPool,
                 ContentTab.Layouts => _selectedLayout,
+                ContentTab.SceneSetup => _selectedSceneSetupObject,
                 _ => null
             };
         }
@@ -343,6 +344,10 @@ namespace Genix.Editor.Windows
 
                 case ContentTab.Layouts:
                     _selectedLayout = selectedObject as SavedLayout;
+                    break;
+
+                case ContentTab.SceneSetup:
+                    _selectedSceneSetupObject = selectedObject;
                     break;
             }
         }

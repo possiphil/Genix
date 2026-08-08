@@ -66,8 +66,8 @@ namespace Genix.Areas
                 return false;
 
             Vector2Int key = new(
-                Mathf.FloorToInt(position.x / CellSize),
-                Mathf.FloorToInt(position.z / CellSize));
+                WorldToCell(position.x),
+                WorldToCell(position.z));
 
             if (!voxelLayer.HasValue)
                 return columns.Contains(key);
@@ -81,10 +81,10 @@ namespace Genix.Areas
             if (!HasGrid(PlacementType.Floor))
                 return false;
 
-            int minX = Mathf.FloorToInt((bounds.min.x + CellEpsilon) / CellSize);
-            int maxX = Mathf.FloorToInt((bounds.max.x - CellEpsilon) / CellSize);
-            int minZ = Mathf.FloorToInt((bounds.min.z + CellEpsilon) / CellSize);
-            int maxZ = Mathf.FloorToInt((bounds.max.z - CellEpsilon) / CellSize);
+            int minX = WorldMinToCell(bounds.min.x);
+            int maxX = WorldMaxToCell(bounds.max.x);
+            int minZ = WorldMinToCell(bounds.min.z);
+            int maxZ = WorldMaxToCell(bounds.max.z);
 
             for (int x = minX; x <= maxX; x++)
             {
@@ -104,9 +104,9 @@ namespace Genix.Areas
                 return true;
 
             Vector3Int cell = new(
-                Mathf.FloorToInt(position.x / CellSize),
-                Mathf.FloorToInt(position.y / CellSize),
-                Mathf.FloorToInt(position.z / CellSize));
+                WorldToCell(position.x),
+                WorldToCell(position.y),
+                WorldToCell(position.z));
             return _subspaceCells.Contains(cell);
         }
 
@@ -136,12 +136,12 @@ namespace Genix.Areas
                 return true;
 
             Bounds bounds = candidateBounds.ToAxisAlignedBounds();
-            int minX = Mathf.FloorToInt((bounds.min.x + CellEpsilon) / CellSize);
-            int maxX = Mathf.FloorToInt((bounds.max.x - CellEpsilon) / CellSize);
-            int minY = Mathf.FloorToInt((bounds.min.y + CellEpsilon) / CellSize);
-            int maxY = Mathf.FloorToInt((bounds.max.y - CellEpsilon) / CellSize);
-            int minZ = Mathf.FloorToInt((bounds.min.z + CellEpsilon) / CellSize);
-            int maxZ = Mathf.FloorToInt((bounds.max.z - CellEpsilon) / CellSize);
+            int minX = WorldMinToCell(bounds.min.x);
+            int maxX = WorldMaxToCell(bounds.max.x);
+            int minY = WorldMinToCell(bounds.min.y);
+            int maxY = WorldMaxToCell(bounds.max.y);
+            int minZ = WorldMinToCell(bounds.min.z);
+            int maxZ = WorldMaxToCell(bounds.max.z);
 
             for (int x = minX; x <= maxX; x++)
             {
@@ -175,19 +175,35 @@ namespace Genix.Areas
 
         private Bounds CreateCellBounds(Vector3Int cell)
         {
-            Vector3 min = new(cell.x * CellSize, cell.y * CellSize, cell.z * CellSize);
-            return new Bounds(min + Vector3.one * (CellSize * 0.5f), Vector3.one * CellSize);
+            return new Bounds((Vector3)cell * CellSize, Vector3.one * CellSize);
         }
 
         private Vector3 CreateRandomPointInCell(Vector3Int cell, GenerationRandom random)
         {
-            Vector3 min = new(cell.x * CellSize, cell.y * CellSize, cell.z * CellSize);
-            Vector3 max = min + Vector3.one * CellSize;
+            Vector3 center = (Vector3)cell * CellSize;
+            Vector3 halfSize = Vector3.one * (CellSize * 0.5f);
+            Vector3 min = center - halfSize;
+            Vector3 max = center + halfSize;
 
             return new Vector3(
                 random.Range(min.x, max.x),
                 random.Range(min.y, max.y),
                 random.Range(min.z, max.z));
+        }
+
+        private int WorldToCell(float value)
+        {
+            return Mathf.RoundToInt(value / CellSize);
+        }
+
+        private int WorldMinToCell(float value)
+        {
+            return Mathf.FloorToInt((value + CellSize * 0.5f + CellEpsilon) / CellSize);
+        }
+
+        private int WorldMaxToCell(float value)
+        {
+            return Mathf.FloorToInt((value + CellSize * 0.5f - CellEpsilon) / CellSize);
         }
 
         private static void PopulateColumns(

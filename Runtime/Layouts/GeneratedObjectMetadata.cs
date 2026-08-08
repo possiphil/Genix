@@ -1,5 +1,6 @@
 using Genix.Assets;
 using Genix.Core;
+using Genix.Semantics;
 using UnityEngine;
 
 namespace Genix.Layouts
@@ -8,12 +9,15 @@ namespace Genix.Layouts
     public sealed class GeneratedObjectMetadata : MonoBehaviour
     {
         [SerializeField] private PlacementTarget placementTarget;
+        [SerializeField] private PlacementSurfaceDescriptor supportSurface;
 
         /// <summary>Gets placement target.</summary>
         public PlacementTarget PlacementTarget => placementTarget;
+        /// <summary>Gets the semantic surface that supported this object, if one was used.</summary>
+        public PlacementSurfaceDescriptor SupportSurface => supportSurface;
 
         /// <summary>Initializes the instance from the supplied runtime or serialized data.</summary>
-        public void Initialize(PlacementType placementType)
+        public void Initialize(PlacementType placementType, PlacementSurfaceDescriptor placementSupport = null)
         {
             placementTarget = placementType switch
             {
@@ -23,6 +27,7 @@ namespace Genix.Layouts
                 PlacementType.InsideSpace => PlacementTarget.InsideSpace,
                 _ => PlacementTarget.None
             };
+            supportSurface = placementSupport;
             hideFlags = HideFlags.HideInInspector;
         }
     }

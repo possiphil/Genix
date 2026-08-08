@@ -185,11 +185,13 @@ namespace Genix.Editor.Windows
 
         private void OnEnable()
         {
+            titleContent = new GUIContent("Genix Generator");
             LoadInitialPlacementSurfaceMask();
             LoadSurfaceDiscoveryMode();
             LoadSurfaceClassificationSettings();
             LoadGenerationWorkflowSettings();
             RefreshSelectableAssets();
+            LoadDefaultGenerationPreset();
             RefreshGeneratedLayouts();
             AssignDefaultReferencesIfMissing();
         }
@@ -227,6 +229,9 @@ namespace Genix.Editor.Windows
         private void OnGUI()
         {
             _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
+
+            DrawGenerationPresetSection();
+            EditorGUILayout.Space(8);
 
             DrawInputSection();
             EditorGUILayout.Space(8);

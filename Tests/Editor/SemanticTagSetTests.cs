@@ -122,6 +122,38 @@ namespace Genix.Tests
             Assert.That(filter.IsActive, Is.False);
         }
 
+        [Test]
+        public void SurfaceOnlyCategoryCannotActivateAssetFilter()
+        {
+            TagCategory category = CreateCategory(
+                "Support Type",
+                true,
+                TagCategoryUsage.Surface);
+            SemanticTag desktop = CreateTag("Desktop", category);
+            TagCategoryFilter filter = new();
+            filter.Initialize(category, new[] { desktop });
+
+            Assert.That(filter.IsActive, Is.False);
+            Assert.That(filter.Matches(CreateAsset()), Is.True);
+        }
+
+        [Test]
+        public void SurfaceOnlyRequirementsAreIgnoredByAssetMatcher()
+        {
+            TagCategory category = CreateCategory(
+                "Support Type",
+                true,
+                TagCategoryUsage.Surface);
+            SemanticTag desktop = CreateTag("Desktop", category);
+
+            bool matches = SemanticTagMatcher.MatchesAssetRequirements(
+                CreateAsset(),
+                new[] { desktop },
+                new[] { category });
+
+            Assert.That(matches, Is.True);
+        }
+
         private SemanticTagSet CreateSet()
         {
             GameObject gameObject = new("Tag Set");
@@ -129,11 +161,14 @@ namespace Genix.Tests
             return gameObject.AddComponent<SemanticTagSet>();
         }
 
-        private TagCategory CreateCategory(string name, bool allowMultiple)
+        private TagCategory CreateCategory(
+            string name,
+            bool allowMultiple,
+            TagCategoryUsage usage = TagCategoryUsage.Asset)
         {
             TagCategory category = ScriptableObject.CreateInstance<TagCategory>();
             category.name = name;
-            category.Initialize(allowMultiple);
+            category.Initialize(allowMultiple, usage);
             _objects.Add(category);
             return category;
         }

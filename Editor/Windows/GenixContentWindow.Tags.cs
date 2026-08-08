@@ -112,19 +112,15 @@ namespace Genix.Editor.Windows
             CategorySortMode[] modes =
             {
                 CategorySortMode.AlphabeticalAscending,
-                CategorySortMode.AlphabeticalDescending,
-                CategorySortMode.TagCountDescending,
                 CategorySortMode.TagCountAscending,
                 CategorySortMode.Mode
             };
 
             string[] labels =
             {
-                "Alphabetical Ascending",
-                "Alphabetical Descending",
-                "Tag Count Descending",
-                "Tag Count Ascending",
-                "Mode"
+                "Name (A-Z)",
+                "Fewest Tags First",
+                "Selection Mode"
             };
 
             _categorySortMode = DrawSortDropdown(_categorySortMode, modes, labels);
@@ -154,24 +150,32 @@ namespace Genix.Editor.Windows
                 Rect titleRect = new(rowRect.x, rowRect.y, rowRect.width, 18f);
                 Rect infoRect = new(rowRect.x, rowRect.y + 18f, rowRect.width, 18f);
 
-                const float modeColumnWidth = 150f;
+                const float usageColumnWidth = 150f;
+                const float modeColumnWidth = 130f;
+
+                Rect usageRect = new(
+                    infoRect.x,
+                    infoRect.y,
+                    usageColumnWidth,
+                    infoRect.height);
 
                 Rect modeRect = new(
-                    infoRect.x,
+                    infoRect.x + usageColumnWidth,
                     infoRect.y,
                     modeColumnWidth,
                     infoRect.height);
 
                 Rect tagsRect = new(
-                    infoRect.x + modeColumnWidth,
+                    infoRect.x + usageColumnWidth + modeColumnWidth,
                     infoRect.y,
-                    infoRect.width - modeColumnWidth,
+                    infoRect.width - usageColumnWidth - modeColumnWidth,
                     infoRect.height);
 
                 int tagCount = catalog.Tags.Count(tag => tag && tag.Category == category);
                 string mode = category.AllowMultipleTags ? "Multiple Tags" : "Single Tag";
 
                 EditorGUI.LabelField(titleRect, category.DisplayName, EditorStyles.boldLabel);
+                EditorGUI.LabelField(usageRect, $"Usage: {category.Usage.ToDisplayName()}");
                 EditorGUI.LabelField(modeRect, $"Mode: {mode}");
                 EditorGUI.LabelField(tagsRect, $"Tags: {tagCount}");
             }
@@ -241,17 +245,13 @@ namespace Genix.Editor.Windows
             TagSortMode[] modes =
             {
                 TagSortMode.AlphabeticalAscending,
-                TagSortMode.AlphabeticalDescending,
-                TagSortMode.CategoryAscending,
-                TagSortMode.CategoryDescending
+                TagSortMode.CategoryAscending
             };
 
             string[] labels =
             {
-                "Alphabetical Ascending",
-                "Alphabetical Descending",
-                "Category Ascending",
-                "Category Descending"
+                "Name (A-Z)",
+                "Category, then Name"
             };
 
             _tagSortMode = DrawSortDropdown(_tagSortMode, modes, labels);

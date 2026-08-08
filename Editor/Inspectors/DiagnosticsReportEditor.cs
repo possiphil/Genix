@@ -156,6 +156,11 @@ namespace Genix.Editor.Inspectors
             {
                 DiagnosticsReport.CountEntry topRejection = report.RejectionReasons[0];
                 DrawStat("Top Rejection", $"{topRejection.Label} ({topRejection.Count})");
+
+                string advice = RejectionReasonGuidance.GetAdvice(topRejection.Label);
+
+                if (!string.IsNullOrEmpty(advice))
+                    EditorGUILayout.HelpBox(advice, MessageType.Info);
             }
         }
 

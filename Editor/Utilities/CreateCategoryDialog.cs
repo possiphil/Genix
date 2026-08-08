@@ -1,4 +1,5 @@
 using System;
+using Genix.Semantics;
 using UnityEditor;
 using UnityEngine;
 
@@ -10,20 +11,21 @@ namespace Genix.Editor.Utilities
         private const string NameControlName = "GenixCategoryName";
 
         private string _categoryName = "New Category";
+        private TagCategoryUsage _usage = TagCategoryUsage.Asset;
         private bool _allowMultipleTags = true;
-        private Action<string, bool> _onConfirm;
+        private Action<string, bool, TagCategoryUsage> _onConfirm;
         private bool _focusedInput;
 
         /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
-        public static void Open(Action<string, bool> onConfirm)
+        public static void Open(Action<string, bool, TagCategoryUsage> onConfirm)
         {
             CreateCategoryDialog window = CreateInstance<CreateCategoryDialog>();
 
             window.titleContent = new GUIContent("Create Category");
             window._onConfirm = onConfirm;
 
-            window.minSize = new Vector2(380f, 122f);
-            window.maxSize = new Vector2(380f, 122f);
+            window.minSize = new Vector2(400f, 148f);
+            window.maxSize = new Vector2(400f, 148f);
 
             window.ShowUtility();
             window.Focus();
@@ -41,6 +43,12 @@ namespace Genix.Editor.Utilities
                 _categoryName);
 
             FocusInputOnce();
+
+            _usage = (TagCategoryUsage)EditorGUILayout.EnumPopup(
+                new GUIContent(
+                    "Usage",
+                    "Choose whether this category is available for assets, placement surfaces, or both."),
+                _usage);
 
             _allowMultipleTags = EditorGUILayout.Toggle(
                 new GUIContent("Allow Multiple Tags", "Enable for combinable labels; disable when exactly one value from this category should describe an object."),
@@ -96,7 +104,7 @@ namespace Genix.Editor.Utilities
                 ? "New Category"
                 : _categoryName.Trim();
 
-            _onConfirm?.Invoke(result, _allowMultipleTags);
+            _onConfirm?.Invoke(result, _allowMultipleTags, _usage);
             Close();
         }
     }

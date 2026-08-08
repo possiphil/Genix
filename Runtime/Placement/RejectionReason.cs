@@ -22,6 +22,20 @@ namespace Genix.Placement
         /// <summary>The asset violates spacing from an existing fixed scene object.</summary>
         TooCloseToFixed,
         /// <summary>The asset lies outside the configured relative-placement radius.</summary>
-        OutsideRelativeRadius
+        OutsideRelativeRadius,
+        /// <summary>The sampled surface does not satisfy the asset's required or forbidden support tags.</summary>
+        UnsupportedSupportSurface,
+        /// <summary>The sampled surface has already reached its configured maximum placement capacity.</summary>
+        SupportCapacityReached,
+        /// <summary>The asset requests support-facing orientation but the sampled surface provides no usable direction.</summary>
+        MissingSupportDirection,
+        /// <summary>The candidate lies farther from the nearest detected wall than the asset allows.</summary>
+        TooFarFromWall,
+        /// <summary>The candidate lies closer to a detected wall than the asset allows.</summary>
+        TooCloseToWall,
+        /// <summary>The area provides no suitable wall reference for the requested relationship.</summary>
+        MissingWallReference,
+        /// <summary>The candidate intersects an active collider-free placement exclusion region.</summary>
+        InsideExclusionRegion
     }
 }

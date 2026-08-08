@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Sampling;
 using Genix.Geometry;
 using Genix.Profiling;
+using Genix.Semantics;
 using UnityEngine;
 using Stopwatch = System.Diagnostics.Stopwatch;
 
@@ -13,6 +15,7 @@ namespace Genix.Placement
     public static class PlacementValidator
     {
         private const int InitialOverlapBufferSize = 64;
+        private const float ContactTolerance = 0.001f;
 
         [ThreadStatic] private static Collider[] _overlapBuffer;
 
@@ -82,7 +85,31 @@ namespace Genix.Placement
             RecordValidationStep(profiler, placementType, ValidationProfileStep.Height, stepStart);
 
             stepStart = StartValidationStep(profiler);
-            if (TryFindTooClosePlannedObject(axisAlignedBounds, context, out relatedObjectName))
+            if (TryFindExclusionRegion(candidateBounds, placementType, context, out relatedObjectName))
+            {
+                RecordValidationStep(profiler, placementType, ValidationProfileStep.Exclusion, stepStart);
+                rejectionReason = RejectionReason.InsideExclusionRegion;
+                return false;
+            }
+            RecordValidationStep(profiler, placementType, ValidationProfileStep.Exclusion, stepStart);
+
+            if (asset && asset.WallProximityMode != WallProximityMode.AnyDistance)
+            {
+                stepStart = StartValidationStep(profiler);
+                bool wallRelationshipValid = WallProximityRules.TryValidate(
+                    asset,
+                    candidateBounds,
+                    context,
+                    out rejectionReason,
+                    out relatedObjectName);
+                RecordValidationStep(profiler, placementType, ValidationProfileStep.WallRelationship, stepStart);
+
+                if (!wallRelationshipValid)
+                    return false;
+            }
+
+            stepStart = StartValidationStep(profiler);
+            if (TryFindTooClosePlannedObject(axisAlignedBounds, placementType, context, out relatedObjectName))
             {
                 RecordValidationStep(profiler, placementType, ValidationProfileStep.PlannedSpacing, stepStart);
                 rejectionReason = RejectionReason.TooCloseToGenerated;
@@ -109,7 +136,7 @@ namespace Genix.Placement
             RecordValidationStep(profiler, placementType, ValidationProfileStep.Relative, stepStart);
 
             stepStart = StartValidationStep(profiler);
-            if (TryFindOverlappingGeneratedObject(candidateBounds, context, out relatedObjectName))
+            if (TryFindOverlappingGeneratedObject(candidate, candidateBounds, context, out relatedObjectName))
             {
                 RecordValidationStep(profiler, placementType, ValidationProfileStep.GeneratedOverlap, stepStart);
                 rejectionReason = RejectionReason.OverlapsGenerated;
@@ -118,7 +145,12 @@ namespace Genix.Placement
             RecordValidationStep(profiler, placementType, ValidationProfileStep.GeneratedOverlap, stepStart);
 
             stepStart = StartValidationStep(profiler);
-            if (TryFindTooCloseGeneratedSceneObject(axisAlignedBounds, context, out relatedObjectName))
+            if (TryFindTooCloseGeneratedSceneObject(
+                    axisAlignedBounds,
+                    placementType,
+                    candidate.SurfaceCollider,
+                    context,
+                    out relatedObjectName))
             {
                 RecordValidationStep(profiler, placementType, ValidationProfileStep.GeneratedSceneSpacing, stepStart);
                 rejectionReason = RejectionReason.TooCloseToGenerated;
@@ -126,7 +158,12 @@ namespace Genix.Placement
             }
             RecordValidationStep(profiler, placementType, ValidationProfileStep.GeneratedSceneSpacing, stepStart);
 
-            if (!isWallPlacement && !isInsideSpacePlacement && asset)
+            bool requiresAssetSurfaceValidation =
+                !isInsideSpacePlacement &&
+                asset &&
+                (!isWallPlacement || asset.SurfaceFitMode == SurfaceFitMode.Adaptive);
+
+            if (requiresAssetSurfaceValidation)
             {
                 stepStart = StartValidationStep(profiler);
                 if (!context.Area.ContainsPlacementFootprint(candidate, asset, profiler))
@@ -185,7 +222,7 @@ namespace Genix.Placement
                 return false;
 
             Bounds seedBounds = new(seed.Position, AssetAttemptPlanner.Dimensions(asset));
-            return TryFindTooClosePlannedObject(seedBounds, context, out relatedObjectName);
+            return TryFindTooClosePlannedObject(seedBounds, seed.PlacementType, context, out relatedObjectName);
         }
 
         internal static bool TryRejectByGeneratedSceneSpacing(
@@ -200,7 +237,12 @@ namespace Genix.Placement
                 return false;
 
             Bounds seedBounds = new(seed.Position, AssetAttemptPlanner.Dimensions(asset));
-            return TryFindTooCloseGeneratedSceneObject(seedBounds, context, out relatedObjectName);
+            return TryFindTooCloseGeneratedSceneObject(
+                seedBounds,
+                seed.PlacementType,
+                seed.SurfaceCollider,
+                context,
+                out relatedObjectName);
         }
 
         private static long StartValidationStep(IGenerationProfiler profiler) =>
@@ -231,6 +273,7 @@ namespace Genix.Placement
             relatedObjectName = string.Empty;
 
             OrientedBounds obstacleBounds = CreateObstacleBounds(candidate, candidateBounds);
+            obstacleBounds = InsetBounds(obstacleBounds, ContactTolerance);
 
             if (!HasPotentialFixedObstacle(candidate, obstacleBounds, context))
                 return false;
@@ -371,6 +414,12 @@ namespace Genix.Placement
             return new OrientedBounds(candidateBounds.Center, size, candidateBounds.Rotation);
         }
 
+        private static OrientedBounds InsetBounds(OrientedBounds bounds, float inset)
+        {
+            Vector3 size = bounds.Size - Vector3.one * (Mathf.Max(0f, inset) * 2f);
+            return new OrientedBounds(bounds.Center, size, bounds.Rotation);
+        }
+
         private static bool ShouldIgnoreFixedCollider(Collider collider, PlacementCandidate candidate, GenerationContext context)
         {
             if (!collider)
@@ -404,13 +453,14 @@ namespace Genix.Placement
             return false;
         }
 
-        private static bool FitsTargetHeight(Bounds candidateBounds, Bounds targetBounds)
+        internal static bool FitsTargetHeight(Bounds candidateBounds, Bounds targetBounds)
         {
-            return candidateBounds.min.y >= targetBounds.min.y &&
-                   candidateBounds.max.y <= targetBounds.max.y;
+            return candidateBounds.min.y >= targetBounds.min.y - ContactTolerance &&
+                   candidateBounds.max.y <= targetBounds.max.y + ContactTolerance;
         }
 
         private static bool TryFindOverlappingGeneratedObject(
+            PlacementCandidate candidate,
             OrientedBounds candidateBounds,
             GenerationContext context,
             out string relatedObjectName)
@@ -435,6 +485,9 @@ namespace Genix.Placement
 
             foreach (SceneObjectIndex.Entry sceneObject in generatedSceneObjects.Query(axisAlignedBounds))
             {
+                if (IsSupportingGeneratedObject(sceneObject, candidate.SurfaceCollider))
+                    continue;
+
                 if (!BoundsOverlap(candidateBounds, sceneObject.Bounds))
                     continue;
 
@@ -447,6 +500,7 @@ namespace Genix.Placement
 
         private static bool TryFindTooClosePlannedObject(
             Bounds candidateBounds,
+            PlacementType placementType,
             GenerationContext context,
             out string relatedObjectName)
         {
@@ -460,12 +514,17 @@ namespace Genix.Placement
             if (minDistance <= 0f)
                 return false;
 
-            foreach (PlannedObject plannedObject in context.Plan.QueryHorizontalSpacing(candidateBounds, minDistance))
+            IEnumerable<PlannedObject> nearbyObjects = placementType == PlacementType.Wall
+                ? context.Plan.QuerySpatialSpacing(candidateBounds, minDistance)
+                : context.Plan.QueryHorizontalSpacing(candidateBounds, minDistance);
+
+            foreach (PlannedObject plannedObject in nearbyObjects)
             {
                 if (!IsCloserThanMinDistance(
                         candidateBounds.center,
                         plannedObject.Bounds.Center,
-                        minDistance))
+                        minDistance,
+                        placementType == PlacementType.Wall))
                 {
                     continue;
                 }
@@ -479,6 +538,8 @@ namespace Genix.Placement
 
         private static bool TryFindTooCloseGeneratedSceneObject(
             Bounds candidateBounds,
+            PlacementType placementType,
+            Collider surfaceCollider,
             GenerationContext context,
             out string relatedObjectName)
         {
@@ -497,17 +558,34 @@ namespace Genix.Placement
             if (generatedSceneObjects == null || generatedSceneObjects.Count == 0)
                 return false;
 
-            Bounds verticalBounds = generatedSceneObjects.HasBounds
-                ? generatedSceneObjects.Bounds
-                : context.TargetBounds;
-            Bounds queryBounds = CreateHorizontalSpacingQueryBounds(
-                candidateBounds,
-                minDistance,
-                verticalBounds);
+            Bounds queryBounds;
+
+            if (placementType == PlacementType.Wall)
+            {
+                queryBounds = candidateBounds;
+                queryBounds.Expand(minDistance * 2f);
+            }
+            else
+            {
+                Bounds verticalBounds = generatedSceneObjects.HasBounds
+                    ? generatedSceneObjects.Bounds
+                    : context.TargetBounds;
+                queryBounds = CreateHorizontalSpacingQueryBounds(
+                    candidateBounds,
+                    minDistance,
+                    verticalBounds);
+            }
 
             foreach (SceneObjectIndex.Entry sceneObject in generatedSceneObjects.Query(queryBounds))
             {
-                if (!IsCloserThanMinDistance(candidateBounds, sceneObject.Bounds, minDistance))
+                if (IsSupportingGeneratedObject(sceneObject, surfaceCollider))
+                    continue;
+
+                if (!IsCloserThanMinDistance(
+                        candidateBounds.center,
+                        sceneObject.Bounds.center,
+                        minDistance,
+                        placementType == PlacementType.Wall))
                     continue;
 
                 relatedObjectName = sceneObject.ObjectName;
@@ -515,6 +593,40 @@ namespace Genix.Placement
             }
 
             return false;
+        }
+
+        private static bool TryFindExclusionRegion(
+            OrientedBounds candidateBounds,
+            PlacementType placementType,
+            GenerationContext context,
+            out string relatedObjectName)
+        {
+            relatedObjectName = string.Empty;
+
+            if (context?.ExclusionRegions == null || context.ExclusionRegions.Count == 0)
+                return false;
+
+            foreach (PlacementExclusionRegion region in context.ExclusionRegions)
+            {
+                if (!region || !region.Intersects(candidateBounds, placementType))
+                    continue;
+
+                relatedObjectName = region.name;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsSupportingGeneratedObject(
+            SceneObjectIndex.Entry sceneObject,
+            Collider surfaceCollider)
+        {
+            if (!surfaceCollider || !sceneObject.Root)
+                return false;
+
+            PlacementSurfaceDescriptor descriptor = PlacementSupportRules.GetDescriptor(surfaceCollider);
+            return descriptor && descriptor.transform.IsChildOf(sceneObject.Root);
         }
 
         private static Bounds CreateHorizontalSpacingQueryBounds(
@@ -542,19 +654,19 @@ namespace Genix.Placement
             return queryBounds;
         }
 
-        private static bool IsCloserThanMinDistance(Bounds a, Bounds b, float minDistance)
-        {
-            return IsCloserThanMinDistance(a.center, b.center, minDistance);
-        }
-
-        private static bool IsCloserThanMinDistance(Vector3 a, Vector3 b, float minDistance)
+        private static bool IsCloserThanMinDistance(
+            Vector3 a,
+            Vector3 b,
+            float minDistance,
+            bool includeHeight)
         {
             float minDistanceSquared = minDistance * minDistance;
 
             float dx = a.x - b.x;
+            float dy = includeHeight ? a.y - b.y : 0f;
             float dz = a.z - b.z;
 
-            return dx * dx + dz * dz < minDistanceSquared;
+            return dx * dx + dy * dy + dz * dz < minDistanceSquared;
         }
 
         private static bool BoundsOverlap(OrientedBounds a, Bounds b)

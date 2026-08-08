@@ -4,6 +4,7 @@ using Genix.Areas;
 using Genix.Core;
 using Genix.Layouts;
 using Genix.Placement;
+using Genix.Semantics;
 using UnityEditor;
 using UnityEngine;
 
@@ -123,7 +124,9 @@ namespace Genix.Editor.Generation
             if (!metadata)
                 metadata = instance.AddComponent<GeneratedObjectMetadata>();
 
-            metadata.Initialize(plannedObject.Candidate.PlacementType);
+            PlacementSurfaceDescriptor supportSurface = PlacementSupportRules.GetDescriptor(
+                plannedObject.Candidate.SurfaceCollider);
+            metadata.Initialize(plannedObject.Candidate.PlacementType, supportSurface);
             return instance;
         }
 

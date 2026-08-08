@@ -18,12 +18,12 @@ namespace Genix.SpaceFoundation.Editor
                 kind == SurfaceKind.Ceiling
                     ? SurfaceRegion.CreateCeiling
                     : SurfaceRegion.CreateFloor;
-            int yOffset = kind == SurfaceKind.Ceiling ? 1 : 0;
+            float surfaceOffset = kind == SurfaceKind.Ceiling ? 0.5f : -0.5f;
             string label = $"{mode} {kind}";
 
             return mode == AreaDecompositionMode.Fast
-                ? CreateLayerBounds(cells, voxelSize, createRegion, label, yOffset)
-                : CreateRectangles(cells, voxelSize, createRegion, label, yOffset);
+                ? CreateLayerBounds(cells, voxelSize, createRegion, label, surfaceOffset)
+                : CreateRectangles(cells, voxelSize, createRegion, label, surfaceOffset);
         }
 
         private static List<SurfaceRegion> CreateLayerBounds(
@@ -31,7 +31,7 @@ namespace Genix.SpaceFoundation.Editor
             float voxelSize,
             Func<string, float, float, float, float, float, int?, SurfaceRegion> createRegion,
             string label,
-            int yOffset)
+            float surfaceOffset)
         {
             Dictionary<int, LayerExtents> layers = new();
 
@@ -51,11 +51,11 @@ namespace Genix.SpaceFoundation.Editor
                 LayerExtents extents = layer.Value;
                 regions.Add(createRegion(
                     $"{label} y={layer.Key}",
-                    extents.MinX * voxelSize,
-                    (extents.MaxX + 1) * voxelSize,
-                    extents.MinZ * voxelSize,
-                    (extents.MaxZ + 1) * voxelSize,
-                    (layer.Key + yOffset) * voxelSize,
+                    (extents.MinX - 0.5f) * voxelSize,
+                    (extents.MaxX + 0.5f) * voxelSize,
+                    (extents.MinZ - 0.5f) * voxelSize,
+                    (extents.MaxZ + 0.5f) * voxelSize,
+                    (layer.Key + surfaceOffset) * voxelSize,
                     layer.Key));
             }
 
@@ -67,7 +67,7 @@ namespace Genix.SpaceFoundation.Editor
             float voxelSize,
             Func<string, float, float, float, float, float, int?, SurfaceRegion> createRegion,
             string label,
-            int yOffset)
+            float surfaceOffset)
         {
             Dictionary<int, HashSet<Vector2Int>> layers = GroupByLayer(cells);
             List<SurfaceRegion> regions = new();
@@ -85,11 +85,11 @@ namespace Genix.SpaceFoundation.Editor
                     RemoveRectangle(unused, start, width, depth);
                     regions.Add(createRegion(
                         $"{label} y={layer.Key}",
-                        start.x * voxelSize,
-                        (start.x + width) * voxelSize,
-                        start.y * voxelSize,
-                        (start.y + depth) * voxelSize,
-                        (layer.Key + yOffset) * voxelSize,
+                        (start.x - 0.5f) * voxelSize,
+                        (start.x + width - 0.5f) * voxelSize,
+                        (start.y - 0.5f) * voxelSize,
+                        (start.y + depth - 0.5f) * voxelSize,
+                        (layer.Key + surfaceOffset) * voxelSize,
                         layer.Key));
                 }
             }

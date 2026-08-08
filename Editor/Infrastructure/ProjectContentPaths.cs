@@ -22,5 +22,6 @@ namespace Genix.Editor.Infrastructure
         public const string Profiles = Root + "/Profiles";
 
         public const string StylePresets = Root + "/Presets";
+        public const string GenerationPresets = Root + "/Generation Presets";
     }
 }

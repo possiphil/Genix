@@ -20,21 +20,22 @@ namespace Genix.SpaceFoundation.Editor
         public static HashSet<Vector3Int> Resolve(
             SfsSpace space,
             SfsAnchor anchor,
-            out SfsSubspaceResolutionInfo info)
+            out SfsSubspaceResolutionInfo info,
+            bool collectTiming = true)
         {
-            Stopwatch totalStopwatch = Stopwatch.StartNew();
+            Stopwatch totalStopwatch = collectTiming ? Stopwatch.StartNew() : null;
             HashSet<Vector3Int> liveSubspace = anchor.GetSubspace();
 
             if (liveSubspace != null && liveSubspace.Count > 0)
             {
-                Stopwatch liveStoreStopwatch = Stopwatch.StartNew();
+                Stopwatch liveStoreStopwatch = collectTiming ? Stopwatch.StartNew() : null;
                 LiveSubspaceStoreResult liveStoreResult = StoreLiveSubspace(space, anchor, liveSubspace);
-                liveStoreStopwatch.Stop();
-                totalStopwatch.Stop();
+                liveStoreStopwatch?.Stop();
+                totalStopwatch?.Stop();
                 info = SfsSubspaceResolutionInfo.Live(
                     liveSubspace.Count,
-                    liveStoreStopwatch.ElapsedMilliseconds,
-                    totalStopwatch.ElapsedMilliseconds,
+                    ElapsedMilliseconds(liveStoreStopwatch),
+                    ElapsedMilliseconds(totalStopwatch),
                     liveStoreResult.StoreResult,
                     liveStoreResult.CacheKey);
                 return liveSubspace;
@@ -46,25 +47,26 @@ namespace Genix.SpaceFoundation.Editor
                         space,
                         anchor,
                         totalStopwatch,
+                        collectTiming,
                         out HashSet<Vector3Int> liveSnapshot,
                         out info))
                 {
                     return liveSnapshot;
                 }
 
-                totalStopwatch.Stop();
+                totalStopwatch?.Stop();
                 info = SfsSubspaceResolutionInfo.Failed(
                     SfsSubspaceResolutionSource.MissingPersistentData,
-                    totalStopwatch.ElapsedMilliseconds);
+                    ElapsedMilliseconds(totalStopwatch));
                 return null;
             }
 
             if (data.Bounds.CellCount > MaxFloodFillCells)
             {
-                totalStopwatch.Stop();
+                totalStopwatch?.Stop();
                 info = SfsSubspaceResolutionInfo.Failed(
                     SfsSubspaceResolutionSource.BoundsTooLarge,
-                    totalStopwatch.ElapsedMilliseconds,
+                    ElapsedMilliseconds(totalStopwatch),
                     data.Bounds.CellCount);
                 return null;
             }
@@ -72,7 +74,7 @@ namespace Genix.SpaceFoundation.Editor
             PersistentSubspaceCacheKey key = PersistentSubspaceCacheKey.Create(data);
             string cacheKey = key.ToStableString();
 
-            Stopwatch cacheStopwatch = Stopwatch.StartNew();
+            Stopwatch cacheStopwatch = collectTiming ? Stopwatch.StartNew() : null;
 
             if (PersistentSubspaceCache.TryGet(
                     key,
@@ -80,54 +82,54 @@ namespace Genix.SpaceFoundation.Editor
                     out HashSet<Vector3Int> cached,
                     out PersistentSubspaceCacheSource cacheSource))
             {
-                cacheStopwatch.Stop();
-                totalStopwatch.Stop();
+                cacheStopwatch?.Stop();
+                totalStopwatch?.Stop();
                 info = SfsSubspaceResolutionInfo.CacheHit(
                     cacheSource,
                     cached.Count,
                     data.Bounds.CellCount,
-                    cacheStopwatch.ElapsedMilliseconds,
-                    totalStopwatch.ElapsedMilliseconds,
+                    ElapsedMilliseconds(cacheStopwatch),
+                    ElapsedMilliseconds(totalStopwatch),
                     cacheKey);
                 return cached;
             }
 
-            cacheStopwatch.Stop();
+            cacheStopwatch?.Stop();
 
-            Stopwatch floodFillStopwatch = Stopwatch.StartNew();
+            Stopwatch floodFillStopwatch = collectTiming ? Stopwatch.StartNew() : null;
             HashSet<Vector3Int> subspace = VoxelFloodFill.Fill(
                 data.Seed,
                 data.AnchorId,
                 data.BorderOwners,
                 data.Bounds);
-            floodFillStopwatch.Stop();
+            floodFillStopwatch?.Stop();
 
             if (subspace.Count < data.AnchorBorders.Count)
             {
-                totalStopwatch.Stop();
+                totalStopwatch?.Stop();
                 info = SfsSubspaceResolutionInfo.Failed(
                     SfsSubspaceResolutionSource.FloodFillFailed,
-                    totalStopwatch.ElapsedMilliseconds,
+                    ElapsedMilliseconds(totalStopwatch),
                     data.Bounds.CellCount,
                     subspace.Count,
-                    floodFillStopwatch.ElapsedMilliseconds,
-                    cacheStopwatch.ElapsedMilliseconds,
+                    ElapsedMilliseconds(floodFillStopwatch),
+                    ElapsedMilliseconds(cacheStopwatch),
                     cacheKey);
                 return null;
             }
 
-            Stopwatch storeStopwatch = Stopwatch.StartNew();
+            Stopwatch storeStopwatch = collectTiming ? Stopwatch.StartNew() : null;
             PersistentSubspaceCacheStoreResult storeResult = PersistentSubspaceCache.Store(key, subspace);
-            storeStopwatch.Stop();
-            totalStopwatch.Stop();
+            storeStopwatch?.Stop();
+            totalStopwatch?.Stop();
 
             info = SfsSubspaceResolutionInfo.FloodFill(
                 subspace.Count,
                 data.Bounds.CellCount,
-                cacheStopwatch.ElapsedMilliseconds,
-                floodFillStopwatch.ElapsedMilliseconds,
-                storeStopwatch.ElapsedMilliseconds,
-                totalStopwatch.ElapsedMilliseconds,
+                ElapsedMilliseconds(cacheStopwatch),
+                ElapsedMilliseconds(floodFillStopwatch),
+                ElapsedMilliseconds(storeStopwatch),
+                ElapsedMilliseconds(totalStopwatch),
                 storeResult,
                 cacheKey);
             return subspace;
@@ -155,6 +157,7 @@ namespace Genix.SpaceFoundation.Editor
             SfsSpace space,
             SfsAnchor anchor,
             Stopwatch totalStopwatch,
+            bool collectTiming,
             out HashSet<Vector3Int> subspace,
             out SfsSubspaceResolutionInfo info)
         {
@@ -164,7 +167,7 @@ namespace Genix.SpaceFoundation.Editor
             if (!TryCreateLiveSnapshotKey(space, anchor, out PersistentSubspaceCacheKey key))
                 return false;
 
-            Stopwatch cacheStopwatch = Stopwatch.StartNew();
+            Stopwatch cacheStopwatch = collectTiming ? Stopwatch.StartNew() : null;
 
             if (!PersistentSubspaceCache.TryGet(
                     key,
@@ -172,22 +175,25 @@ namespace Genix.SpaceFoundation.Editor
                     out HashSet<Vector3Int> cached,
                     out PersistentSubspaceCacheSource cacheSource))
             {
-                cacheStopwatch.Stop();
+                cacheStopwatch?.Stop();
                 return false;
             }
 
-            cacheStopwatch.Stop();
-            totalStopwatch.Stop();
+            cacheStopwatch?.Stop();
+            totalStopwatch?.Stop();
             info = SfsSubspaceResolutionInfo.CacheHit(
                 cacheSource,
                 cached.Count,
                 cached.Count,
-                cacheStopwatch.ElapsedMilliseconds,
-                totalStopwatch.ElapsedMilliseconds,
+                ElapsedMilliseconds(cacheStopwatch),
+                ElapsedMilliseconds(totalStopwatch),
                 key.ToStableString());
             subspace = cached;
             return true;
         }
+
+        private static long ElapsedMilliseconds(Stopwatch stopwatch) =>
+            stopwatch?.ElapsedMilliseconds ?? 0L;
 
         private static bool TryCreateLiveSnapshotKey(
             SfsSpace space,

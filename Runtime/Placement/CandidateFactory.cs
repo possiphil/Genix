@@ -3,6 +3,7 @@ using Genix.Assets;
 using Genix.Core;
 using Genix.Orientation;
 using Genix.Profiling;
+using Genix.Semantics;
 using UnityEngine;
 
 namespace Genix.Placement
@@ -32,7 +33,8 @@ namespace Genix.Placement
                 rotationIndex,
                 rotationCount,
                 yawBase);
-            Vector3 position = CreatePosition(seed, context, asset, surfaceNormal);
+            Quaternion initialRotation = AlignCandidateRotation(seed.PlacementType, baseRotation, surfaceNormal);
+            Vector3 position = CreatePosition(seed, context, asset, surfaceNormal, initialRotation);
             bool hasSurfaceFit = false;
             SurfaceFitResult surfaceFit = default;
 
@@ -50,9 +52,7 @@ namespace Genix.Placement
                 position -= surfaceNormal * asset.SurfaceSinkOffset;
             }
 
-            Quaternion rotation = seed.PlacementType == PlacementType.InsideSpace
-                ? baseRotation
-                : AlignToSurface(baseRotation, surfaceNormal);
+            Quaternion rotation = AlignCandidateRotation(seed.PlacementType, baseRotation, surfaceNormal);
 
             return new PlacementCandidate(
                 position,
@@ -75,7 +75,7 @@ namespace Genix.Placement
             AssetDefinition asset,
             PlacementType placementType)
         {
-            if (placementType == PlacementType.Wall || FacesRelativeAnchor(context, asset))
+            if (UsesContextualFacing(context, asset))
                 return 1;
 
             return UsesRandomRotation(context, asset, placementType) ? RandomRotationAttempts : 1;
@@ -89,7 +89,21 @@ namespace Genix.Placement
         {
             return asset.RandomYawRotation &&
                    placementType != PlacementType.Wall &&
-                   !FacesRelativeAnchor(context, asset);
+                   !UsesContextualFacing(context, asset);
+        }
+
+        /// <summary>Determines whether a deterministic random base angle is required for this target.</summary>
+        public static bool UsesRandomPlanarRotation(
+            GenerationContext context,
+            AssetDefinition asset,
+            PlacementType placementType)
+        {
+            if (UsesContextualFacing(context, asset))
+                return false;
+
+            return placementType == PlacementType.Wall
+                ? asset.RandomRollRotation
+                : UsesRandomYaw(context, asset, placementType);
         }
 
         private static bool UsesRandomRotation(
@@ -97,7 +111,7 @@ namespace Genix.Placement
             AssetDefinition asset,
             PlacementType placementType)
         {
-            if (FacesRelativeAnchor(context, asset))
+            if (UsesContextualFacing(context, asset))
                 return false;
 
             if (placementType == PlacementType.InsideSpace)
@@ -107,6 +121,9 @@ namespace Genix.Placement
                        asset.RandomRollRotation;
             }
 
+            if (placementType == PlacementType.Wall)
+                return asset.RandomRollRotation;
+
             return UsesRandomYaw(context, asset, placementType);
         }
 
@@ -114,7 +131,8 @@ namespace Genix.Placement
             CandidateSeed seed,
             GenerationContext context,
             AssetDefinition asset,
-            Vector3 surfaceNormal)
+            Vector3 surfaceNormal,
+            Quaternion rotation)
         {
             if (seed.PlacementType == PlacementType.InsideSpace)
                 return seed.Position;
@@ -122,17 +140,43 @@ namespace Genix.Placement
             if (seed.PlacementType != PlacementType.Wall)
                 return seed.Position + surfaceNormal * (Mathf.Max(0.01f, asset.Height) * 0.5f);
 
-            float offset = asset.PlacementHeight;
+            Vector3 position = seed.Position + surfaceNormal * (asset.Depth * 0.5f);
+            float verticalHalfExtent = GetVerticalHalfExtent(asset, rotation);
 
-            if (asset.UseHeightOffset)
+            if (asset.WallVerticalPlacementMode == WallVerticalPlacementMode.FixedHeight)
             {
-                float maxOffset = Mathf.Max(0f, asset.MaxHeightOffset);
-                offset += context.Random.Range(-maxOffset, maxOffset);
+                position.y = context.TargetBounds.min.y +
+                             Mathf.Max(0f, asset.PlacementHeight) +
+                             verticalHalfExtent;
+                return position;
             }
 
-            Vector3 position = seed.Position + surfaceNormal * (asset.Depth * 0.5f);
+            if (asset.WallVerticalPlacementMode == WallVerticalPlacementMode.HeightRange)
+            {
+                float height = Mathf.Lerp(
+                    asset.WallMinHeight,
+                    asset.WallMaxHeight,
+                    CreateStableWallHeightFactor(seed, context.RandomSeed));
+                position.y = context.TargetBounds.min.y + height + verticalHalfExtent;
+                return position;
+            }
+
+            float offset = verticalHalfExtent + asset.PlacementHeight;
             position.y += offset;
             return position;
+        }
+
+        private static float CreateStableWallHeightFactor(CandidateSeed seed, int randomSeed)
+        {
+            unchecked
+            {
+                uint hash = 2166136261u;
+                hash = (hash ^ (uint)randomSeed) * 16777619u;
+                hash = (hash ^ (uint)Mathf.RoundToInt(seed.Position.x * 1000f)) * 16777619u;
+                hash = (hash ^ (uint)Mathf.RoundToInt(seed.Position.y * 1000f)) * 16777619u;
+                hash = (hash ^ (uint)Mathf.RoundToInt(seed.Position.z * 1000f)) * 16777619u;
+                return (hash & 0x00ffffffu) / 16777215f;
+            }
         }
 
         private static Quaternion CreateBaseRotation(
@@ -143,8 +187,28 @@ namespace Genix.Placement
             int rotationCount,
             float yawBase)
         {
+            if (asset.OrientationMode == OrientationMode.MatchSupportForward)
+            {
+                PlacementSurfaceDescriptor descriptor = PlacementSupportRules.GetDescriptor(seed.SurfaceCollider);
+
+                if (PlacementSupportRules.TryGetPreferredForward(seed, descriptor, out Vector3 supportForward))
+                {
+                    Vector3 normal = seed.SurfaceNormal.sqrMagnitude > 0.001f
+                        ? seed.SurfaceNormal.normalized
+                        : seed.PlacementType == PlacementType.Ceiling ? Vector3.down : Vector3.up;
+                    return Quaternion.LookRotation(supportForward, normal);
+                }
+            }
+
             if (seed.PlacementType == PlacementType.Wall)
-                return seed.Rotation;
+            {
+                if (!UsesRandomPlanarRotation(context, asset, seed.PlacementType))
+                    return seed.Rotation;
+
+                float step = rotationCount > 1 ? 360f / rotationCount : 0f;
+                float roll = Mathf.Repeat(yawBase + step * rotationIndex, 360f);
+                return seed.Rotation * Quaternion.AngleAxis(roll, Vector3.forward);
+            }
 
             Quaternion rotation = seed.Rotation;
 
@@ -188,15 +252,23 @@ namespace Genix.Placement
 
             if (!asset ||
                 asset.SurfaceFitMode != SurfaceFitMode.Adaptive ||
-                seed.PlacementType is not (PlacementType.Floor or PlacementType.Ceiling))
+                seed.PlacementType == PlacementType.InsideSpace)
             {
                 return false;
             }
 
+            bool isWall = seed.PlacementType == PlacementType.Wall;
+            Quaternion fitRotation = isWall
+                ? AlignCandidateRotation(seed.PlacementType, baseRotation, surfaceNormal)
+                : baseRotation;
+            Vector3 surfaceCenter = isWall
+                ? position - surfaceNormal * (Mathf.Max(0.01f, asset.Depth) * 0.5f)
+                : seed.Position;
+
             if (!context.SurfaceFitCache.TryEvaluate(
                     context.Area,
-                    seed.Position,
-                    baseRotation,
+                    surfaceCenter,
+                    fitRotation,
                     asset,
                     seed.SurfaceCollider,
                     seed.VoxelLayer,
@@ -208,9 +280,10 @@ namespace Genix.Placement
             }
 
             surfaceNormal = asset.SurfaceAlignmentMode == SurfaceAlignmentMode.KeepUpright
-                ? GetUprightNormal(seed.PlacementType)
+                ? GetUprightNormal(seed.PlacementType, fit.Normal, seed.SurfaceNormal)
                 : fit.Normal;
-            position = fit.Position + surfaceNormal * (Mathf.Max(0.01f, asset.Height) * 0.5f);
+            float normalOffset = isWall ? asset.Depth : asset.Height;
+            position = fit.Position + surfaceNormal * (Mathf.Max(0.01f, normalOffset) * 0.5f);
             return true;
         }
 
@@ -242,6 +315,52 @@ namespace Genix.Placement
                    context.RelativePlacement.IsEnabled;
         }
 
+        private static bool UsesContextualFacing(GenerationContext context, AssetDefinition asset)
+        {
+            return FacesRelativeAnchor(context, asset) ||
+                   asset.OrientationMode == OrientationMode.MatchSupportForward;
+        }
+
+        private static Quaternion AlignCandidateRotation(
+            PlacementType placementType,
+            Quaternion rotation,
+            Vector3 surfaceNormal)
+        {
+            return placementType switch
+            {
+                PlacementType.InsideSpace => rotation,
+                PlacementType.Wall => AlignToWall(rotation, surfaceNormal),
+                _ => AlignToSurface(rotation, surfaceNormal)
+            };
+        }
+
+        private static Quaternion AlignToWall(Quaternion rotation, Vector3 surfaceNormal)
+        {
+            Vector3 normal = surfaceNormal.sqrMagnitude > 0.001f
+                ? surfaceNormal.normalized
+                : Vector3.forward;
+            Vector3 up = Vector3.ProjectOnPlane(rotation * Vector3.up, normal);
+
+            if (up.sqrMagnitude <= 0.001f)
+                up = Vector3.ProjectOnPlane(Vector3.up, normal);
+
+            if (up.sqrMagnitude <= 0.001f)
+                up = Vector3.ProjectOnPlane(Vector3.right, normal);
+
+            return Quaternion.LookRotation(normal, up.normalized);
+        }
+
+        private static float GetVerticalHalfExtent(AssetDefinition asset, Quaternion rotation)
+        {
+            Vector3 extents = AssetAttemptPlanner.Dimensions(asset) * 0.5f;
+            Vector3 right = rotation * Vector3.right;
+            Vector3 up = rotation * Vector3.up;
+            Vector3 forward = rotation * Vector3.forward;
+            return Mathf.Abs(right.y) * extents.x +
+                   Mathf.Abs(up.y) * extents.y +
+                   Mathf.Abs(forward.y) * extents.z;
+        }
+
         private static Quaternion AlignToSurface(Quaternion rotation, Vector3 surfaceNormal)
         {
             Vector3 forward = Vector3.ProjectOnPlane(rotation * Vector3.forward, surfaceNormal);
@@ -255,9 +374,22 @@ namespace Genix.Placement
             return Quaternion.LookRotation(forward.normalized, surfaceNormal);
         }
 
-        private static Vector3 GetUprightNormal(PlacementType placementType)
+        private static Vector3 GetUprightNormal(
+            PlacementType placementType,
+            Vector3 fittedNormal,
+            Vector3 fallbackNormal)
         {
-            return placementType == PlacementType.Ceiling ? Vector3.down : Vector3.up;
+            if (placementType != PlacementType.Wall)
+                return placementType == PlacementType.Ceiling ? Vector3.down : Vector3.up;
+
+            Vector3 horizontalNormal = Vector3.ProjectOnPlane(fittedNormal, Vector3.up);
+
+            if (horizontalNormal.sqrMagnitude <= 0.001f)
+                horizontalNormal = Vector3.ProjectOnPlane(fallbackNormal, Vector3.up);
+
+            return horizontalNormal.sqrMagnitude > 0.001f
+                ? horizontalNormal.normalized
+                : Vector3.forward;
         }
     }
 }

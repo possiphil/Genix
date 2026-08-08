@@ -3,11 +3,34 @@ using System.Collections.Generic;
 using Genix.Assets;
 using Genix.Layouts;
 using Genix.Profiling;
+using Genix.Semantics;
 using UnityEngine;
 using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace Genix.Areas
 {
+    internal enum WallSurfaceSampleAxis
+    {
+        Terrain,
+        X,
+        Z
+    }
+
+    internal readonly struct WallSurfaceSource
+    {
+        public Collider Collider { get; }
+        public Bounds Bounds { get; }
+        public float Weight { get; }
+        public bool IsTerrain => Collider is TerrainCollider;
+
+        public WallSurfaceSource(Collider collider, Bounds bounds, float weight)
+        {
+            Collider = collider;
+            Bounds = bounds;
+            Weight = Mathf.Max(0f, weight);
+        }
+    }
+
     /// <summary>
     /// Projects candidate coordinates onto matching physics surfaces and evaluates adaptive footprint support.
     /// </summary>
@@ -29,7 +52,11 @@ namespace Genix.Areas
         private readonly VoxelOccupancy _occupancy;
         private readonly AreaBuildSettings _settings;
         private readonly Predicate<Collider> _isSourceCollider;
+        private readonly WallSurfaceSource[] _wallSurfaceSources;
         private RaycastHit[] _raycastBuffer;
+
+        public IReadOnlyList<WallSurfaceSource> WallSurfaceSources => _wallSurfaceSources;
+        public bool HasTerrainSurfaces { get; }
 
         public SurfaceProjector(
             Bounds worldBounds,
@@ -45,6 +72,8 @@ namespace Genix.Areas
             _occupancy = occupancy;
             _settings = settings;
             _isSourceCollider = isSourceCollider;
+            _wallSurfaceSources = FindWallSurfaceSources(out bool hasTerrainSurfaces);
+            HasTerrainSurfaces = hasTerrainSurfaces;
         }
 
         /// <summary>Projects a candidate downward onto the nearest valid floor surface.</summary>
@@ -148,6 +177,105 @@ namespace Genix.Areas
                 points,
                 profiler);
 
+        /// <summary>Appends wall surfaces sampled from one cached collider source.</summary>
+        public int CollectWallSurfaces(
+            WallSurfaceSource source,
+            WallSurfaceSampleAxis axis,
+            Vector3 position,
+            List<SurfacePoint> points,
+            IGenerationProfiler profiler = null)
+        {
+            if (points == null ||
+                !_settings.UsesAllMatchingSurfaceSearch ||
+                !source.Collider ||
+                _settings.GetSurfaceLayers(PlacementType.Wall).value == 0)
+            {
+                return 0;
+            }
+
+            int initialCount = points.Count;
+
+            if (source.Collider is TerrainCollider terrainCollider)
+            {
+                if (!TryGetTerrainSurfacePoint(position, terrainCollider, out Vector3 surfacePosition, out Vector3 normal) ||
+                    SurfaceClassifier.Classify(normal, _settings) != PlacementType.Wall ||
+                    !IsInsideWorldBounds(surfacePosition) ||
+                    !IsSurfaceFacingAreaVolume(surfacePosition, normal))
+                {
+                    return 0;
+                }
+
+                points.Add(new SurfacePoint(surfacePosition, normal, terrainCollider, null));
+                return 1;
+            }
+
+            if (axis == WallSurfaceSampleAxis.X)
+            {
+                Vector3 minOrigin = new(source.Bounds.min.x - BoundaryTolerance, position.z, position.x);
+                Vector3 maxOrigin = new(source.Bounds.max.x + BoundaryTolerance, position.z, position.x);
+                AddBidirectionalColliderSamples(
+                    source,
+                    minOrigin,
+                    Vector3.right,
+                    maxOrigin,
+                    Vector3.left,
+                    points,
+                    profiler);
+            }
+            else if (axis == WallSurfaceSampleAxis.Z)
+            {
+                Vector3 minOrigin = new(position.x, position.z, source.Bounds.min.z - BoundaryTolerance);
+                Vector3 maxOrigin = new(position.x, position.z, source.Bounds.max.z + BoundaryTolerance);
+                AddBidirectionalColliderSamples(
+                    source,
+                    minOrigin,
+                    Vector3.forward,
+                    maxOrigin,
+                    Vector3.back,
+                    points,
+                    profiler);
+            }
+
+            return points.Count - initialCount;
+        }
+
+        private void AddBidirectionalColliderSamples(
+            WallSurfaceSource source,
+            Vector3 firstOrigin,
+            Vector3 firstDirection,
+            Vector3 secondOrigin,
+            Vector3 secondDirection,
+            ICollection<SurfacePoint> points,
+            IGenerationProfiler profiler)
+        {
+            bool hasFirst = TrySampleColliderWall(
+                source,
+                firstOrigin,
+                firstDirection,
+                out SurfacePoint first,
+                profiler);
+
+            if (hasFirst)
+                points.Add(first);
+
+            if (!TrySampleColliderWall(
+                    source,
+                    secondOrigin,
+                    secondDirection,
+                    out SurfacePoint second,
+                    profiler))
+            {
+                return;
+            }
+
+            if (!hasFirst ||
+                (second.Position - first.Position).sqrMagnitude > 0.000001f ||
+                Vector3.Dot(second.Normal, first.Normal) < 0.999f)
+            {
+                points.Add(second);
+            }
+        }
+
         public bool HasFloorSurfaceAt(Vector3 position) =>
             TryFindFloor(position, null, null, null, out _);
 
@@ -179,8 +307,20 @@ namespace Genix.Areas
         {
             result = default;
 
-            if (!asset || placementType is not (PlacementType.Floor or PlacementType.Ceiling))
+            if (!asset || placementType == PlacementType.InsideSpace)
                 return false;
+
+            if (placementType == PlacementType.Wall)
+            {
+                return TryEvaluateWallSurfaceFit(
+                    surfaceCenter,
+                    footprintRotation,
+                    asset,
+                    expectedSurfaceCollider,
+                    voxelLayer,
+                    out result,
+                    profiler);
+            }
 
             Vector3 right = NormalizeOrFallback(footprintRotation * Vector3.right, Vector3.right);
             Vector3 forward = NormalizeOrFallback(footprintRotation * Vector3.forward, Vector3.forward);
@@ -208,7 +348,7 @@ namespace Genix.Areas
 
             for (int x = 0; x <= widthSegments; x++)
             {
-                    float offsetX = Mathf.Lerp(-width * 0.5f, width * 0.5f, x / (float)widthSegments);
+                float offsetX = Mathf.Lerp(-width * 0.5f, width * 0.5f, x / (float)widthSegments);
 
                 for (int z = 0; z <= depthSegments; z++)
                 {
@@ -276,6 +416,96 @@ namespace Genix.Areas
                 new Vector3(surfaceCenter.x, surfaceY, surfaceCenter.z),
                 normal,
                 heightDifference,
+                supportRatio);
+            return true;
+        }
+
+        private bool TryEvaluateWallSurfaceFit(
+            Vector3 surfaceCenter,
+            Quaternion footprintRotation,
+            AssetDefinition asset,
+            Collider expectedSurfaceCollider,
+            int? voxelLayer,
+            out SurfaceFitResult result,
+            IGenerationProfiler profiler)
+        {
+            result = default;
+            Vector3 normal = NormalizeOrFallback(footprintRotation * Vector3.forward, Vector3.forward);
+            Vector3 right = NormalizeOrFallback(footprintRotation * Vector3.right, Vector3.right);
+            Vector3 up = NormalizeOrFallback(footprintRotation * Vector3.up, Vector3.up);
+            float width = Mathf.Max(0.01f, asset.Width);
+            float height = Mathf.Max(0.01f, asset.Height);
+            int widthSegments = _occupancy.GetFootprintSegmentCount(width);
+            int heightSegments = _occupancy.GetFootprintSegmentCount(height);
+            int totalSamples = (widthSegments + 1) * (heightSegments + 1);
+            int processedSamples = 0;
+            int supportedSamples = 0;
+            int requiredSupportedSamples = Mathf.CeilToInt(
+                Mathf.Max(0f, asset.MinSurfaceSupport - 0.0001f) * totalSamples);
+            float minDepth = float.PositiveInfinity;
+            float maxDepth = float.NegativeInfinity;
+            float sumDepth = 0f;
+            Vector3 normalSum = Vector3.zero;
+
+            for (int x = 0; x <= widthSegments; x++)
+            {
+                float offsetX = Mathf.Lerp(-width * 0.5f, width * 0.5f, x / (float)widthSegments);
+
+                for (int y = 0; y <= heightSegments; y++)
+                {
+                    processedSamples++;
+                    float offsetY = Mathf.Lerp(-height * 0.5f, height * 0.5f, y / (float)heightSegments);
+                    Vector3 samplePosition = surfaceCenter + right * offsetX + up * offsetY;
+
+                    if (!TryFindWallSupportPoint(
+                            samplePosition,
+                            normal,
+                            asset.MaxSurfaceHeightDifference,
+                            expectedSurfaceCollider,
+                            voxelLayer,
+                            out SurfacePoint support,
+                            profiler))
+                    {
+                        if (!CanStillReachRequiredSupport(
+                                supportedSamples,
+                                processedSamples,
+                                totalSamples,
+                                requiredSupportedSamples))
+                        {
+                            return false;
+                        }
+
+                        continue;
+                    }
+
+                    supportedSamples++;
+                    float depth = Vector3.Dot(support.Position - samplePosition, normal);
+                    minDepth = Mathf.Min(minDepth, depth);
+                    maxDepth = Mathf.Max(maxDepth, depth);
+
+                    if (maxDepth - minDepth > asset.MaxSurfaceHeightDifference)
+                        return false;
+
+                    sumDepth += depth;
+                    Vector3 supportNormal = support.Normal.normalized;
+                    normalSum += Vector3.Dot(supportNormal, normal) < 0f ? -supportNormal : supportNormal;
+                }
+            }
+
+            if (supportedSamples == 0)
+                return false;
+
+            float supportRatio = supportedSamples / (float)Mathf.Max(1, totalSamples);
+
+            if (supportRatio + 0.0001f < asset.MinSurfaceSupport)
+                return false;
+
+            float depthDifference = maxDepth - minDepth;
+            Vector3 fittedNormal = normalSum.sqrMagnitude > 0.001f ? normalSum.normalized : normal;
+            result = new SurfaceFitResult(
+                surfaceCenter + normal * (sumDepth / supportedSamples),
+                fittedNormal,
+                depthDifference,
                 supportRatio);
             return true;
         }
@@ -468,6 +698,60 @@ namespace Genix.Areas
                 profiler);
         }
 
+        private bool TryFindWallSupportPoint(
+            Vector3 position,
+            Vector3 expectedNormal,
+            float maxDepthDifference,
+            Collider expectedCollider,
+            int? targetVoxelLayer,
+            out SurfacePoint point,
+            IGenerationProfiler profiler)
+        {
+            point = default;
+            float probeOffset = Mathf.Max(0.05f, maxDepthDifference + 0.05f);
+            float distance = Mathf.Min(
+                Mathf.Max(0.01f, _settings.surfaceRaycastDistance),
+                probeOffset * 2f + BoundaryTolerance);
+            int hitCount = GetHits(
+                new Ray(position + expectedNormal * probeOffset, -expectedNormal),
+                distance,
+                PlacementType.Wall,
+                out RaycastHit[] hits,
+                profiler);
+            bool found = false;
+            float bestDistance = float.PositiveInfinity;
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                RaycastHit hit = hits[i];
+
+                if (!IsUsableHit(hit, expectedCollider) ||
+                    SurfaceClassifier.Classify(hit.normal, _settings) != PlacementType.Wall ||
+                    !IsInsideWorldBounds(hit.point))
+                {
+                    continue;
+                }
+
+                Vector3 surfaceNormal = hit.normal.normalized;
+
+                if (Vector3.Dot(surfaceNormal, expectedNormal) < 0f)
+                    surfaceNormal = -surfaceNormal;
+
+                if (Vector3.Dot(surfaceNormal, expectedNormal) < 0.25f ||
+                    !IsSurfaceFacingAreaVolume(hit.point, surfaceNormal) ||
+                    hit.distance >= bestDistance)
+                {
+                    continue;
+                }
+
+                bestDistance = hit.distance;
+                point = new SurfacePoint(hit.point, surfaceNormal, hit.collider, targetVoxelLayer);
+                found = true;
+            }
+
+            return found;
+        }
+
         private bool TryFindTerrainFloor(
             Vector3 position,
             Collider expectedCollider,
@@ -570,6 +854,16 @@ namespace Genix.Areas
                    point.x <= _worldBounds.max.x + FootprintBoundsTolerance &&
                    point.z >= _worldBounds.min.z - FootprintBoundsTolerance &&
                    point.z <= _worldBounds.max.z + FootprintBoundsTolerance;
+        }
+
+        private bool IsInsideWorldBounds(Vector3 point)
+        {
+            return point.x >= _worldBounds.min.x - BoundaryTolerance &&
+                   point.x <= _worldBounds.max.x + BoundaryTolerance &&
+                   point.y >= _worldBounds.min.y - BoundaryTolerance &&
+                   point.y <= _worldBounds.max.y + BoundaryTolerance &&
+                   point.z >= _worldBounds.min.z - BoundaryTolerance &&
+                   point.z <= _worldBounds.max.z + BoundaryTolerance;
         }
 
         private static bool IsLayerIncluded(int layer, LayerMask mask) =>
@@ -859,6 +1153,142 @@ namespace Genix.Areas
             return _occupancy.ContainsVolumePoint(surfacePoint + normal * offset);
         }
 
+        private bool TrySampleColliderWall(
+            WallSurfaceSource source,
+            Vector3 origin,
+            Vector3 direction,
+            out SurfacePoint point,
+            IGenerationProfiler profiler)
+        {
+            point = default;
+            float span = Mathf.Abs(direction.x) > 0.5f
+                ? source.Bounds.size.x
+                : source.Bounds.size.z;
+            float distance = Mathf.Max(0.01f, span + BoundaryTolerance * 2f);
+            Stopwatch stopwatch = profiler is { IsEnabled: true } ? Stopwatch.StartNew() : null;
+            bool hitSurface = source.Collider.Raycast(new Ray(origin, direction), out RaycastHit hit, distance);
+            stopwatch?.Stop();
+            profiler?.RecordRaycast(
+                PlacementType.Wall,
+                hitSurface ? 1 : 0,
+                stopwatch != null ? (float)stopwatch.Elapsed.TotalMilliseconds : 0f);
+
+            if (!hitSurface ||
+                !IsUsableHit(hit, source.Collider) ||
+                SurfaceClassifier.Classify(hit.normal, _settings) != PlacementType.Wall ||
+                !IsInsideWorldBounds(hit.point) ||
+                !IsSurfaceFacingAreaVolume(hit.point, hit.normal))
+            {
+                return false;
+            }
+
+            point = new SurfacePoint(hit.point, hit.normal.normalized, source.Collider, null);
+            return true;
+        }
+
+        private WallSurfaceSource[] FindWallSurfaceSources(out bool hasTerrainSurfaces)
+        {
+            hasTerrainSurfaces = false;
+
+            if (!_settings.UsesAllMatchingSurfaceSearch ||
+                _settings.GetSurfaceLayers(PlacementType.Wall).value == 0 ||
+                _worldBounds.size.sqrMagnitude <= 0f)
+            {
+                return Array.Empty<WallSurfaceSource>();
+            }
+
+            Collider[] overlaps = Physics.OverlapBox(
+                _worldBounds.center,
+                _worldBounds.extents + Vector3.one * BoundaryTolerance,
+                Quaternion.identity,
+                _settings.GetSurfaceLayers(PlacementType.Wall),
+                QueryTriggerInteraction.Ignore);
+
+            if (overlaps == null || overlaps.Length == 0)
+                return Array.Empty<WallSurfaceSource>();
+
+            List<WallSurfaceSource> sources = new(overlaps.Length);
+            HashSet<Collider> seen = new();
+
+            for (int i = 0; i < overlaps.Length; i++)
+            {
+                Collider collider = overlaps[i];
+
+                if (!collider ||
+                    !seen.Add(collider) ||
+                    ShouldIgnoreCollider(collider) ||
+                    !collider.bounds.Intersects(_worldBounds))
+                {
+                    continue;
+                }
+
+                Bounds bounds = collider.bounds;
+                float weight;
+
+                if (collider is TerrainCollider terrainCollider)
+                {
+                    weight = EstimateTerrainWallArea(terrainCollider, bounds);
+
+                    if (weight <= 0f)
+                        continue;
+
+                    hasTerrainSurfaces = true;
+                }
+                else
+                {
+                    weight = bounds.size.y * (bounds.size.x + bounds.size.z);
+
+                    if (weight <= 0.0001f)
+                        continue;
+                }
+
+                sources.Add(new WallSurfaceSource(collider, bounds, weight));
+            }
+
+            return sources.ToArray();
+        }
+
+        private float EstimateTerrainWallArea(TerrainCollider terrainCollider, Bounds terrainBounds)
+        {
+            const int samplesPerAxis = 9;
+            float minX = Mathf.Max(_worldBounds.min.x, terrainBounds.min.x);
+            float maxX = Mathf.Min(_worldBounds.max.x, terrainBounds.max.x);
+            float minZ = Mathf.Max(_worldBounds.min.z, terrainBounds.min.z);
+            float maxZ = Mathf.Min(_worldBounds.max.z, terrainBounds.max.z);
+
+            if (minX >= maxX || minZ >= maxZ)
+                return 0f;
+
+            float weightedCoverage = 0f;
+
+            for (int x = 0; x < samplesPerAxis; x++)
+            {
+                float worldX = Mathf.Lerp(minX, maxX, (x + 0.5f) / samplesPerAxis);
+
+                for (int z = 0; z < samplesPerAxis; z++)
+                {
+                    float worldZ = Mathf.Lerp(minZ, maxZ, (z + 0.5f) / samplesPerAxis);
+
+                    if (!TryGetTerrainSurfacePoint(
+                            new Vector3(worldX, _worldBounds.center.y, worldZ),
+                            terrainCollider,
+                            out Vector3 surfacePosition,
+                            out Vector3 normal) ||
+                        SurfaceClassifier.Classify(normal, _settings) != PlacementType.Wall ||
+                        !IsInsideWorldBounds(surfacePosition) ||
+                        !IsSurfaceFacingAreaVolume(surfacePosition, normal))
+                    {
+                        continue;
+                    }
+
+                    weightedCoverage += Mathf.Min(10f, 1f / Mathf.Max(0.1f, Mathf.Abs(normal.y)));
+                }
+            }
+
+            float projectedArea = (maxX - minX) * (maxZ - minZ);
+            return projectedArea * weightedCoverage / (samplesPerAxis * samplesPerAxis);
+        }
+
         private static Vector3 NormalizeOrFallback(Vector3 value, Vector3 fallback)
         {
             return value.sqrMagnitude > 0.001f ? value.normalized : fallback;
@@ -869,8 +1299,11 @@ namespace Genix.Areas
             if (!collider || HasDontSaveHideFlags(collider.transform))
                 return true;
 
-            if (collider.GetComponentInParent<GeneratedObjectMetadata>())
+            if (collider.GetComponentInParent<GeneratedObjectMetadata>() &&
+                !collider.GetComponentInParent<PlacementSurfaceDescriptor>())
+            {
                 return true;
+            }
 
             return _isSourceCollider?.Invoke(collider) == true;
         }

@@ -1,12 +1,18 @@
+using System.Collections.Generic;
 using System.Linq;
 using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Editor.Infrastructure;
+using Genix.Editor.SceneConfiguration;
 using Genix.Editor.Validation;
+using Genix.Layouts;
+using Genix.Placement;
+using Genix.Semantics;
 using Genix.Tests.Framework;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEngine;
 
 namespace Genix.Tests
 {
@@ -17,6 +23,7 @@ namespace Genix.Tests
     {
         private GenerationTestScene _scene;
         private bool _catalogExisted;
+        private readonly List<GameObject> _sceneObjects = new();
 
         [SetUp]
         public void SetUp()
@@ -28,6 +35,11 @@ namespace Genix.Tests
         public void TearDown()
         {
             _scene?.Dispose();
+
+            foreach (GameObject sceneObject in _sceneObjects.Where(sceneObject => sceneObject))
+                Object.DestroyImmediate(sceneObject);
+
+            _sceneObjects.Clear();
 
             if (!_catalogExisted)
                 AssetDatabase.DeleteAsset(ProjectContentPaths.AssetCatalog);
@@ -130,6 +142,54 @@ namespace Genix.Tests
 
             Assert.That(report.HasErrors, Is.True);
             Assert.That(report.Issues.Any(issue => issue.Message.Contains("none can be used")), Is.True);
+        }
+
+        [Test]
+        public void SceneSetupDiscoveryIncludesConfiguredColliderAndExclusionRegion()
+        {
+            GameObject surface = CreateSceneObject("Configured Surface");
+            surface.layer = 30;
+            Collider collider = surface.AddComponent<BoxCollider>();
+            PlacementExclusionRegion region = CreateSceneObject("Exclusion")
+                .AddComponent<PlacementExclusionRegion>();
+
+            List<SceneSetupObjectEntry> entries = SceneSetupObjectDiscovery.Collect(1 << 30);
+
+            Assert.That(entries.Any(entry => entry.SurfaceCollider == collider), Is.True);
+            Assert.That(entries.Any(entry => entry.ExclusionRegion == region), Is.True);
+        }
+
+        [Test]
+        public void SceneSetupDiscoveryIncludesDescriptorOutsideConfiguredLayers()
+        {
+            GameObject surface = CreateSceneObject("Semantic Surface");
+            Collider collider = surface.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = surface.AddComponent<PlacementSurfaceDescriptor>();
+
+            List<SceneSetupObjectEntry> entries = SceneSetupObjectDiscovery.Collect(0);
+
+            Assert.That(entries.Any(entry =>
+                entry.SurfaceCollider == collider && entry.SurfaceDescriptor == descriptor), Is.True);
+        }
+
+        [Test]
+        public void SceneSetupDiscoveryExcludesGeneratedObjects()
+        {
+            GameObject generated = CreateSceneObject("Generated Surface");
+            generated.layer = 30;
+            Collider collider = generated.AddComponent<BoxCollider>();
+            generated.AddComponent<GeneratedObjectMetadata>();
+
+            List<SceneSetupObjectEntry> entries = SceneSetupObjectDiscovery.Collect(1 << 30);
+
+            Assert.That(entries.Any(entry => entry.SurfaceCollider == collider), Is.False);
+        }
+
+        private GameObject CreateSceneObject(string name)
+        {
+            GameObject sceneObject = new(name);
+            _sceneObjects.Add(sceneObject);
+            return sceneObject;
         }
 
         private static AreaBuildSettings CreateSettings(

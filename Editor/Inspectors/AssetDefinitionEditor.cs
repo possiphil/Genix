@@ -26,7 +26,7 @@ namespace Genix.Editor.Inspectors
             "Surface or volume target this asset can use: Floor, Wall, Ceiling, or Inside Space.");
         private static readonly GUIContent OrientationModeLabel = new(
             "Orientation",
-            "None keeps the sampled orientation. Face Target turns the asset toward the nearest active relative-placement anchor.");
+            "None keeps the sampled orientation. Face Target uses a relative-placement anchor. Match Support Forward uses the direction provided by a Placement Surface Descriptor.");
         private static readonly GUIContent BoundsSizeLabel = new(
             "Size",
             "World-space size used for containment, spacing, overlap, and surface-fit validation.");
@@ -37,10 +37,17 @@ namespace Genix.Editor.Inspectors
         private SerializedProperty _prefab;
         private SerializedProperty _semanticTags;
         private SerializedProperty _anyTagCategories;
+        private SerializedProperty _requiredSupportTags;
+        private SerializedProperty _forbiddenSupportTags;
+        private SerializedProperty _requiredSupportNoneCategories;
+        private SerializedProperty _forbiddenSupportAnyCategories;
+        private SerializedProperty _limitPlacements;
+        private SerializedProperty _maxPlacements;
         private SerializedProperty _placementType;
+        private SerializedProperty _wallVerticalPlacementMode;
         private SerializedProperty _placementHeight;
-        private SerializedProperty _useHeightOffset;
-        private SerializedProperty _maxHeightOffset;
+        private SerializedProperty _wallMinHeight;
+        private SerializedProperty _wallMaxHeight;
         private SerializedProperty _boundsSize;
         private SerializedProperty _boundsCenterOffset;
         private SerializedProperty _orientationMode;
@@ -53,16 +60,25 @@ namespace Genix.Editor.Inspectors
         private SerializedProperty _randomYawRotation;
         private SerializedProperty _randomPitchRotation;
         private SerializedProperty _randomRollRotation;
+        private SerializedProperty _wallProximityMode;
+        private SerializedProperty _wallDistance;
 
         private void OnEnable()
         {
             _prefab = serializedObject.FindProperty("prefab");
             _semanticTags = serializedObject.FindProperty("semanticTags");
             _anyTagCategories = serializedObject.FindProperty("anyTagCategories");
+            _requiredSupportTags = serializedObject.FindProperty("requiredSupportTags");
+            _forbiddenSupportTags = serializedObject.FindProperty("forbiddenSupportTags");
+            _requiredSupportNoneCategories = serializedObject.FindProperty("requiredSupportNoneCategories");
+            _forbiddenSupportAnyCategories = serializedObject.FindProperty("forbiddenSupportAnyCategories");
+            _limitPlacements = serializedObject.FindProperty("limitPlacements");
+            _maxPlacements = serializedObject.FindProperty("maxPlacements");
             _placementType = serializedObject.FindProperty("placementType");
+            _wallVerticalPlacementMode = serializedObject.FindProperty("wallVerticalPlacementMode");
             _placementHeight = serializedObject.FindProperty("placementHeight");
-            _useHeightOffset = serializedObject.FindProperty("useHeightOffset");
-            _maxHeightOffset = serializedObject.FindProperty("maxHeightOffset");
+            _wallMinHeight = serializedObject.FindProperty("wallMinHeight");
+            _wallMaxHeight = serializedObject.FindProperty("wallMaxHeight");
             _boundsSize = serializedObject.FindProperty("boundsSize");
             _boundsCenterOffset = serializedObject.FindProperty("boundsCenterOffset");
             _orientationMode = serializedObject.FindProperty("orientationMode");
@@ -75,6 +91,8 @@ namespace Genix.Editor.Inspectors
             _randomYawRotation = serializedObject.FindProperty("randomYawRotation");
             _randomPitchRotation = serializedObject.FindProperty("randomPitchRotation");
             _randomRollRotation = serializedObject.FindProperty("randomRollRotation");
+            _wallProximityMode = serializedObject.FindProperty("wallProximityMode");
+            _wallDistance = serializedObject.FindProperty("wallDistance");
         }
 
         /// <summary>Draws and applies the custom Inspector interface.</summary>
@@ -88,6 +106,10 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.Space(4f);
 
             DrawPlacementSection();
+
+            EditorGUILayout.Space(4f);
+
+            DrawSupportSurfaceSection();
 
             EditorGUILayout.Space(4f);
 
@@ -132,20 +154,32 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.LabelField("Placement", EditorStyles.boldLabel);
 
             EditorGUILayout.PropertyField(_placementType, PlacementTypeLabel);
+            EditorGUILayout.PropertyField(_limitPlacements, new GUIContent(
+                "Limit Placements",
+                "Restrict how often this asset may be accepted in one generation run."));
+
+            if (_limitPlacements.boolValue)
+            {
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    EditorGUI.BeginChangeCheck();
+                    int maximum = EditorGUILayout.IntField(new GUIContent(
+                        "Max Placements",
+                        "Maximum accepted instances of this asset per generation run."),
+                        _maxPlacements.intValue);
+                    if (EditorGUI.EndChangeCheck())
+                        _maxPlacements.intValue = Mathf.Max(1, maximum);
+                }
+            }
 
             if (IsWallPlacementType())
             {
-                EditorGUILayout.PropertyField(_placementHeight, new GUIContent(
-                    "Placement Height",
-                    "Height above the sampled wall position at which the asset pivot is placed."));
-                EditorGUILayout.PropertyField(_useHeightOffset, new GUIContent(
-                    "Random Height Offset",
-                    "Randomize the wall placement height within the configured maximum offset."));
+                DrawWallHeightSection();
 
-                if (_useHeightOffset.boolValue)
-                    EditorGUILayout.PropertyField(_maxHeightOffset, new GUIContent(
-                        "Max Height Offset",
-                        "Maximum absolute random offset from Placement Height."));
+                EditorGUILayout.PropertyField(_randomRollRotation, new GUIContent(
+                    "Random Roll",
+                    "Try deterministic rotations around the wall normal while keeping the asset flush with the wall."));
+                DrawSurfaceFitSection();
             }
             else if (IsInsideSpacePlacementType())
             {
@@ -160,14 +194,308 @@ namespace Genix.Editor.Inspectors
             }
 
             EditorGUILayout.PropertyField(_orientationMode, OrientationModeLabel);
+
+            if (IsFloorOrCeilingPlacementType())
+                DrawWallProximitySection();
+
+            if (UsesSupportForward() && (IsWallPlacementType() || IsInsideSpacePlacementType()))
+            {
+                EditorGUILayout.HelpBox(
+                    IsWallPlacementType()
+                        ? "Wall assets already face the sampled wall normal. Use Random Roll to vary their rotation instead of Match Support Forward."
+                        : "Inside Space has no supporting surface. Match Support Forward therefore cannot resolve a direction.",
+                    MessageType.Warning);
+            }
+        }
+
+        private void DrawSupportSurfaceSection()
+        {
+            EditorGUILayout.LabelField("Support Surface", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Required defaults to Any and restricts surfaces only when tags are selected. Forbidden defaults to None and always takes precedence. Selecting None under Required or Any under Forbidden intentionally blocks this asset.",
+                MessageType.Info);
+
+            if (IsInsideSpacePlacementType())
+            {
+                EditorGUILayout.HelpBox(
+                    "Inside Space assets do not use a support collider, so support tags are ignored.",
+                    MessageType.Info);
+            }
+
+            DrawSupportTagList(
+                _requiredSupportTags,
+                _requiredSupportNoneCategories,
+                true,
+                "Required Tags",
+                "Any adds no restriction. None deliberately disables placement. Otherwise at least one selected tag must match.");
+            DrawSupportTagList(
+                _forbiddenSupportTags,
+                _forbiddenSupportAnyCategories,
+                false,
+                "Forbidden Tags",
+                "None adds no restriction. Any rejects every surface. Otherwise each selected matching tag rejects the surface.");
+
+            List<SemanticTag> conflicts = GetTags(_requiredSupportTags)
+                .Intersect(GetTags(_forbiddenSupportTags))
+                .ToList();
+
+            if (conflicts.Count > 0)
+            {
+                string names = string.Join(", ", conflicts.Select(tag => tag.DisplayName));
+                EditorGUILayout.HelpBox(
+                    $"Required and Forbidden contain the same tag(s): {names}. Forbidden takes precedence, so those surfaces will be rejected.",
+                    MessageType.Warning);
+            }
+
+            List<TagCategory> requiredNone = GetCategories(_requiredSupportNoneCategories);
+            List<TagCategory> forbiddenAny = GetCategories(_forbiddenSupportAnyCategories);
+
+            if (requiredNone.Count > 0)
+            {
+                EditorGUILayout.HelpBox(
+                    $"Required is set to None for: {string.Join(", ", requiredNone.Select(category => category.DisplayName))}. This asset cannot be placed until those categories are changed.",
+                    MessageType.Warning);
+            }
+
+            if (forbiddenAny.Count > 0)
+            {
+                EditorGUILayout.HelpBox(
+                    $"Forbidden is set to Any for: {string.Join(", ", forbiddenAny.Select(category => category.DisplayName))}. This asset cannot be placed until those categories are changed.",
+                    MessageType.Warning);
+            }
+        }
+
+        private void DrawSupportTagList(
+            SerializedProperty property,
+            SerializedProperty specialCategories,
+            bool isRequired,
+            string title,
+            string tooltip)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(new GUIContent(title, tooltip), EditorStyles.miniBoldLabel);
+                GUILayout.FlexibleSpace();
+
+                using (new EditorGUI.DisabledScope(
+                           property.arraySize == 0 && specialCategories.arraySize == 0))
+                {
+                    if (GUILayout.Button(new GUIContent(
+                            "Reset",
+                            isRequired
+                                ? "Reset every category to Any."
+                                : "Reset every category to None."), GUILayout.Width(52f)))
+                    {
+                        property.ClearArray();
+                        specialCategories.ClearArray();
+                        GUI.FocusControl(null);
+                    }
+                }
+            }
+
+            AssetCatalog catalog = AssetCatalogService.GetOrCreate();
+            List<TagCategory> categories = catalog.Categories
+                .Where(category => category && category.SupportsSurfaces)
+                .OrderBy(category => category.DisplayName)
+                .ToList();
+
+            if (categories.Count == 0)
+            {
+                EditorGUILayout.HelpBox(
+                    "Create a tag category with Usage set to Surface or Asset and Surface before assigning support tags.",
+                    MessageType.Info);
+                return;
+            }
+
+            using (new EditorGUI.IndentLevelScope())
+            {
+                foreach (TagCategory category in categories)
+                {
+                    List<SemanticTag> availableTags = catalog.Tags
+                        .Where(tag => tag && tag.Category == category)
+                        .OrderBy(tag => tag.DisplayName)
+                        .ToList();
+                    List<SemanticTag> selectedTags = GetTags(property)
+                        .Where(tag => tag.Category == category)
+                        .ToList();
+                    bool specialSelected = ContainsCategory(specialCategories, category);
+                    bool anySelected = isRequired
+                        ? !specialSelected && selectedTags.Count == 0
+                        : specialSelected;
+
+                    TagSelectionField.Draw(
+                        category.DisplayName,
+                        category,
+                        availableTags,
+                        selectedTags,
+                        null,
+                        forceMultiSelect: true,
+                        anySelected: anySelected,
+                        onChangedWithSpecialSelection: (tags, specialSelection) =>
+                            SetSupportSelection(
+                                property,
+                                specialCategories,
+                                category,
+                                tags,
+                                specialSelection,
+                                isRequired),
+                        showNoneOption: true,
+                        showAnyOption: true);
+                }
+            }
+        }
+
+        private static List<SemanticTag> GetTags(SerializedProperty property)
+        {
+            List<SemanticTag> tags = new();
+
+            for (int i = 0; i < property.arraySize; i++)
+            {
+                if (property.GetArrayElementAtIndex(i).objectReferenceValue is SemanticTag tag && tag)
+                    tags.Add(tag);
+            }
+
+            return tags;
+        }
+
+        private static List<TagCategory> GetCategories(SerializedProperty property)
+        {
+            List<TagCategory> categories = new();
+
+            for (int i = 0; i < property.arraySize; i++)
+            {
+                if (property.GetArrayElementAtIndex(i).objectReferenceValue is TagCategory category && category)
+                    categories.Add(category);
+            }
+
+            return categories;
+        }
+
+        private static bool ContainsCategory(SerializedProperty property, TagCategory category) =>
+            GetCategories(property).Contains(category);
+
+        private void SetSupportSelection(
+            SerializedProperty property,
+            SerializedProperty specialCategories,
+            TagCategory category,
+            IReadOnlyList<SemanticTag> selectedTags,
+            TagSelectionField.SpecialSelection specialSelection,
+            bool isRequired)
+        {
+            serializedObject.Update();
+
+            for (int i = property.arraySize - 1; i >= 0; i--)
+            {
+                SemanticTag existing = property.GetArrayElementAtIndex(i).objectReferenceValue as SemanticTag;
+
+                if (!existing || existing.Category == category)
+                    property.DeleteArrayElementAtIndex(i);
+            }
+
+            for (int i = specialCategories.arraySize - 1; i >= 0; i--)
+            {
+                TagCategory existing = specialCategories
+                    .GetArrayElementAtIndex(i).objectReferenceValue as TagCategory;
+
+                if (!existing || existing == category)
+                    specialCategories.DeleteArrayElementAtIndex(i);
+            }
+
+            bool selectSpecialCategory = selectedTags.Count == 0 &&
+                                         (isRequired
+                                             ? specialSelection == TagSelectionField.SpecialSelection.None
+                                             : specialSelection == TagSelectionField.SpecialSelection.Any);
+
+            if (selectSpecialCategory)
+            {
+                int specialIndex = specialCategories.arraySize;
+                specialCategories.InsertArrayElementAtIndex(specialIndex);
+                specialCategories.GetArrayElementAtIndex(specialIndex).objectReferenceValue = category;
+            }
+
+            foreach (SemanticTag tag in selectedTags.Where(tag => tag && tag.Category == category).Distinct())
+            {
+                int index = property.arraySize;
+                property.InsertArrayElementAtIndex(index);
+                property.GetArrayElementAtIndex(index).objectReferenceValue = tag;
+            }
+
+            serializedObject.ApplyModifiedProperties();
+            EditorUtility.SetDirty(target);
+        }
+
+        private void DrawWallProximitySection()
+        {
+            EditorGUILayout.Space(2f);
+            EditorGUILayout.PropertyField(_wallProximityMode, new GUIContent(
+                "Wall Relationship",
+                "Any Distance disables wall checks. Near Wall uses a maximum bounds-to-wall distance. Away From Wall enforces minimum clearance."));
+
+            WallProximityMode mode = (WallProximityMode)_wallProximityMode.enumValueIndex;
+            if (mode == WallProximityMode.AnyDistance)
+                return;
+
+            DrawNonNegativeFloat(_wallDistance, new GUIContent(
+                mode == WallProximityMode.NearWall ? "Max Wall Distance" : "Min Wall Distance",
+                mode == WallProximityMode.NearWall
+                    ? "Maximum horizontal gap between the asset bounds and the nearest detected wall."
+                    : "Minimum horizontal clearance between the asset bounds and every detected wall."));
+        }
+
+        private void DrawWallHeightSection()
+        {
+            EditorGUILayout.PropertyField(_wallVerticalPlacementMode, new GUIContent(
+                "Vertical Placement",
+                "Full Wall uses all sampled wall heights. Fixed Height uses one level. Height Range distributes placements within a bounded vertical interval."));
+
+            WallVerticalPlacementMode mode = (WallVerticalPlacementMode)_wallVerticalPlacementMode.enumValueIndex;
+
+            if (mode == WallVerticalPlacementMode.FixedHeight)
+            {
+                DrawNonNegativeFloat(_placementHeight, new GUIContent(
+                    "Fixed Height",
+                    "Height of the asset's lower bound above the target area's lower bound. Zero rests the asset on that lower boundary."));
+                return;
+            }
+
+            if (mode == WallVerticalPlacementMode.HeightRange)
+            {
+                DrawNonNegativeFloat(_wallMinHeight, new GUIContent(
+                    "Min Height",
+                    "Lowest permitted asset-bottom height above the target area's lower bound."));
+                DrawNonNegativeFloat(_wallMaxHeight, new GUIContent(
+                    "Max Height",
+                    "Highest permitted asset-bottom height above the target area's lower bound."));
+
+                if (_wallMaxHeight.floatValue < _wallMinHeight.floatValue)
+                    _wallMaxHeight.floatValue = _wallMinHeight.floatValue;
+
+                return;
+            }
+
+            EditorGUILayout.PropertyField(_placementHeight, new GUIContent(
+                "Baseline Offset",
+                "Additional vertical clearance above every sampled wall baseline. Zero keeps the asset's lower bound flush with each sampled level."));
+        }
+
+        private static void DrawNonNegativeFloat(SerializedProperty property, GUIContent label)
+        {
+            EditorGUI.BeginChangeCheck();
+            float value = EditorGUILayout.FloatField(label, property.floatValue);
+
+            if (EditorGUI.EndChangeCheck())
+                property.floatValue = Mathf.Max(0f, value);
         }
 
         private void DrawSurfaceFitSection()
         {
+            bool isWall = IsWallPlacementType();
             EditorGUILayout.Space(2f);
             EditorGUILayout.PropertyField(_surfaceFitMode, new GUIContent(
                 "Surface Fit",
-                "Strict requires the footprint to fit its sampled region. Adaptive probes the real surface and is recommended for uneven terrain."));
+                isWall
+                    ? "Strict uses the sampled wall contact. Adaptive probes the complete wall-facing footprint and is recommended for uneven or curved walls."
+                    : "Strict requires the footprint to fit its sampled region. Adaptive probes the real surface and is recommended for uneven terrain."));
 
             if (!IsAdaptiveSurfaceFit())
                 return;
@@ -176,19 +504,32 @@ namespace Genix.Editor.Inspectors
             {
                 EditorGUILayout.PropertyField(_surfaceAlignmentMode, new GUIContent(
                     "Rotation",
-                    "Align To Surface follows the fitted normal. Keep Upright uses the fitted height without tilting."));
-                EditorGUILayout.PropertyField(_surfaceHeightMode, new GUIContent(
-                    "Height",
-                    "Choose the Average, Lowest, or Highest supported probe height as the placement height."));
+                    isWall
+                        ? "Align To Surface follows the fitted wall normal. Keep Upright follows its horizontal direction without tilting vertically."
+                        : "Align To Surface follows the fitted normal. Keep Upright uses the fitted height without tilting."));
+
+                if (!isWall)
+                {
+                    EditorGUILayout.PropertyField(_surfaceHeightMode, new GUIContent(
+                        "Height",
+                        "Choose the Average, Lowest, or Highest supported probe height as the placement height."));
+                }
+
                 EditorGUILayout.PropertyField(_maxSurfaceHeightDifference, new GUIContent(
-                    "Max Height Difference",
-                    "Reject the placement when supported footprint probes span a larger vertical range."));
+                    isWall ? "Max Depth Difference" : "Max Height Difference",
+                    isWall
+                        ? "Reject the placement when supported wall probes vary more than this distance along the wall normal."
+                        : "Reject the placement when supported footprint probes span a larger vertical range."));
                 EditorGUILayout.PropertyField(_minSurfaceSupport, new GUIContent(
                     "Min Support",
-                    "Minimum fraction of footprint probes that must find a compatible surface."));
+                    isWall
+                        ? "Minimum fraction of the wall-facing footprint that must find a compatible wall surface."
+                        : "Minimum fraction of footprint probes that must find a compatible surface."));
                 EditorGUILayout.PropertyField(_surfaceSinkOffset, new GUIContent(
                     "Sink Offset",
-                    "Move the fitted asset into the support surface by this distance to avoid visible gaps."));
+                    isWall
+                        ? "Move the fitted asset into the wall by this distance to avoid visible gaps."
+                        : "Move the fitted asset into the support surface by this distance to avoid visible gaps."));
             }
         }
 
@@ -233,13 +574,15 @@ namespace Genix.Editor.Inspectors
             AssetCatalog catalog = AssetCatalogService.GetOrCreate();
 
             List<TagCategory> categories = catalog.Categories
-                .Where(category => category)
+                .Where(category => category && category.SupportsAssets)
                 .OrderBy(category => category.DisplayName)
                 .ToList();
 
             if (categories.Count == 0)
             {
-                EditorGUILayout.HelpBox("No tag categories available.", MessageType.Info);
+                EditorGUILayout.HelpBox(
+                    "No Asset or Asset and Surface tag categories are available.",
+                    MessageType.Info);
                 return;
             }
 
@@ -419,6 +762,18 @@ namespace Genix.Editor.Inspectors
             return _placementType.enumNames[_placementType.enumValueIndex] == nameof(PlacementType.InsideSpace);
         }
 
+        private bool IsFloorOrCeilingPlacementType()
+        {
+            if (_placementType.enumValueIndex < 0 ||
+                _placementType.enumValueIndex >= _placementType.enumNames.Length)
+            {
+                return false;
+            }
+
+            string placementType = _placementType.enumNames[_placementType.enumValueIndex];
+            return placementType is nameof(PlacementType.Floor) or nameof(PlacementType.Ceiling);
+        }
+
         private bool IsAdaptiveSurfaceFit()
         {
             if (_surfaceFitMode.enumValueIndex < 0 ||
@@ -428,6 +783,18 @@ namespace Genix.Editor.Inspectors
             }
 
             return _surfaceFitMode.enumNames[_surfaceFitMode.enumValueIndex] == nameof(SurfaceFitMode.Adaptive);
+        }
+
+        private bool UsesSupportForward()
+        {
+            if (_orientationMode.enumValueIndex < 0 ||
+                _orientationMode.enumValueIndex >= _orientationMode.enumNames.Length)
+            {
+                return false;
+            }
+
+            return _orientationMode.enumNames[_orientationMode.enumValueIndex] ==
+                   nameof(global::Genix.Orientation.OrientationMode.MatchSupportForward);
         }
 
         private static GUIContent RotationLabel(string name, string axis) =>

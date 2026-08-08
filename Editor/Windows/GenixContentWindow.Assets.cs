@@ -481,7 +481,7 @@ namespace Genix.Editor.Windows
         private void DrawCategoryAssetFilters(AssetCatalog catalog)
         {
             foreach (TagCategory category in catalog.Categories
-                         .Where(category => category)
+                         .Where(category => category && category.SupportsAssets)
                          .OrderBy(category => category.DisplayName))
             {
                 DrawCategoryAssetFilter(catalog, category);
@@ -648,23 +648,19 @@ namespace Genix.Editor.Windows
             AssetSortMode[] modes =
             {
                 AssetSortMode.AlphabeticalAscending,
-                AssetSortMode.AlphabeticalDescending,
                 AssetSortMode.SizeDescending,
                 AssetSortMode.SizeAscending,
                 AssetSortMode.PlacementType,
-                AssetSortMode.TagCountDescending,
                 AssetSortMode.TagCountAscending
             };
 
             string[] labels =
             {
-                "Alphabetical Ascending",
-                "Alphabetical Descending",
-                "Size Descending",
-                "Size Ascending",
+                "Name (A-Z)",
+                "Largest First",
+                "Smallest First",
                 "Placement Type",
-                "Tag Count Descending",
-                "Tag Count Ascending"
+                "Fewest Tags First"
             };
 
             _assetSortMode = DrawSortDropdown(_assetSortMode, modes, labels);
@@ -677,7 +673,10 @@ namespace Genix.Editor.Windows
             if (selectedIndex < 0)
                 selectedIndex = 0;
 
-            GUILayout.Label("Sort by", EditorStyles.label, GUILayout.Width(42f));
+            GUILayout.Label(
+                new GUIContent("Sort by", "Choose how items in this list are ordered."),
+                EditorStyles.label,
+                GUILayout.Width(42f));
 
             selectedIndex = EditorGUILayout.Popup(
                 selectedIndex,

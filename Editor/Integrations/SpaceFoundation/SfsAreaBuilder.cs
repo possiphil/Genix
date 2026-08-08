@@ -24,12 +24,13 @@ namespace Genix.SpaceFoundation.Editor
             out string error)
         {
             float voxelSize = SfsFoundationUtility.GetVoxelSize(SfsFoundationUtility.Find(space, anchor));
-            Stopwatch maskStopwatch = Stopwatch.StartNew();
+            bool collectTiming = settings.profile != null;
+            Stopwatch maskStopwatch = collectTiming ? Stopwatch.StartNew() : null;
             VoxelCellMask subspaceMask = new(subspace);
-            maskStopwatch.Stop();
+            maskStopwatch?.Stop();
             settings.profile?.AddStepTime(
                 AreaBuildProfileStep.VoxelMaskBuild,
-                (float)maskStopwatch.Elapsed.TotalMilliseconds);
+                collectTiming ? (float)maskStopwatch.Elapsed.TotalMilliseconds : 0f);
             PlacementTarget targets = GetBuildTargets(settings);
             bool usesAllSurfaceSearch = settings.UsesAllMatchingSurfaceSearch;
             bool wantsFloor = (targets & PlacementTarget.Floor) != 0;
@@ -45,7 +46,8 @@ namespace Genix.SpaceFoundation.Editor
                 voxelSize,
                 buildFloor,
                 buildCeiling,
-                buildWall);
+                buildWall,
+                collectTiming);
             HashSet<Vector3Int> floorCells = extraction.FloorCells;
             HashSet<Vector3Int> ceilingCells = extraction.CeilingCells;
             List<SurfaceRegion> wallRegions = extraction.WallRegions;
@@ -54,7 +56,7 @@ namespace Genix.SpaceFoundation.Editor
                 AreaBuildProfileStep.VoxelScan,
                 extraction.ScanMilliseconds);
 
-            Stopwatch surfaceStopwatch = Stopwatch.StartNew();
+            Stopwatch surfaceStopwatch = collectTiming ? Stopwatch.StartNew() : null;
             List<SurfaceRegion> floorRegions = buildFloor
                 ? AreaDecomposer.CreateHorizontalRegions(
                     floorCells,
@@ -69,12 +71,12 @@ namespace Genix.SpaceFoundation.Editor
                     settings.decompositionMode,
                     SurfaceKind.Ceiling)
                 : new List<SurfaceRegion>();
-            surfaceStopwatch.Stop();
+            surfaceStopwatch?.Stop();
             if (buildFloor || buildCeiling)
             {
                 settings.profile?.AddStepTime(
                     AreaBuildProfileStep.SurfaceRegionBuild,
-                    (float)surfaceStopwatch.Elapsed.TotalMilliseconds);
+                    collectTiming ? (float)surfaceStopwatch.Elapsed.TotalMilliseconds : 0f);
             }
 
             if (buildWall)
@@ -102,7 +104,7 @@ namespace Genix.SpaceFoundation.Editor
                 wallRegions,
                 ceilingRegions);
 
-            Stopwatch occupancyStopwatch = Stopwatch.StartNew();
+            Stopwatch occupancyStopwatch = collectTiming ? Stopwatch.StartNew() : null;
             area = new PlacementArea(
                 sourceInfo,
                 bounds,
@@ -116,10 +118,10 @@ namespace Genix.SpaceFoundation.Editor
                 ceilingCells,
                 isSourceCollider,
                 subspaceMask);
-            occupancyStopwatch.Stop();
+            occupancyStopwatch?.Stop();
             settings.profile?.AddStepTime(
                 AreaBuildProfileStep.OccupancyBuild,
-                (float)occupancyStopwatch.Elapsed.TotalMilliseconds);
+                collectTiming ? (float)occupancyStopwatch.Elapsed.TotalMilliseconds : 0f);
             error = string.Empty;
             return true;
         }
@@ -167,8 +169,8 @@ namespace Genix.SpaceFoundation.Editor
 
             Vector3Int min = subspace.Min;
             Vector3Int max = subspace.Max;
-            Vector3 minWorld = new(min.x * voxelSize, min.y * voxelSize, min.z * voxelSize);
-            Vector3 maxWorld = new((max.x + 1) * voxelSize, (max.y + 1) * voxelSize, (max.z + 1) * voxelSize);
+            Vector3 minWorld = ((Vector3)min - Vector3.one * 0.5f) * voxelSize;
+            Vector3 maxWorld = ((Vector3)max + Vector3.one * 0.5f) * voxelSize;
             Bounds bounds = new((minWorld + maxWorld) * 0.5f, maxWorld - minWorld);
             return bounds;
         }

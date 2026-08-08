@@ -50,10 +50,6 @@ namespace Genix.Editor.Windows
         {
             return _assetSortMode switch
             {
-                AssetSortMode.AlphabeticalDescending => assets
-                    .OrderByDescending(asset => asset.AssetName, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
                 AssetSortMode.SizeDescending => assets
                     .OrderByDescending(GetAssetBoundsVolume)
                     .ThenBy(asset => asset.AssetName, StringComparer.OrdinalIgnoreCase)
@@ -66,11 +62,6 @@ namespace Genix.Editor.Windows
 
                 AssetSortMode.PlacementType => assets
                     .OrderBy(asset => asset.PlacementType.ToString(), StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(asset => asset.AssetName, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                AssetSortMode.TagCountDescending => assets
-                    .OrderByDescending(asset => GetAssetSemanticTagCount(catalog, asset))
                     .ThenBy(asset => asset.AssetName, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
 
@@ -93,12 +84,15 @@ namespace Genix.Editor.Windows
 
         private static int GetAssetSemanticTagCount(AssetCatalog catalog, AssetDefinition asset)
         {
-            int count = asset.SemanticTags.Count(tag => tag);
+            int count = asset.SemanticTags.Count(tag =>
+                tag && tag.Category && tag.Category.SupportsAssets);
 
             if (!catalog)
                 return count;
 
-            foreach (TagCategory category in asset.AnyTagCategories.Where(category => category).Distinct())
+            foreach (TagCategory category in asset.AnyTagCategories
+                         .Where(category => category && category.SupportsAssets)
+                         .Distinct())
                 count += catalog.Tags.Count(tag => tag && tag.Category == category);
 
             return count;
@@ -110,15 +104,6 @@ namespace Genix.Editor.Windows
         {
             return _categorySortMode switch
             {
-                CategorySortMode.AlphabeticalDescending => categories
-                    .OrderByDescending(category => category.DisplayName, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                CategorySortMode.TagCountDescending => categories
-                    .OrderByDescending(category => GetCategoryTagCount(catalog, category))
-                    .ThenBy(category => category.DisplayName, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
                 CategorySortMode.TagCountAscending => categories
                     .OrderBy(category => GetCategoryTagCount(catalog, category))
                     .ThenBy(category => category.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -139,15 +124,6 @@ namespace Genix.Editor.Windows
         {
             return _tagSortMode switch
             {
-                TagSortMode.AlphabeticalDescending => tags
-                    .OrderByDescending(tag => tag.DisplayName, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                TagSortMode.CategoryDescending => tags
-                    .OrderByDescending(GetTagCategoryName, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(tag => tag.DisplayName, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
                 TagSortMode.AlphabeticalAscending => tags
                     .OrderBy(tag => tag.DisplayName, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
@@ -165,17 +141,8 @@ namespace Genix.Editor.Windows
         {
             return _poolSortMode switch
             {
-                PoolSortMode.AlphabeticalDescending => assetPools
-                    .OrderByDescending(pool => pool.name, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
                 PoolSortMode.AssetCountDescending => assetPools
                     .OrderByDescending(pool => GetPoolAssetCount(catalog, pool))
-                    .ThenBy(pool => pool.name, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                PoolSortMode.AssetCountAscending => assetPools
-                    .OrderBy(pool => GetPoolAssetCount(catalog, pool))
                     .ThenBy(pool => pool.name, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
 
@@ -281,6 +248,9 @@ namespace Genix.Editor.Windows
         {
             foreach (KeyValuePair<TagCategory, List<SemanticTag>> filter in _assetCategoryFilters)
             {
+                if (!filter.Key || !filter.Key.SupportsAssets)
+                    continue;
+
                 List<SemanticTag> selectedTags = filter.Value
                     .Where(tag => tag && tag.Category == filter.Key)
                     .Distinct()

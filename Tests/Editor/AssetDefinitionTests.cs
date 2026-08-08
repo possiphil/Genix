@@ -59,6 +59,20 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void PlacementLimitAndWallRelationshipExposeSanitizedValues()
+        {
+            _asset.SetPlacementLimit(true, -3);
+            _asset.SetWallProximity(WallProximityMode.NearWall, -2f);
+
+            Assert.That(_asset.LimitPlacements, Is.True);
+            Assert.That(_asset.MaxPlacements, Is.EqualTo(1));
+            Assert.That(_asset.HasReachedPlacementLimit(0), Is.False);
+            Assert.That(_asset.HasReachedPlacementLimit(1), Is.True);
+            Assert.That(_asset.WallProximityMode, Is.EqualTo(WallProximityMode.NearWall));
+            Assert.That(_asset.WallDistance, Is.Zero);
+        }
+
+        [Test]
         public void BoundsCenterAndSurfaceLimitsExposeSanitizedValues()
         {
             _asset.SetBoundsCenterOffset(new Vector3(3f, 2f, 1f));
@@ -85,6 +99,41 @@ namespace Genix.Tests
 
             _asset.RemoveTag(_tag);
             Assert.That(_asset.HasTag(_tag), Is.False);
+        }
+
+        [Test]
+        public void TagCategoryUsageSeparatesAssetAndSurfaceAssignments()
+        {
+            TagCategory surfaceCategory = ScriptableObject.CreateInstance<TagCategory>();
+            TagCategory sharedCategory = ScriptableObject.CreateInstance<TagCategory>();
+            SemanticTag surfaceTag = ScriptableObject.CreateInstance<SemanticTag>();
+            SemanticTag sharedTag = ScriptableObject.CreateInstance<SemanticTag>();
+            surfaceCategory.Initialize(true, TagCategoryUsage.Surface);
+            sharedCategory.Initialize(true, TagCategoryUsage.AssetAndSurface);
+            surfaceTag.Initialize(surfaceCategory);
+            sharedTag.Initialize(sharedCategory);
+
+            try
+            {
+                _asset.AddTag(surfaceTag);
+                _asset.AddTag(sharedTag);
+                _asset.SetRequiredSupportTags(new[] { _tag, surfaceTag, sharedTag });
+
+                Assert.That(_category.Usage, Is.EqualTo(TagCategoryUsage.Asset));
+                Assert.That(surfaceCategory.SupportsAssets, Is.False);
+                Assert.That(surfaceCategory.SupportsSurfaces, Is.True);
+                Assert.That(sharedCategory.SupportsAssets, Is.True);
+                Assert.That(sharedCategory.SupportsSurfaces, Is.True);
+                Assert.That(_asset.SemanticTags, Is.EqualTo(new[] { sharedTag }));
+                Assert.That(_asset.RequiredSupportTags, Is.EqualTo(new[] { surfaceTag, sharedTag }));
+            }
+            finally
+            {
+                Object.DestroyImmediate(sharedTag);
+                Object.DestroyImmediate(surfaceTag);
+                Object.DestroyImmediate(sharedCategory);
+                Object.DestroyImmediate(surfaceCategory);
+            }
         }
 
         [Test]

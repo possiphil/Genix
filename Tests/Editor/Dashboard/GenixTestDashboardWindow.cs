@@ -90,7 +90,7 @@ namespace Genix.Tests.Dashboard
             {
                 EditorGUI.BeginChangeCheck();
                 _preset = (GenixTestPreset)EditorGUILayout.EnumPopup(
-                    new GUIContent("Preset", "Quick runs the fast smoke suite. Full adds property, workflow, and snapshot tests. Stress adds high-volume robustness runs. Performance runs repeatable benchmarks only."),
+                    new GUIContent("Preset", "Quick runs the fast smoke suite. Full adds property, workflow, and snapshot tests. Stress adds high-volume robustness runs. Scene performance is measured separately in Genix Benchmarks."),
                     _preset,
                     EditorStyles.toolbarPopup,
                     GUILayout.Width(380f));
@@ -356,7 +356,6 @@ namespace Genix.Tests.Dashboard
                 GenixTestPreset.Quick => new[] { GenixTestCategories.Quick },
                 GenixTestPreset.Full => new[] { GenixTestCategories.Full },
                 GenixTestPreset.Stress => new[] { GenixTestCategories.Full, GenixTestCategories.Stress },
-                GenixTestPreset.Performance => new[] { GenixTestCategories.Performance },
                 _ => Array.Empty<string>()
             };
 

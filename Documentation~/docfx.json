@@ -1,0 +1,50 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "../../space-foundation-system/Temp/Bin/Debug/Genix.Runtime",
+          "files": ["Genix.Runtime.dll"]
+        },
+        {
+          "src": "../../space-foundation-system/Temp/Bin/Debug/Genix.Editor.Common",
+          "files": ["Genix.Editor.Common.dll"]
+        },
+        {
+          "src": "../../space-foundation-system/Temp/Bin/Debug/Genix.SpaceFoundation.Editor",
+          "files": ["Genix.SpaceFoundation.Editor.dll"]
+        },
+        {
+          "src": "../../space-foundation-system/Temp/Bin/Debug/Genix.Editor",
+          "files": ["Genix.Editor.dll"]
+        }
+      ],
+      "dest": "api"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "**/*.md",
+          "toc.yml"
+        ],
+        "exclude": [
+          "_site/**",
+          "api/**"
+        ]
+      },
+      {
+        "files": [
+          "api/**.yml"
+        ]
+      }
+    ],
+    "dest": "_site",
+    "globalMetadata": {
+      "_appName": "Genix",
+      "_appTitle": "Genix Documentation",
+      "_enableSearch": true
+    }
+  }
+}

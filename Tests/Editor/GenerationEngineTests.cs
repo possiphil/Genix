@@ -44,6 +44,25 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void PlacementLimitStopsAtConfiguredAssetMaximum()
+        {
+            AssetDefinition asset = _scene.CreateAsset("Unique Smoke Detector");
+            asset.SetPlacementLimit(true, 1);
+            GenerationContext context = _scene.CreateContext(_scene.CreateRequest(count: 4));
+
+            GenerationOutcome outcome = GenerationEngine.BuildPlan(
+                context,
+                new[] { asset },
+                NullDiagnosticsSink.Instance);
+
+            Assert.That(outcome.ShouldApply, Is.True, outcome.Message);
+            Assert.That(outcome.IsComplete, Is.False);
+            Assert.That(outcome.PlacedCount, Is.EqualTo(1));
+            Assert.That(context.Plan.GetAssetCount(asset), Is.EqualTo(1));
+            Assert.That(outcome.Message, Does.Contain("Max Placements"));
+        }
+
+        [Test]
         public void FixedSeedProducesSamePlanAfterCandidateCacheClear()
         {
             AssetDefinition asset = _scene.CreateAsset("Deterministic Floor");

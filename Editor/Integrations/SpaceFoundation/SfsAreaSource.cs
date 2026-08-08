@@ -65,7 +65,8 @@ namespace Genix.SpaceFoundation.Editor
             }
 
             float voxelSize = SfsFoundationUtility.GetVoxelSize(SfsFoundationUtility.Find(_space, Anchor));
-            Stopwatch memoryCacheLookupStopwatch = Stopwatch.StartNew();
+            bool collectTiming = settings.profile != null;
+            Stopwatch memoryCacheLookupStopwatch = collectTiming ? Stopwatch.StartNew() : null;
 
             if (SfsAreaCache.TryGetMemory(
                     _space,
@@ -74,34 +75,38 @@ namespace Genix.SpaceFoundation.Editor
                     voxelSize,
                     out area))
             {
-                memoryCacheLookupStopwatch.Stop();
+                memoryCacheLookupStopwatch?.Stop();
                 settings.profile?.AddStepTime(
                     AreaBuildProfileStep.AreaCacheLookup,
-                    (float)memoryCacheLookupStopwatch.Elapsed.TotalMilliseconds);
+                    collectTiming ? (float)memoryCacheLookupStopwatch.Elapsed.TotalMilliseconds : 0f);
                 error = string.Empty;
                 return true;
             }
 
-            memoryCacheLookupStopwatch.Stop();
+            memoryCacheLookupStopwatch?.Stop();
 
-            Stopwatch subspaceStopwatch = Stopwatch.StartNew();
+            Stopwatch subspaceStopwatch = collectTiming ? Stopwatch.StartNew() : null;
             HashSet<Vector3Int> subspace = SfsSubspaceProvider.Resolve(
                 _space,
                 Anchor,
-                out SfsSubspaceResolutionInfo subspaceInfo);
-            subspaceStopwatch.Stop();
+                out SfsSubspaceResolutionInfo subspaceInfo,
+                collectTiming);
+            subspaceStopwatch?.Stop();
             settings.profile?.AddStepTime(
                 AreaBuildProfileStep.SubspaceResolve,
-                Mathf.Max(0f, (float)subspaceStopwatch.Elapsed.TotalMilliseconds - subspaceInfo.StoreMilliseconds));
+                collectTiming
+                    ? Mathf.Max(0f, (float)subspaceStopwatch.Elapsed.TotalMilliseconds - subspaceInfo.StoreMilliseconds)
+                    : 0f);
             settings.profile?.AddStepTime(
                 AreaBuildProfileStep.LiveCacheStore,
                 subspaceInfo.StoreMilliseconds);
 
-            LogSubspaceResolution(_space.name, subspaceInfo);
+            if (collectTiming)
+                LogSubspaceResolution(_space.name, subspaceInfo);
 
             if (subspace != null && subspace.Count > 0)
             {
-                Stopwatch cacheLookupStopwatch = Stopwatch.StartNew();
+                Stopwatch cacheLookupStopwatch = collectTiming ? Stopwatch.StartNew() : null;
 
                 if (SfsAreaCache.TryGet(
                         _space,
@@ -115,18 +120,18 @@ namespace Genix.SpaceFoundation.Editor
                         IsSourceCollider,
                         out area))
                 {
-                    cacheLookupStopwatch.Stop();
+                    cacheLookupStopwatch?.Stop();
                     settings.profile?.AddStepTime(
                         AreaBuildProfileStep.AreaCacheLookup,
-                        (float)cacheLookupStopwatch.Elapsed.TotalMilliseconds);
+                        collectTiming ? (float)cacheLookupStopwatch.Elapsed.TotalMilliseconds : 0f);
                     error = string.Empty;
                     return true;
                 }
 
-                cacheLookupStopwatch.Stop();
+                cacheLookupStopwatch?.Stop();
                 settings.profile?.AddStepTime(
                     AreaBuildProfileStep.AreaCacheLookup,
-                    (float)cacheLookupStopwatch.Elapsed.TotalMilliseconds);
+                    collectTiming ? (float)cacheLookupStopwatch.Elapsed.TotalMilliseconds : 0f);
 
                 return SfsAreaBuilder.TryBuild(
                     _space,
@@ -178,12 +183,13 @@ namespace Genix.SpaceFoundation.Editor
             float voxelSize,
             PlacementArea area)
         {
-            Stopwatch stopwatch = Stopwatch.StartNew();
+            bool collectTiming = settings.profile != null;
+            Stopwatch stopwatch = collectTiming ? Stopwatch.StartNew() : null;
             SfsAreaCache.Store(space, anchor, settings, subspaceInfo, subspaceCellCount, voxelSize, area);
-            stopwatch.Stop();
+            stopwatch?.Stop();
             settings.profile?.AddStepTime(
                 AreaBuildProfileStep.AreaCacheStore,
-                (float)stopwatch.Elapsed.TotalMilliseconds);
+                collectTiming ? (float)stopwatch.Elapsed.TotalMilliseconds : 0f);
             return true;
         }
 

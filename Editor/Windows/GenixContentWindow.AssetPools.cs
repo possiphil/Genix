@@ -133,19 +133,15 @@ namespace Genix.Editor.Windows
             PoolSortMode[] modes =
             {
                 PoolSortMode.AlphabeticalAscending,
-                PoolSortMode.AlphabeticalDescending,
                 PoolSortMode.AssetCountDescending,
-                PoolSortMode.AssetCountAscending,
                 PoolSortMode.Mode
             };
 
             string[] labels =
             {
-                "Alphabetical Ascending",
-                "Alphabetical Descending",
-                "Asset Count Descending",
-                "Asset Count Ascending",
-                "Mode"
+                "Name (A-Z)",
+                "Most Assets First",
+                "Pool Mode"
             };
 
             _poolSortMode = DrawSortDropdown(_poolSortMode, modes, labels);

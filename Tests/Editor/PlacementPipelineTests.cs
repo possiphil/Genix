@@ -91,7 +91,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void CandidateFactoryOffsetsWallByDepthAndPlacementHeight()
+        public void CandidateFactoryOffsetsWallByDepthHalfHeightAndPlacementHeight()
         {
             AssetDefinition asset = CreateAsset("Wall", PlacementType.Wall, new Vector3(2f, 3f, 4f));
             SetSerialized(asset, "placementHeight", 1.5f);
@@ -104,9 +104,132 @@ namespace Genix.Tests
 
             PlacementCandidate candidate = CandidateFactory.Create(seed, context, asset, 0, 1, 0f);
 
-            Assert.That(candidate.Position, Is.EqualTo(new Vector3(1f, 3.5f, 1f)));
-            Assert.That(Vector3.Dot(candidate.Rotation * Vector3.up, Vector3.back), Is.EqualTo(1f).Within(0.0001f));
-            Assert.That(Vector3.Dot(candidate.Rotation * Vector3.forward, Vector3.back), Is.EqualTo(0f).Within(0.0001f));
+            Assert.That(candidate.Position, Is.EqualTo(new Vector3(1f, 5f, 1f)));
+            Assert.That(Vector3.Dot(candidate.Rotation * Vector3.forward, Vector3.back), Is.EqualTo(1f).Within(0.0001f));
+            Assert.That(Vector3.Dot(candidate.Rotation * Vector3.up, Vector3.up), Is.EqualTo(1f).Within(0.0001f));
+        }
+
+        [Test]
+        public void CandidateFactoryPlacesZeroHeightWallAssetFlushWithBaseline()
+        {
+            AssetDefinition asset = CreateAsset("Wall", PlacementType.Wall, new Vector3(2f, 3f, 4f));
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random, PlacementTarget.Wall);
+            CandidateSeed seed = new(
+                new Vector3(1f, 2f, 3f),
+                Quaternion.identity,
+                surfaceNormal: Vector3.back,
+                placementType: PlacementType.Wall);
+
+            PlacementCandidate candidate = CandidateFactory.Create(seed, context, asset, 0, 1, 0f);
+
+            Assert.That(candidate.Position.y, Is.EqualTo(3.5f));
+        }
+
+        [Test]
+        public void CandidateFactoryAppliesAdaptiveWallFitAcrossTheWallFootprint()
+        {
+            GameObject wall = CreateGameObject("Adaptive Wall Surface");
+            wall.transform.position = new Vector3(0f, 2.5f, -5.25f);
+            BoxCollider collider = wall.AddComponent<BoxCollider>();
+            collider.size = new Vector3(8f, 5f, 0.5f);
+            Physics.SyncTransforms();
+            AssetDefinition asset = CreateAsset("Adaptive Wall", PlacementType.Wall, new Vector3(2f, 2f, 0.5f));
+            SetSerialized(asset, "surfaceFitMode", SurfaceFitMode.Adaptive);
+            SetSerialized(asset, "minSurfaceSupport", 1f);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random, PlacementTarget.Wall);
+            CandidateSeed seed = new(
+                new Vector3(0f, 1.5f, -5f),
+                Quaternion.LookRotation(Vector3.forward, Vector3.up),
+                collider,
+                Vector3.forward,
+                placementType: PlacementType.Wall);
+
+            PlacementCandidate candidate = CandidateFactory.Create(seed, context, asset, 0, 1, 0f);
+
+            Assert.That(candidate.HasSurfaceFit, Is.True);
+            Assert.That(candidate.SurfaceFit.SupportRatio, Is.EqualTo(1f).Within(0.0001f));
+            Assert.That(candidate.Position.z, Is.EqualTo(-4.75f).Within(0.001f));
+        }
+
+        [Test]
+        public void ValidatorRejectsAdaptiveWallWithoutFootprintSupport()
+        {
+            GameObject wall = CreateGameObject("Narrow Adaptive Wall Surface");
+            wall.transform.position = new Vector3(0f, 2.5f, -5.25f);
+            BoxCollider collider = wall.AddComponent<BoxCollider>();
+            collider.size = new Vector3(0.5f, 5f, 0.5f);
+            Physics.SyncTransforms();
+            AssetDefinition asset = CreateAsset("Unsupported Adaptive Wall", PlacementType.Wall, new Vector3(2f, 2f, 0.5f));
+            SetSerialized(asset, "surfaceFitMode", SurfaceFitMode.Adaptive);
+            SetSerialized(asset, "minSurfaceSupport", 1f);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random, PlacementTarget.Wall);
+            CandidateSeed seed = new(
+                new Vector3(0f, 1.5f, -5f),
+                Quaternion.LookRotation(Vector3.forward, Vector3.up),
+                collider,
+                Vector3.forward,
+                placementType: PlacementType.Wall);
+            PlacementCandidate candidate = CandidateFactory.Create(seed, context, asset, 0, 1, 0f);
+
+            bool valid = PlacementValidator.TryValidateCandidate(
+                candidate,
+                CandidateFactory.GetBounds(candidate, asset),
+                context,
+                asset,
+                out RejectionReason reason,
+                out _);
+
+            Assert.That(candidate.HasSurfaceFit, Is.False);
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.InsufficientSurfaceSupport));
+        }
+
+        [Test]
+        public void CandidateFactoryFixedWallHeightUsesAssetBottomAboveTargetMinimum()
+        {
+            AssetDefinition asset = CreateAsset("Fixed Wall", PlacementType.Wall, new Vector3(2f, 2f, 0.5f));
+            SetSerialized(asset, "wallVerticalPlacementMode", WallVerticalPlacementMode.FixedHeight);
+            SetSerialized(asset, "placementHeight", 1.25f);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random, PlacementTarget.Wall);
+            CandidateSeed lowSeed = new(
+                new Vector3(-2f, 0f, -5f),
+                Quaternion.identity,
+                surfaceNormal: Vector3.forward,
+                placementType: PlacementType.Wall);
+            CandidateSeed highSeed = new(
+                new Vector3(2f, 4f, -5f),
+                Quaternion.identity,
+                surfaceNormal: Vector3.forward,
+                placementType: PlacementType.Wall);
+
+            PlacementCandidate low = CandidateFactory.Create(lowSeed, context, asset, 0, 1, 0f);
+            PlacementCandidate high = CandidateFactory.Create(highSeed, context, asset, 0, 1, 0f);
+
+            float expectedCenterY = context.TargetBounds.min.y + 1.25f + asset.Height * 0.5f;
+            Assert.That(low.Position.y, Is.EqualTo(expectedCenterY).Within(0.0001f));
+            Assert.That(high.Position.y, Is.EqualTo(expectedCenterY).Within(0.0001f));
+        }
+
+        [Test]
+        public void CandidateFactoryWallHeightRangeIsBoundedAndStableAcrossRotationAttempts()
+        {
+            AssetDefinition asset = CreateAsset("Ranged Wall", PlacementType.Wall, new Vector3(2f, 1f, 0.5f));
+            SetSerialized(asset, "wallVerticalPlacementMode", WallVerticalPlacementMode.HeightRange);
+            SetSerialized(asset, "wallMinHeight", 1f);
+            SetSerialized(asset, "wallMaxHeight", 3f);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random, PlacementTarget.Wall);
+            CandidateSeed seed = new(
+                new Vector3(1.5f, 2f, -5f),
+                Quaternion.identity,
+                surfaceNormal: Vector3.forward,
+                placementType: PlacementType.Wall);
+
+            PlacementCandidate first = CandidateFactory.Create(seed, context, asset, 0, 8, 15f);
+            PlacementCandidate second = CandidateFactory.Create(seed, context, asset, 1, 8, 15f);
+            float bottomY = first.Position.y - asset.Height * 0.5f;
+
+            Assert.That(bottomY, Is.InRange(context.TargetBounds.min.y + 1f, context.TargetBounds.min.y + 3f));
+            Assert.That(second.Position.y, Is.EqualTo(first.Position.y).Within(0.0001f));
         }
 
         [TestCase(PlacementType.Wall, 1)]
@@ -118,6 +241,28 @@ namespace Genix.Tests
             GenerationContext context = CreateContext(SamplingAlgorithm.Random, ToTarget(placementType));
 
             Assert.That(CandidateFactory.GetRotationAttemptCount(context, asset, placementType), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void WallRandomRollUsesMultipleFlushRotationVariants()
+        {
+            AssetDefinition asset = CreateAsset("Wall", PlacementType.Wall, new Vector3(2f, 3f, 0.4f));
+            SetSerialized(asset, "randomRollRotation", true);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random, PlacementTarget.Wall);
+            CandidateSeed seed = new(
+                new Vector3(1f, 2f, 3f),
+                Quaternion.LookRotation(Vector3.back, Vector3.up),
+                surfaceNormal: Vector3.back,
+                placementType: PlacementType.Wall);
+
+            int rotationCount = CandidateFactory.GetRotationAttemptCount(context, asset, PlacementType.Wall);
+            PlacementCandidate candidate = CandidateFactory.Create(seed, context, asset, 0, rotationCount, 90f);
+            Bounds bounds = CandidateFactory.GetBounds(candidate, asset).ToAxisAlignedBounds();
+
+            Assert.That(rotationCount, Is.EqualTo(8));
+            Assert.That(Vector3.Dot(candidate.Rotation * Vector3.forward, Vector3.back), Is.EqualTo(1f).Within(0.0001f));
+            Assert.That(Mathf.Abs(Vector3.Dot(candidate.Rotation * Vector3.up, Vector3.up)), Is.LessThan(0.0001f));
+            Assert.That(bounds.min.y, Is.EqualTo(seed.Position.y).Within(0.0001f));
         }
 
         [Test]
@@ -185,6 +330,17 @@ namespace Genix.Tests
 
             Assert.That(valid, Is.False);
             Assert.That(reason, Is.EqualTo(RejectionReason.ExceedsTargetHeight));
+        }
+
+        [Test]
+        public void ValidatorAcceptsCandidateWithinTargetHeightTolerance()
+        {
+            Bounds targetBounds = new(new Vector3(0f, 2.5f, 0f), new Vector3(10f, 5f, 10f));
+            Bounds candidateBounds = new(
+                new Vector3(0f, 0.5f - 0.0001f, 0f),
+                Vector3.one);
+
+            Assert.That(PlacementValidator.FitsTargetHeight(candidateBounds, targetBounds), Is.True);
         }
 
         [Test]
@@ -291,6 +447,54 @@ namespace Genix.Tests
                 null,
                 context,
                 out _), Is.False);
+        }
+
+        [Test]
+        public void ValidatorUsesThreeDimensionalPoissonSpacingForWalls()
+        {
+            AssetDefinition asset = CreateAsset("Wall", PlacementType.Wall, Vector3.one);
+            GenerationContext context = CreateContext(
+                SamplingAlgorithm.BridsonPoissonDisk,
+                PlacementTarget.Wall,
+                poissonDistance: 1.2f);
+            PlacementCandidate existing = WallCandidate(new Vector3(0f, 1f, -4.5f));
+            context.Plan.Add(asset, existing, "Existing Wall Object");
+            PlacementCandidate verticallySeparated = WallCandidate(new Vector3(0f, 3f, -4.5f));
+
+            bool valid = PlacementValidator.TryValidateCandidate(
+                verticallySeparated,
+                new OrientedBounds(verticallySeparated.Position, Vector3.one, Quaternion.identity),
+                context,
+                asset,
+                out RejectionReason reason,
+                out _);
+
+            Assert.That(valid, Is.True);
+            Assert.That(reason, Is.EqualTo(RejectionReason.None));
+        }
+
+        [Test]
+        public void ValidatorRejectsWallCandidateWithinThreeDimensionalPoissonDistance()
+        {
+            AssetDefinition asset = CreateAsset("Wall", PlacementType.Wall, Vector3.one);
+            GenerationContext context = CreateContext(
+                SamplingAlgorithm.BridsonPoissonDisk,
+                PlacementTarget.Wall,
+                poissonDistance: 1.2f);
+            context.Plan.Add(asset, WallCandidate(new Vector3(0f, 1f, -4.5f)), "Existing Wall Object");
+            PlacementCandidate nearby = WallCandidate(new Vector3(0f, 1.75f, -4.5f));
+
+            bool valid = PlacementValidator.TryValidateCandidate(
+                nearby,
+                new OrientedBounds(nearby.Position, Vector3.one, Quaternion.identity),
+                context,
+                asset,
+                out RejectionReason reason,
+                out string relatedName);
+
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.TooCloseToGenerated));
+            Assert.That(relatedName, Is.EqualTo("Existing Wall Object"));
         }
 
         [Test]
@@ -475,6 +679,387 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void SupportRulesRequireAtLeastOneConfiguredTag()
+        {
+            SemanticTag desktop = CreateTag("Desktop");
+            SemanticTag shelf = CreateTag("Shelf");
+            AssetDefinition asset = CreateAsset("Monitor", PlacementType.Floor, Vector3.one);
+            asset.SetRequiredSupportTags(new[] { desktop, shelf });
+            GameObject support = CreateGameObject("Desk Top");
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetSurfaceTags(new[] { desktop });
+            CandidateSeed seed = new(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+
+            bool valid = PlacementSupportRules.TryValidate(
+                seed,
+                asset,
+                CreateContext(SamplingAlgorithm.Random),
+                out RejectionReason reason,
+                out _);
+
+            Assert.That(valid, Is.True);
+            Assert.That(reason, Is.EqualTo(RejectionReason.None));
+        }
+
+        [Test]
+        public void ForbiddenSupportTagTakesPrecedenceOverRequiredTag()
+        {
+            SemanticTag desktop = CreateTag("Desktop");
+            AssetDefinition asset = CreateAsset("Conflicting Monitor", PlacementType.Floor, Vector3.one);
+            asset.SetRequiredSupportTags(new[] { desktop });
+            asset.SetForbiddenSupportTags(new[] { desktop });
+            GameObject support = CreateGameObject("Forbidden Desk Top");
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetSurfaceTags(new[] { desktop });
+            CandidateSeed seed = new(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+
+            bool valid = PlacementSupportRules.TryValidate(
+                seed,
+                asset,
+                CreateContext(SamplingAlgorithm.Random),
+                out RejectionReason reason,
+                out string relatedName);
+
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.UnsupportedSupportSurface));
+            Assert.That(relatedName, Is.EqualTo(descriptor.name));
+        }
+
+        [Test]
+        public void SurfaceCategoryDefaultsToAnySupportTag()
+        {
+            SemanticTag desktop = CreateTag("Any Desktop");
+            AssetDefinition asset = CreateAsset("Any Monitor", PlacementType.Floor, Vector3.one);
+            asset.SetRequiredSupportTags(new[] { desktop });
+            GameObject support = CreateGameObject("Generic Surface");
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            support.AddComponent<PlacementSurfaceDescriptor>();
+            CandidateSeed seed = new(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+
+            Assert.That(PlacementSupportRules.TryValidate(
+                seed,
+                asset,
+                CreateContext(SamplingAlgorithm.Random),
+                out _,
+                out _), Is.True);
+        }
+
+        [Test]
+        public void SurfaceCategoryNoneRejectsRequiredSupportTag()
+        {
+            SemanticTag desktop = CreateTag("No Desktop");
+            AssetDefinition asset = CreateAsset("Rejected Monitor", PlacementType.Floor, Vector3.one);
+            asset.SetRequiredSupportTags(new[] { desktop });
+            GameObject support = CreateGameObject("Explicitly Untagged Surface");
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetCategorySelection(desktop.Category, Array.Empty<SemanticTag>(), true);
+            CandidateSeed seed = new(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+
+            bool valid = PlacementSupportRules.TryValidate(
+                seed,
+                asset,
+                CreateContext(SamplingAlgorithm.Random),
+                out RejectionReason reason,
+                out _);
+
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.UnsupportedSupportSurface));
+        }
+
+        [Test]
+        public void RequiredNoneAndForbiddenAnyBothDisablePlacement()
+        {
+            SemanticTag supportTag = CreateTag("Blocked Support");
+            AssetDefinition requiredNone = CreateAsset("Required None", PlacementType.Floor, Vector3.one);
+            requiredNone.SetRequiredSupportNoneCategories(new[] { supportTag.Category });
+            AssetDefinition forbiddenAny = CreateAsset("Forbidden Any", PlacementType.Floor, Vector3.one);
+            forbiddenAny.SetForbiddenSupportAnyCategories(new[] { supportTag.Category });
+            GameObject support = CreateGameObject("Support");
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            support.AddComponent<PlacementSurfaceDescriptor>();
+            CandidateSeed seed = new(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random);
+
+            Assert.That(PlacementSupportRules.TryValidate(
+                seed,
+                requiredNone,
+                context,
+                out RejectionReason requiredReason,
+                out _), Is.False);
+            Assert.That(requiredReason, Is.EqualTo(RejectionReason.UnsupportedSupportSurface));
+            Assert.That(PlacementSupportRules.TryValidate(
+                seed,
+                forbiddenAny,
+                context,
+                out RejectionReason forbiddenReason,
+                out _), Is.False);
+            Assert.That(forbiddenReason, Is.EqualTo(RejectionReason.UnsupportedSupportSurface));
+        }
+
+        [Test]
+        public void NearWallAcceptsCloseCandidateAndRejectsDistantCandidate()
+        {
+            AssetDefinition asset = CreateAsset("Near Wall Desk", PlacementType.Floor, Vector3.one);
+            asset.SetWallProximity(WallProximityMode.NearWall, 0.6f);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random);
+            PlacementCandidate close = FloorCandidate(new Vector3(0f, 0f, -4f));
+            PlacementCandidate distant = FloorCandidate(Vector3.zero);
+
+            Assert.That(PlacementValidator.TryValidateCandidate(
+                close,
+                new OrientedBounds(close.Position, Vector3.one, Quaternion.identity),
+                context,
+                asset,
+                out _,
+                out _), Is.True);
+            Assert.That(PlacementValidator.TryValidateCandidate(
+                distant,
+                new OrientedBounds(distant.Position, Vector3.one, Quaternion.identity),
+                context,
+                asset,
+                out RejectionReason reason,
+                out string wallName), Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.TooFarFromWall));
+            Assert.That(wallName, Is.EqualTo("Wall"));
+        }
+
+        [Test]
+        public void AwayFromWallRejectsCandidateInsideClearance()
+        {
+            AssetDefinition asset = CreateAsset("Open Area Table", PlacementType.Floor, Vector3.one);
+            asset.SetWallProximity(WallProximityMode.AwayFromWall, 1f);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random);
+            PlacementCandidate candidate = FloorCandidate(new Vector3(0f, 0f, -4f));
+
+            bool valid = PlacementValidator.TryValidateCandidate(
+                candidate,
+                new OrientedBounds(candidate.Position, Vector3.one, Quaternion.identity),
+                context,
+                asset,
+                out RejectionReason reason,
+                out string wallName);
+
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.TooCloseToWall));
+            Assert.That(wallName, Is.EqualTo("Wall"));
+        }
+
+        [Test]
+        public void SupportCapacityCountsObjectsAlreadyAcceptedIntoPlan()
+        {
+            AssetDefinition asset = CreateAsset("Capacity Asset", PlacementType.Floor, Vector3.one);
+            GameObject support = CreateGameObject("Single Capacity Surface");
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetCapacity(true, 1);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random);
+            CandidateSeed seed = new(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+            PlacementCandidate candidate = new(
+                Vector3.up * 0.5f,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+            context.Plan.Add(asset, candidate, "First");
+
+            bool valid = PlacementSupportRules.TryValidate(
+                seed,
+                asset,
+                context,
+                out RejectionReason reason,
+                out _);
+
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.SupportCapacityReached));
+        }
+
+        [Test]
+        public void LimitedSupportCapacityOfZeroRejectsFirstPlacement()
+        {
+            AssetDefinition asset = CreateAsset("Blocked Capacity Asset", PlacementType.Floor, Vector3.one);
+            GameObject support = CreateGameObject("Blocked Surface");
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetCapacity(true, 0);
+            CandidateSeed seed = new(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+
+            bool valid = PlacementSupportRules.TryValidate(
+                seed,
+                asset,
+                CreateContext(SamplingAlgorithm.Random),
+                out RejectionReason reason,
+                out string relatedName);
+
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.SupportCapacityReached));
+            Assert.That(relatedName, Is.EqualTo(descriptor.name));
+        }
+
+        [Test]
+        public void SupportCapacityCountsExistingGeneratedMetadataAcrossRuns()
+        {
+            AssetDefinition asset = CreateAsset("Persistent Capacity Asset", PlacementType.Floor, Vector3.one);
+            GameObject support = CreateGameObject("Persistent Capacity Surface");
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetCapacity(true, 1);
+            GameObject existing = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            _objects.Add(existing);
+            existing.name = "Existing Supported Object";
+            existing.transform.SetParent(_generatedRoot.transform);
+            existing.AddComponent<Genix.Layouts.GeneratedObjectMetadata>()
+                .Initialize(PlacementType.Floor, descriptor);
+            SceneObjectIndex generated = SceneObjectIndex.CollectGenerated(_generatedRoot.transform);
+            GenerationContext context = CreateContext(
+                SamplingAlgorithm.Random,
+                generatedObjects: generated);
+            CandidateSeed seed = new(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+
+            bool valid = PlacementSupportRules.TryValidate(
+                seed,
+                asset,
+                context,
+                out RejectionReason reason,
+                out _);
+
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.SupportCapacityReached));
+        }
+
+        [Test]
+        public void MatchSupportForwardUsesDescriptorTransformDirection()
+        {
+            AssetDefinition asset = CreateAsset("Support Facing", PlacementType.Floor, Vector3.one);
+            SetSerialized(asset, "orientationMode", Genix.Orientation.OrientationMode.MatchSupportForward);
+            GameObject support = CreateGameObject("Facing Surface");
+            support.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetPreferredForwardEnabled(true);
+            CandidateSeed seed = new(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random);
+
+            Assert.That(PlacementSupportRules.TryValidate(seed, asset, context, out _, out _), Is.True);
+            PlacementCandidate candidate = CandidateFactory.Create(seed, context, asset, 0, 1, 0f);
+
+            Assert.That(
+                Vector3.Dot(candidate.Rotation * Vector3.forward, Vector3.right),
+                Is.EqualTo(1f).Within(0.0001f));
+        }
+
+        [Test]
+        public void MatchSupportForwardRejectsSurfaceWithoutPreferredDirection()
+        {
+            AssetDefinition asset = CreateAsset("Missing Support Facing", PlacementType.Floor, Vector3.one);
+            SetSerialized(asset, "orientationMode", Genix.Orientation.OrientationMode.MatchSupportForward);
+            GameObject support = CreateGameObject("Directionless Surface");
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetPreferredForwardEnabled(false);
+            CandidateSeed seed = new(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
+
+            bool valid = PlacementSupportRules.TryValidate(
+                seed,
+                asset,
+                CreateContext(SamplingAlgorithm.Random),
+                out RejectionReason reason,
+                out string relatedName);
+
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.MissingSupportDirection));
+            Assert.That(relatedName, Is.EqualTo(descriptor.name));
+        }
+
+        [Test]
+        public void ValidatorRejectsCandidateInsideColliderFreeExclusionBox()
+        {
+            GameObject regionObject = CreateGameObject("Door Clearance");
+            regionObject.transform.position = new Vector3(0f, 0.5f, 0f);
+            PlacementExclusionRegion region = regionObject.AddComponent<PlacementExclusionRegion>();
+            region.ConfigureBox(Vector3.zero, new Vector3(2f, 2f, 2f), PlacementTarget.Floor);
+            GenerationContext context = CreateContext(SamplingAlgorithm.Random);
+            PlacementCandidate candidate = FloorCandidate(Vector3.zero);
+
+            bool valid = PlacementValidator.TryValidateCandidate(
+                candidate,
+                new OrientedBounds(candidate.Position, Vector3.one, Quaternion.identity),
+                context,
+                null,
+                out RejectionReason reason,
+                out string relatedName);
+
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.InsideExclusionRegion));
+            Assert.That(relatedName, Is.EqualTo(region.name));
+            Assert.That(region.GetComponent<Collider>(), Is.Null);
+        }
+
+        [Test]
+        public void SphereExclusionOnlyAffectsSelectedPlacementTargets()
+        {
+            GameObject regionObject = CreateGameObject("Radial Clearance");
+            PlacementExclusionRegion region = regionObject.AddComponent<PlacementExclusionRegion>();
+            region.ConfigureSphere(Vector3.zero, 2f, PlacementTarget.InsideSpace);
+            OrientedBounds bounds = new(Vector3.zero, Vector3.one, Quaternion.identity);
+
+            Assert.That(region.Intersects(bounds, PlacementType.InsideSpace), Is.True);
+            Assert.That(region.Intersects(bounds, PlacementType.Floor), Is.False);
+        }
+
+        [Test]
         public void ValidatorRejectsOverlapWithFixedSceneObject()
         {
             GameObject fixedObject = CreateFixedBox("Fixed Obstacle", new Vector3(0f, 0.5f, 0f));
@@ -499,6 +1084,66 @@ namespace Genix.Tests
             Assert.That(valid, Is.False);
             Assert.That(reason, Is.EqualTo(RejectionReason.OverlapsFixed));
             Assert.That(relatedName, Is.EqualTo(fixedObject.GetComponent<BoxCollider>().name));
+        }
+
+        [Test]
+        public void ValidatorAcceptsCandidateThatOnlyTouchesFixedSurface()
+        {
+            GameObject fixedSurface = CreateGameObject("Fixed Floor");
+            fixedSurface.transform.position = new Vector3(0f, -0.05f, 0f);
+            BoxCollider surfaceCollider = fixedSurface.AddComponent<BoxCollider>();
+            surfaceCollider.size = new Vector3(10f, 0.1f, 10f);
+            Physics.SyncTransforms();
+            SceneObjectIndex fixedObjects = SceneObjectIndex.CollectFixed(
+                _areaSource,
+                _generatedRoot.transform,
+                _area.WorldBounds,
+                0f);
+            GenerationContext context = CreateContext(
+                SamplingAlgorithm.Random,
+                fixedObjects: fixedObjects);
+            PlacementCandidate candidate = FloorCandidate(Vector3.zero);
+
+            bool valid = PlacementValidator.TryValidateCandidate(
+                candidate,
+                new OrientedBounds(candidate.Position, Vector3.one, Quaternion.identity),
+                context,
+                null,
+                out RejectionReason reason,
+                out _);
+
+            Assert.That(valid, Is.True);
+            Assert.That(reason, Is.EqualTo(RejectionReason.None));
+        }
+
+        [Test]
+        public void ValidatorRejectsCandidatePenetratingFixedSurfaceBeyondTolerance()
+        {
+            GameObject fixedSurface = CreateGameObject("Fixed Floor");
+            fixedSurface.transform.position = new Vector3(0f, -0.045f, 0f);
+            BoxCollider surfaceCollider = fixedSurface.AddComponent<BoxCollider>();
+            surfaceCollider.size = new Vector3(10f, 0.1f, 10f);
+            Physics.SyncTransforms();
+            SceneObjectIndex fixedObjects = SceneObjectIndex.CollectFixed(
+                _areaSource,
+                _generatedRoot.transform,
+                _area.WorldBounds,
+                0f);
+            GenerationContext context = CreateContext(
+                SamplingAlgorithm.Random,
+                fixedObjects: fixedObjects);
+            PlacementCandidate candidate = FloorCandidate(Vector3.zero);
+
+            bool valid = PlacementValidator.TryValidateCandidate(
+                candidate,
+                new OrientedBounds(candidate.Position, Vector3.one, Quaternion.identity),
+                context,
+                null,
+                out RejectionReason reason,
+                out _);
+
+            Assert.That(valid, Is.False);
+            Assert.That(reason, Is.EqualTo(RejectionReason.OverlapsFixed));
         }
 
         [Test]
@@ -733,11 +1378,30 @@ namespace Genix.Tests
             return value;
         }
 
+        private SemanticTag CreateTag(string name)
+        {
+            TagCategory category = ScriptableObject.CreateInstance<TagCategory>();
+            category.name = $"{name} Surface Category";
+            category.Initialize(true, TagCategoryUsage.Surface);
+            SemanticTag tag = ScriptableObject.CreateInstance<SemanticTag>();
+            tag.name = name;
+            tag.Initialize(category);
+            _objects.Add(category);
+            _objects.Add(tag);
+            return tag;
+        }
+
         private static PlacementCandidate FloorCandidate(Vector3 surfacePosition) => new(
             surfacePosition + Vector3.up * 0.5f,
             Quaternion.identity,
             surfaceNormal: Vector3.up,
             placementType: PlacementType.Floor);
+
+        private static PlacementCandidate WallCandidate(Vector3 position) => new(
+            position,
+            Quaternion.identity,
+            surfaceNormal: Vector3.forward,
+            placementType: PlacementType.Wall);
 
         private static PlacementTarget ToTarget(PlacementType placementType) => placementType switch
         {
@@ -759,6 +1423,9 @@ namespace Genix.Tests
                     break;
                 case float floatValue:
                     property.floatValue = floatValue;
+                    break;
+                case bool boolValue:
+                    property.boolValue = boolValue;
                     break;
             }
 

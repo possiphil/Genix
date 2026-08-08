@@ -59,7 +59,9 @@ namespace Genix.Editor.Generation
                 if (TryPlanAsset(context, assets, attemptCatalog, assetAttemptBuffer, candidates, namer, diagnostics, profiler))
                     continue;
 
-                string reason = "No remaining sampled position fits any valid asset.";
+                string reason = AreAllUsableAssetsAtPlacementLimit(context, assets, usableTargets)
+                    ? "All eligible assets reached their Max Placements limit."
+                    : "No remaining sampled position fits any valid asset.";
                 return context.BestEffort && context.Plan.Count > 0
                     ? GenerationOutcome.Partial(
                         context.Plan.Count,
@@ -121,7 +123,9 @@ namespace Genix.Editor.Generation
                 diagnostics.RecordTargetBudgets(targets, placed);
                 StopAndRecordPlanningStep(profiler, PlanningProfileStep.TargetBudgetRecording, budgetStart);
                 string summary = TargetDistributionPolicy.FormatTargets(targets, placed);
-                string reason = $"The remaining target distribution has no valid placement. Target budgets: {summary}.";
+                string reason = AreAllUsableAssetsAtPlacementLimit(context, assets, usableTargets)
+                    ? $"All eligible assets reached their Max Placements limit. Target budgets: {summary}."
+                    : $"The remaining target distribution has no valid placement. Target budgets: {summary}.";
 
                 return context.BestEffort && context.Plan.Count > 0
                     ? GenerationOutcome.Partial(
@@ -225,6 +229,32 @@ namespace Genix.Editor.Generation
 
             return targets;
         }
+
+        private static bool AreAllUsableAssetsAtPlacementLimit(
+            GenerationContext context,
+            IReadOnlyList<AssetDefinition> assets,
+            PlacementTarget usableTargets)
+        {
+            if (context == null || assets == null)
+                return false;
+
+            List<AssetDefinition> usableAssets = assets
+                .Where(asset => asset && asset.Prefab &&
+                                (usableTargets & ToPlacementTarget(asset.PlacementType)) != 0)
+                .ToList();
+            return usableAssets.Count > 0 && usableAssets.All(asset =>
+                asset.HasReachedPlacementLimit(context.Plan.GetAssetCount(asset)));
+        }
+
+        private static PlacementTarget ToPlacementTarget(PlacementType placementType) =>
+            placementType switch
+            {
+                PlacementType.Floor => PlacementTarget.Floor,
+                PlacementType.Wall => PlacementTarget.Wall,
+                PlacementType.Ceiling => PlacementTarget.Ceiling,
+                PlacementType.InsideSpace => PlacementTarget.InsideSpace,
+                _ => PlacementTarget.None
+            };
 
         private static bool TryPlanAssetOnTarget(
             GenerationContext context,

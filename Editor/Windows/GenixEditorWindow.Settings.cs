@@ -43,6 +43,7 @@ namespace Genix.Editor.Windows
             _stylePresetOptions = EditorAssets.CreateAssetOptions(_stylePresets);
             _assetPools = EditorAssets.LoadAssetsFromFolder<AssetPool>(ProjectContentPaths.AssetPools, CompareAssetPools);
             _assetPoolOptions = EditorAssets.CreateAssetOptions(_assetPools);
+            RefreshGenerationPresets();
             RefreshTargetAreas();
 
             ValidateSelectedAssets();
@@ -60,6 +61,8 @@ namespace Genix.Editor.Windows
 
             if (_assetPool && !EditorAssets.ContainsAsset(_assetPools, _assetPool))
                 _assetPool = null;
+
+            ValidateSelectedGenerationPreset();
         }
 
         private void AssignDefaultReferencesIfMissing()
@@ -140,6 +143,17 @@ namespace Genix.Editor.Windows
             LayerMask mask = layer >= 0 ? 1 << layer : 0;
             EditorPrefs.SetInt(PlacementSurfaceMaskKey, mask.value);
             return mask;
+        }
+
+        /// <summary>Returns the union of the currently configured floor, wall, and ceiling surface layers.</summary>
+        internal static LayerMask GetConfiguredSurfaceLayerMask()
+        {
+            LayerMask fallback = ResolveDefaultSurfaceMask();
+            LayerMask combined = default;
+            combined.value = LoadSurfaceMask(FloorSurfaceMaskKey, fallback).value |
+                             LoadSurfaceMask(WallSurfaceMaskKey, fallback).value |
+                             LoadSurfaceMask(CeilingSurfaceMaskKey, fallback).value;
+            return combined;
         }
 
         private void LoadSurfaceClassificationSettings()

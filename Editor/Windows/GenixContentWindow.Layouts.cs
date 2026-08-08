@@ -260,23 +260,17 @@ namespace Genix.Editor.Windows
             LayoutSortMode[] modes =
             {
                 LayoutSortMode.NewestFirst,
-                LayoutSortMode.OldestFirst,
                 LayoutSortMode.NameAscending,
-                LayoutSortMode.NameDescending,
                 LayoutSortMode.TargetArea,
-                LayoutSortMode.ObjectCountDescending,
-                LayoutSortMode.ObjectCountAscending
+                LayoutSortMode.ObjectCountDescending
             };
 
             string[] labels =
             {
                 "Newest First",
-                "Oldest First",
-                "Name Ascending",
-                "Name Descending",
+                "Name (A-Z)",
                 "Target Area",
-                "Object Count Descending",
-                "Object Count Ascending"
+                "Most Objects First"
             };
 
             _layoutSortMode = DrawSortDropdown(_layoutSortMode, modes, labels);
@@ -336,16 +330,8 @@ namespace Genix.Editor.Windows
         {
             return _layoutSortMode switch
             {
-                LayoutSortMode.OldestFirst => layouts
-                    .OrderBy(layout => layout.CreatedAt, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
                 LayoutSortMode.NameAscending => layouts
                     .OrderBy(layout => layout.DisplayName, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                LayoutSortMode.NameDescending => layouts
-                    .OrderByDescending(layout => layout.DisplayName, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
 
                 LayoutSortMode.TargetArea => layouts
@@ -355,11 +341,6 @@ namespace Genix.Editor.Windows
 
                 LayoutSortMode.ObjectCountDescending => layouts
                     .OrderByDescending(layout => layout.ObjectCount)
-                    .ThenByDescending(layout => layout.CreatedAt, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                LayoutSortMode.ObjectCountAscending => layouts
-                    .OrderBy(layout => layout.ObjectCount)
                     .ThenByDescending(layout => layout.CreatedAt, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
 

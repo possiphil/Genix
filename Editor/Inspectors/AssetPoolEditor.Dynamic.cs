@@ -61,7 +61,7 @@ namespace Genix.Editor.Inspectors
             AssetCatalog catalog = AssetCatalogService.GetOrCreate();
 
             List<TagCategory> categories = catalog.Categories
-                .Where(category => category)
+                .Where(category => category && category.SupportsAssets)
                 .OrderBy(category => category.DisplayName)
                 .ToList();
 
@@ -69,7 +69,9 @@ namespace Genix.Editor.Inspectors
 
             if (categories.Count == 0)
             {
-                EditorGUILayout.HelpBox("No tag categories available.", MessageType.Info);
+                EditorGUILayout.HelpBox(
+                    "No Asset or Asset and Surface tag categories are available.",
+                    MessageType.Info);
                 return;
             }
 

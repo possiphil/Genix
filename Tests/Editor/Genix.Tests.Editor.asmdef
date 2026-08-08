@@ -3,8 +3,7 @@
     "rootNamespace": "Genix.Tests",
     "references": [
         "Genix.Runtime",
-        "Genix.Editor",
-        "Unity.PerformanceTesting"
+        "Genix.Editor"
     ],
     "includePlatforms": [
         "Editor"
