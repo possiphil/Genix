@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Genix.Semantics;
 using UnityEngine;
 
 namespace Genix.Core
@@ -75,6 +77,95 @@ namespace Genix.Core
                 _ => 0
             };
         }
+    }
+
+    /// <summary>Chooses how one semantic support group receives a placement budget.</summary>
+    public enum SupportDistributionRuleMode
+    {
+        /// <summary>Requests an exact accepted-object count before weighted remainder distribution.</summary>
+        [InspectorName("Exact Count")] ExactCount,
+        /// <summary>Receives a relative share of the count remaining after exact rules.</summary>
+        [InspectorName("Weight")] Weight
+    }
+
+    /// <summary>Allocates placements to surfaces carrying one explicitly authored surface tag.</summary>
+    [Serializable]
+    public sealed class SupportDistributionRule
+    {
+        [SerializeField] private SemanticTag supportTag;
+        [SerializeField] private SupportDistributionRuleMode mode = SupportDistributionRuleMode.Weight;
+        [SerializeField, Min(0)] private int value = 1;
+
+        /// <summary>Gets the explicit surface tag matched by this rule.</summary>
+        public SemanticTag SupportTag => supportTag;
+        /// <summary>Gets whether the value is an exact count or relative weight.</summary>
+        public SupportDistributionRuleMode Mode => mode;
+        /// <summary>Gets the non-negative exact count or weight.</summary>
+        public int Value => Mathf.Max(0, value);
+        /// <summary>Indicates whether this rule can participate in distribution.</summary>
+        public bool IsConfigured => IsSurfaceTag(supportTag);
+
+        /// <summary>Creates an empty weighted rule for editor authoring.</summary>
+        public SupportDistributionRule()
+        {
+        }
+
+        /// <summary>Creates a normalized semantic support-distribution rule.</summary>
+        public SupportDistributionRule(
+            SemanticTag supportTag,
+            SupportDistributionRuleMode mode,
+            int value)
+        {
+            this.supportTag = IsSurfaceTag(supportTag) ? supportTag : null;
+            this.mode = Enum.IsDefined(typeof(SupportDistributionRuleMode), mode)
+                ? mode
+                : SupportDistributionRuleMode.Weight;
+            this.value = Mathf.Max(0, value);
+        }
+
+        /// <summary>Returns an independent normalized copy.</summary>
+        public SupportDistributionRule Copy() => new(supportTag, mode, value);
+
+        private static bool IsSurfaceTag(SemanticTag tag) =>
+            tag && tag.Category && tag.Category.SupportsSurfaces;
+    }
+
+    /// <summary>
+    /// Optional accepted-placement distribution across explicitly listed semantic support tags and an implicit
+    /// default group for every unlisted surface.
+    /// </summary>
+    [Serializable]
+    public sealed class SupportDistributionSettings
+    {
+        [SerializeField] private bool enabled;
+        [SerializeField, Min(0)] private int defaultWeight = 1;
+        [SerializeField] private List<SupportDistributionRule> rules = new();
+
+        /// <summary>Gets a fresh disabled configuration.</summary>
+        public static SupportDistributionSettings Disabled => new(false, 1, null);
+        /// <summary>Indicates whether semantic support budgets affect planning.</summary>
+        public bool IsEnabled => enabled && Rules.Count > 0;
+        /// <summary>Gets the weight assigned to every support surface not matching an explicit rule.</summary>
+        public int DefaultWeight => Mathf.Max(0, defaultWeight);
+        /// <summary>Gets normalized rules in designer-authored priority order.</summary>
+        public IReadOnlyList<SupportDistributionRule> Rules => rules ??= new List<SupportDistributionRule>();
+
+        /// <summary>Creates a normalized support-distribution snapshot.</summary>
+        public SupportDistributionSettings(
+            bool enabled,
+            int defaultWeight,
+            IEnumerable<SupportDistributionRule> rules)
+        {
+            this.enabled = enabled;
+            this.defaultWeight = Mathf.Max(0, defaultWeight);
+            this.rules = rules?
+                .Where(rule => rule?.IsConfigured == true)
+                .Select(rule => rule.Copy())
+                .ToList() ?? new List<SupportDistributionRule>();
+        }
+
+        /// <summary>Returns an independent normalized copy.</summary>
+        public SupportDistributionSettings Copy() => new(enabled, defaultWeight, Rules);
     }
 
     /// <summary>Selects the anchor set used by relative placement and target-facing orientation.</summary>

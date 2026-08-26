@@ -5,6 +5,7 @@ using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Diagnostics;
+using Genix.Editor.Evaluation;
 using Genix.Editor.Generation;
 using Genix.Placement;
 using Genix.Sampling;
@@ -131,6 +132,25 @@ namespace Genix.Tests
             Assert.That(error, Does.Contain("semantic tags"));
             Assert.That(error, Does.Contain("Biome: Forest"));
             Assert.That(floor.SemanticTags, Is.Empty);
+        }
+
+        [Test]
+        public void EvaluationEligibilityUsesProductionSemanticFilter()
+        {
+            TagCategory environment = CreateCategory("Environment");
+            SemanticTag forest = CreateTag("Forest", environment);
+            SemanticTag office = CreateTag("Office", environment);
+            AssetDefinition forestAsset = CreateAsset("Forest Asset", PlacementType.Floor, true);
+            AssetDefinition officeAsset = CreateAsset("Office Asset", PlacementType.Floor, true);
+            forestAsset.AddTag(forest);
+            officeAsset.AddTag(office);
+            GenerationRequest request = Request(
+                new StubAreaSource(_areaRoot.transform, new[] { forest }),
+                PlacementTarget.Floor);
+
+            List<string> names = GenerationEvaluationRunner.CollectEligibleAssetNames(request, _catalog);
+
+            Assert.That(names, Is.EqualTo(new[] { "Forest Asset" }));
         }
 
         [Test]

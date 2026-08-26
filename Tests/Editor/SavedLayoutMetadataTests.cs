@@ -138,5 +138,38 @@ namespace Genix.Tests
                 UnityEngine.Object.DestroyImmediate(supportObject);
             }
         }
+
+        [Test]
+        public void GeneratedObjectMetadataRetainsSourceAssetForSurfaceCapacityRules()
+        {
+            _root = new GameObject("Generated Object With Asset");
+            AssetDefinition asset = ScriptableObject.CreateInstance<AssetDefinition>();
+            asset.name = "Monitor";
+
+            try
+            {
+                GeneratedObjectMetadata metadata = _root.AddComponent<GeneratedObjectMetadata>();
+                metadata.Initialize(PlacementType.Floor, sourceAsset: asset);
+
+                Assert.That(metadata.AssetDefinition, Is.SameAs(asset));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
+        public void GeneratedObjectMetadataRetainsSelectedRelationAnchorIdentity()
+        {
+            _root = new GameObject("Generated Relative Object");
+            GeneratedObjectMetadata metadata = _root.AddComponent<GeneratedObjectMetadata>();
+
+            metadata.Initialize(
+                PlacementType.Floor,
+                selectedRelationAnchorKey: "scene:Office|Desk[2]");
+
+            Assert.That(metadata.RelationAnchorKey, Is.EqualTo("scene:Office|Desk[2]"));
+        }
     }
 }

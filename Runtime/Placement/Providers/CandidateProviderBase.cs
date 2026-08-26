@@ -34,16 +34,37 @@ namespace Genix.Placement.Providers
 
         protected SamplingContext CreateSamplingContext(GenerationContext context, Bounds bounds, Vector3 center, float radius, IDiagnosticsSink diagnostics = null)
         {
+            return CreateSamplingContext(
+                context,
+                bounds,
+                center,
+                radius,
+                GetRequestedCount(context),
+                GetMinimumCandidateCount(context),
+                GetCandidateCountOverride(),
+                diagnostics);
+        }
+
+        protected static SamplingContext CreateSamplingContext(
+            GenerationContext context,
+            Bounds bounds,
+            Vector3 center,
+            float radius,
+            int requestedCount,
+            int minimumCandidateCount,
+            int candidateCount,
+            IDiagnosticsSink diagnostics = null)
+        {
             return new SamplingContext(
                 bounds,
                 center,
                 context.StyleSettings,
-                GetRequestedCount(context),
+                requestedCount,
                 context.Random,
                 radius,
                 diagnostics,
-                GetMinimumCandidateCount(context),
-                GetCandidateCountOverride());
+                minimumCandidateCount,
+                candidateCount);
         }
 
         protected int GetCandidateCount(GenerationContext context)

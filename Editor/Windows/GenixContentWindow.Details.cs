@@ -39,7 +39,10 @@ namespace Genix.Editor.Windows
                     DrawLayoutDetails(selectedLayout);
 
                 if (_tab == ContentTab.SceneSetup)
+                {
+                    DrawSceneSetupSettingsClipboard(selectedObject);
                     DrawSelectedSceneSetupValidation();
+                }
 
                 if (_selectedObjectEditorTarget != selectedObject)
                 {
@@ -64,6 +67,7 @@ namespace Genix.Editor.Windows
                 {
                     DrawAssetPreviewStat("Prefab", asset.Prefab ? asset.Prefab.name : "Missing");
                     DrawAssetPreviewStat("Placement", asset.PlacementType.ToDisplayName());
+                    DrawAssetPreviewStat("Rotation Offset", FormatVector(asset.PrefabRotationOffset));
                     DrawAssetPreviewStat("Bounds", FormatVector(asset.BoundsSize));
                     DrawAssetPreviewStat("Center Offset", FormatVector(asset.BoundsCenterOffset));
                     DrawAssetPreviewStat("Surface Fit", asset.SurfaceFitMode.ToDisplayName());
@@ -180,7 +184,7 @@ namespace Genix.Editor.Windows
                 ContentTab.Locations => "Select a location.",
                 ContentTab.AssetPools => "Select an asset pool.",
                 ContentTab.Layouts => "Select a layout.",
-                ContentTab.SceneSetup => "Select a scene surface or exclusion region.",
+                ContentTab.SceneSetup => "Select a scene surface, relation anchor, or exclusion region.",
                 _ => "Select an item."
             };
         }

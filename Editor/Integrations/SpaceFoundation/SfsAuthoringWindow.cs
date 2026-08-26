@@ -281,7 +281,7 @@ namespace Genix.SpaceFoundation.Editor
                 new GUIContent("Separator Cells", "Blocked voxel bands between neighbouring locations. One cell is the safe default."),
                 _separatorCells);
             _usePerAxisRoomSizes = EditorGUILayout.Toggle(
-                new GUIContent("Per-Axis Sizes", "Use a separate cell count for each X column, Y level, and Z row."),
+                new GUIContent("Per-Axis Sizes", "Use a separate exact free-cell count for each X column, Y level, and Z row while keeping every row and column aligned."),
                 _usePerAxisRoomSizes);
 
             if (!_usePerAxisRoomSizes)
@@ -296,9 +296,6 @@ namespace Genix.SpaceFoundation.Editor
             }
             else
             {
-                EditorGUILayout.HelpBox(
-                    "Per-axis sizes keep every row and column aligned. Values are exact free voxel counts.",
-                    MessageType.Info);
                 DrawAxisList("X Column Cells", _xRoomCells, _gridCounts.x);
                 DrawAxisList("Y Level Cells", _yRoomCells, _gridCounts.y);
                 DrawAxisList("Z Row Cells", _zRoomCells, _gridCounts.z);
@@ -328,7 +325,11 @@ namespace Genix.SpaceFoundation.Editor
             HashSet<Vector2Int> mask = ResolveFootprintMask();
             bool editable = _footprintTemplate == SfsFootprintTemplate.Custom;
             EditorGUILayout.LabelField(
-                new GUIContent("Occupancy Mask", "X marks occupied modules. The final mask must be 4-neighbour connected."),
+                new GUIContent(
+                    "Occupancy Mask",
+                    _footprintDimensions.x > 16 || _footprintDimensions.y > 16
+                        ? "X marks occupied modules. The final mask must be 4-neighbour connected. The editor displays the first 16 x 16 modules; the planner supports up to 64 x 64."
+                        : "X marks occupied modules. The final mask must be 4-neighbour connected."),
                 EditorStyles.miniBoldLabel);
 
             int width = Mathf.Clamp(_footprintDimensions.x, 1, 16);
@@ -358,8 +359,6 @@ namespace Genix.SpaceFoundation.Editor
                 }
             }
 
-            if (_footprintDimensions.x > 16 || _footprintDimensions.y > 16)
-                EditorGUILayout.HelpBox("The editor displays the first 16 x 16 modules; the planner supports up to 64 x 64.", MessageType.Info);
         }
 
         private static void DrawAxisList(string label, IList<int> values, int count)
@@ -407,24 +406,20 @@ namespace Genix.SpaceFoundation.Editor
                 EditorGUILayout.LabelField("Delimiters", _plan.Delimiters.Count.ToString());
                 EditorGUILayout.LabelField("Anchors", _plan.Anchors.Count.ToString());
                 EditorGUILayout.Vector3Field("Requested Center", _plan.RequestedCenter);
-                EditorGUILayout.Vector3Field("Actual Center", _plan.ActualCenter);
-                EditorGUILayout.Vector3Field("Requested Size", _plan.RequestedSize);
-                EditorGUILayout.Vector3Field("Actual Voxel Size", _plan.ActualSize);
-
                 float centerDelta = Vector3.Distance(_plan.RequestedCenter, _plan.ActualCenter);
-                if (centerDelta > 0.0001f)
-                {
-                    EditorGUILayout.HelpBox(
-                        $"Center snapped by {centerDelta:0.###} world units to align with the SFS voxel grid.",
-                        MessageType.Info);
-                }
-
-                if (_plan.InteriorVolumes.Count > PreviewVolumeLimit)
-                {
-                    EditorGUILayout.HelpBox(
-                        $"Scene preview is limited to {PreviewVolumeLimit} of {_plan.InteriorVolumes.Count} interior volumes; creation is not limited.",
-                        MessageType.Info);
-                }
+                EditorGUILayout.Vector3Field(new GUIContent(
+                        "Actual Center",
+                        centerDelta > 0.0001f
+                            ? $"Center snapped by {centerDelta:0.###} world units to align with the SFS voxel grid."
+                            : "Voxel-aligned center used by the generated layout."),
+                    _plan.ActualCenter);
+                EditorGUILayout.Vector3Field("Requested Size", _plan.RequestedSize);
+                EditorGUILayout.Vector3Field(new GUIContent(
+                        "Actual Voxel Size",
+                        _plan.InteriorVolumes.Count > PreviewVolumeLimit
+                            ? $"Scene preview is limited to {PreviewVolumeLimit} of {_plan.InteriorVolumes.Count} interior volumes; creation is not limited."
+                            : "Voxel-aligned size used by the generated layout."),
+                    _plan.ActualSize);
             }
         }
 
@@ -455,7 +450,10 @@ namespace Genix.SpaceFoundation.Editor
                     _sceneMessages = SfsAuthoringValidator.ValidateScene(_foundation);
 
                 foreach (SfsAuthoringValidationMessage message in _sceneMessages)
-                    EditorGUILayout.HelpBox(message.Text, message.Type);
+                {
+                    if (message.Type is MessageType.Warning or MessageType.Error)
+                        EditorGUILayout.HelpBox(message.Text, message.Type);
+                }
             }
         }
 

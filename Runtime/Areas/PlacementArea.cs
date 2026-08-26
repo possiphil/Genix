@@ -39,6 +39,7 @@ namespace Genix.Areas
         public bool UsesAllMatchingSurfaceSearch => _settings.UsesAllMatchingSurfaceSearch;
         /// <summary>Indicates whether the area contains wall-classified terrain sampled without physics raycasts.</summary>
         public bool HasTerrainSurfaces => _projector.HasTerrainSurfaces;
+        internal AreaBuildSettings Settings => _settings;
         internal IReadOnlyList<WallSurfaceSource> WallSurfaceSources => _projector.WallSurfaceSources;
 
         /// <summary>Determines whether the area contains data for the requested placement type.</summary>
@@ -153,6 +154,13 @@ namespace Genix.Areas
         /// <summary>Determines whether the complete oriented placement bounds fit inside the volume.</summary>
         public bool ContainsPlacementVolume(OrientedBounds candidateBounds) =>
             _containment.ContainsVolume(candidateBounds);
+
+        /// <summary>
+        /// Determines whether reserved clearance remains inside occupied volume cells or, when no
+        /// volume representation is available, inside the target area's world bounds.
+        /// </summary>
+        public bool ContainsClearanceVolume(OrientedBounds clearanceBounds) =>
+            _containment.ContainsClearanceVolume(clearanceBounds);
 
         /// <summary>Determines whether a world position lies inside the placement volume.</summary>
         public bool ContainsVolumePoint(Vector3 position) =>

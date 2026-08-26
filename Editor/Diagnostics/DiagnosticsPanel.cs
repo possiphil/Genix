@@ -21,6 +21,7 @@ namespace Genix.Editor.Diagnostics
         private bool _showPlacedObjects;
         private bool _showRejectedObjects;
         private bool _showSceneViewOptions;
+        private bool _showSupportCandidates;
 
         /// <summary>Draws the control in the current editor layout.</summary>
         public void Draw()
@@ -73,6 +74,7 @@ namespace Genix.Editor.Diagnostics
                 DrawStat("Weights", FormatTargetWeights(diagnostics.TargetDistributionWeights));
 
             DrawTargetBudgetSummary(diagnostics);
+            DrawSupportBudgetSummary(diagnostics);
 
             _showStyleSettings = DrawFoldoutStat(_showStyleSettings, "Style", GetStyleDisplayName(diagnostics));
 
@@ -114,6 +116,19 @@ namespace Genix.Editor.Diagnostics
             {
                 foreach (TargetBudgetDiagnostic budget in diagnostics.TargetBudgets)
                     DrawStat(budget.PlacementType.ToDisplayName(), $"{budget.PlacedCount}/{budget.TargetCount}");
+            }
+        }
+
+        private static void DrawSupportBudgetSummary(GenerationDiagnostics diagnostics)
+        {
+            if (diagnostics.SupportBudgets.Count == 0)
+                return;
+
+            EditorGUILayout.LabelField("Support Distribution", EditorStyles.miniBoldLabel);
+            using (new EditorGUI.IndentLevelScope())
+            {
+                foreach (SupportBudgetDiagnostic budget in diagnostics.SupportBudgets)
+                    DrawStat(budget.Label, $"{budget.PlacedCount}/{budget.TargetCount}");
             }
         }
 
@@ -293,6 +308,14 @@ namespace Genix.Editor.Diagnostics
                 : "-";
 
             DrawStat("Generated Positions", diagnostics.Sampler.GeneratedCandidates.ToString());
+            _showSupportCandidates = DrawFoldoutStat(
+                _showSupportCandidates,
+                "Semantic Support Coverage",
+                diagnostics.Sampler.SupportCandidates.Count.ToString());
+
+            if (_showSupportCandidates)
+                DrawSupportCandidates(diagnostics.Sampler.SupportCandidates);
+
             DrawStat("Tested Positions", testedPositions.ToString());
             DrawStat("Accepted Positions", acceptedPositions);
             DrawStat("Rejected Positions", rejectedPositions);
@@ -300,21 +323,41 @@ namespace Genix.Editor.Diagnostics
             DrawStat("Accepted Attempts", acceptedAttempts.ToString());
             DrawStat("Rejected Attempts", rejectedAttempts.ToString());
 
+            if (diagnostics.Sampler.SupportPrefilterSkips > 0)
+                DrawStat("Support Prefilter Skips", diagnostics.Sampler.SupportPrefilterSkips.ToString());
+
             DrawStat("Unused Positions", unusedPositions.ToString());
 
             if (!string.IsNullOrWhiteSpace(diagnostics.TopRejectionReason))
             {
-                DrawStat("Top Rejection", diagnostics.TopRejectionReason);
-
                 RejectionReason topReason = GetTopRejectionReason(diagnostics);
                 string advice = RejectionReasonGuidance.GetAdvice(topReason);
-
-                if (!string.IsNullOrEmpty(advice))
-                    EditorGUILayout.HelpBox(advice, MessageType.Info);
+                DrawStat("Top Rejection", diagnostics.TopRejectionReason, advice);
             }
 
             if (!string.IsNullOrWhiteSpace(diagnostics.StopReason))
                 EditorGUILayout.HelpBox(diagnostics.StopReason, MessageType.Warning);
+        }
+
+        private static void DrawSupportCandidates(IReadOnlyList<SupportCandidateDiagnostic> entries)
+        {
+            using (new EditorGUI.IndentLevelScope())
+            {
+                if (entries == null || entries.Count == 0)
+                {
+                    EditorGUILayout.LabelField("No semantic support candidates recorded.");
+                    return;
+                }
+
+                foreach (SupportCandidateDiagnostic entry in entries
+                             .OrderByDescending(value => value.CandidateCount)
+                             .ThenBy(value => value.Label))
+                {
+                    DrawStat(
+                        entry.Label,
+                        $"{entry.CandidateCount} candidates / {entry.SurfaceCount} surfaces");
+                }
+            }
         }
 
         private static void DrawRejectionSummary(GenerationDiagnostics diagnostics, string emptyMessage = "No rejected candidates.")
@@ -465,9 +508,9 @@ namespace Genix.Editor.Diagnostics
             }
         }
 
-        private static void DrawStat(string label, string value)
+        private static void DrawStat(string label, string value, string tooltip = null)
         {
-            EditorGUILayout.LabelField(label, value);
+            EditorGUILayout.LabelField(new GUIContent(label, tooltip), new GUIContent(value, tooltip));
         }
 
         private static bool DrawFoldoutStat(bool expanded, string label, string value)

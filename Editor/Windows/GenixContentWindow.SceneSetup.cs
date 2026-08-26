@@ -5,6 +5,7 @@ using Genix.Assets;
 using Genix.Core;
 using Genix.Editor.SceneConfiguration;
 using Genix.Extensions;
+using Genix.Layouts;
 using Genix.Placement;
 using Genix.Semantics;
 using UnityEditor;
@@ -19,24 +20,22 @@ namespace Genix.Editor.Windows
         {
             All,
             Surfaces,
+            RelationAnchors,
             ExclusionRegions
         }
 
-        private const float SceneSetupMinimumTableWidth = 600f;
+        private const float SceneSetupMinimumTableWidth = 720f;
         private readonly List<SceneSetupObjectEntry> _sceneSetupEntries = new();
         private Vector2 _sceneSetupScroll;
         private string _sceneSetupSearch = string.Empty;
         private SceneSetupTypeFilter _sceneSetupTypeFilter;
         private bool _sceneSetupIssuesOnly;
         private bool _sceneSetupDirty = true;
+        private PlacementSurfaceSettingsSnapshot _surfaceSettingsClipboard;
 
         private void DrawSceneSetupTab(AssetCatalog catalog)
         {
             EnsureSceneSetupEntries();
-
-            EditorGUILayout.HelpBox(
-                "Review semantic placement surfaces and collider-free exclusion regions in the loaded scenes. Use the table for common edits and select a row for complete settings.",
-                MessageType.Info);
 
             DrawSceneSetupFilters();
             EditorGUILayout.Space(6f);
@@ -48,6 +47,8 @@ namespace Genix.Editor.Windows
                 entry.Type == SceneSetupObjectType.Surface &&
                 entry.SurfaceCollider &&
                 !entry.SurfaceDescriptor);
+            List<GameObject> selectedAnchorTargets = GetSelectedRelationAnchorTargets();
+            GameObject selectedSupportTarget = Selection.activeGameObject;
 
             DrawSectionHeader($"Scene Objects ({visibleEntries.Count})", () =>
             {
@@ -69,6 +70,37 @@ namespace Genix.Editor.Windows
                     }
                 }
 
+                using (new EditorGUI.DisabledScope(selectedAnchorTargets.Count == 0))
+                {
+                    string label = selectedAnchorTargets.Count == 1
+                        ? "Add Anchor"
+                        : $"Add Anchors ({selectedAnchorTargets.Count})";
+                    if (GUILayout.Button(
+                            new GUIContent(
+                                label,
+                                "Add Asset Relation Anchors to the selected scene objects and optionally assign their represented asset."),
+                            GUILayout.Width(selectedAnchorTargets.Count == 1 ? 88f : 116f)))
+                    {
+                        ShowAddRelationAnchorMenu(catalog, selectedAnchorTargets);
+                    }
+                }
+
+                using (new EditorGUI.DisabledScope(
+                           !SupportSurfaceRegionAuthoring.CanCreate(selectedSupportTarget)))
+                {
+                    if (GUILayout.Button(
+                            new GUIContent(
+                                "Add Support",
+                                "Create a thin, editable support-surface child under the selected object. Use this for internal shelf boards or other levels hidden inside one combined collider."),
+                            GUILayout.Width(88f)))
+                    {
+                        SupportSurfaceRegionAuthoring.Create(
+                            selectedSupportTarget,
+                            configuredLayers);
+                        MarkSceneSetupDirty();
+                    }
+                }
+
                 if (GUILayout.Button("Refresh", GUILayout.Width(68f)))
                     RefreshSceneSetupEntries();
             });
@@ -76,7 +108,7 @@ namespace Genix.Editor.Windows
             if (issueCount > 0)
             {
                 EditorGUILayout.HelpBox(
-                    $"{issueCount} visible object{(issueCount == 1 ? string.Empty : "s")} need attention. Informational notes can describe optional semantic setup; warnings indicate ineffective configuration.",
+                    $"{issueCount} visible object{(issueCount == 1 ? string.Empty : "s")} need attention.",
                     MessageType.Warning);
             }
 
@@ -102,7 +134,7 @@ namespace Genix.Editor.Windows
                     new GUIContent("Search", "Filter by object, scene, tag, or configuration status."),
                     _sceneSetupSearch);
                 _sceneSetupTypeFilter = (SceneSetupTypeFilter)EditorGUILayout.EnumPopup(
-                    new GUIContent("Type", "Show surfaces, exclusion regions, or both."),
+                    new GUIContent("Type", "Show surfaces, fixed relation anchors, exclusion regions, or all scene setup objects."),
                     _sceneSetupTypeFilter);
                 _sceneSetupIssuesOnly = EditorGUILayout.Toggle(
                     new GUIContent("Needs Attention", "Hide objects whose current configuration is ready."),
@@ -134,16 +166,10 @@ namespace Genix.Editor.Windows
 
                 if (entries.Count == 0)
                 {
-                    Rect emptyRect = GUILayoutUtility.GetRect(
+                    GUILayoutUtility.GetRect(
                         tableWidth,
-                        42f,
+                        EditorGUIUtility.singleLineHeight,
                         GUILayout.Width(tableWidth));
-                    EditorGUI.HelpBox(
-                        emptyRect,
-                        _sceneSetupEntries.Count == 0
-                            ? "No placement surfaces or exclusion regions were found in the loaded scenes."
-                            : "No scene objects match the current filters.",
-                        MessageType.Info);
                 }
                 else
                 {
@@ -170,9 +196,9 @@ namespace Genix.Editor.Windows
             SceneSetupColumns columns = new(rowRect);
             EditorGUI.LabelField(columns.Object, "Object", EditorStyles.miniBoldLabel);
             EditorGUI.LabelField(columns.Layer, "Layer", EditorStyles.miniBoldLabel);
-            EditorGUI.LabelField(columns.Tags, "Surface Tags", EditorStyles.miniBoldLabel);
+            EditorGUI.LabelField(columns.Tags, "Tags", EditorStyles.miniBoldLabel);
+            EditorGUI.LabelField(columns.Relation, "Relation Asset", EditorStyles.miniBoldLabel);
             EditorGUI.LabelField(columns.Capacity, new GUIContent("Cap.", "Maximum placements supported by this surface."), EditorStyles.miniBoldLabel);
-            EditorGUI.LabelField(columns.Forward, new GUIContent("Fwd", "Whether this surface provides a preferred forward direction."), EditorStyles.miniBoldLabel);
             EditorGUI.LabelField(columns.Status, new GUIContent("", "Validation status. Select the row for the complete message."), EditorStyles.miniBoldLabel);
         }
 
@@ -185,7 +211,7 @@ namespace Genix.Editor.Windows
             if (!entry.GameObject)
                 return;
 
-            bool selected = _selectedSceneSetupObject == entry.DetailTarget;
+            bool selected = entry.MatchesDetailTarget(_selectedSceneSetupObject);
             if (selected)
                 EditorGUI.DrawRect(rowRect, new Color(0.18f, 0.48f, 0.82f, 0.22f));
 
@@ -204,6 +230,8 @@ namespace Genix.Editor.Windows
 
             if (entry.Type == SceneSetupObjectType.Surface)
                 DrawSurfaceEntryFields(catalog, entry, columns);
+            else if (entry.Type == SceneSetupObjectType.RelationAnchor)
+                DrawRelationAnchorEntryFields(catalog, entry.RelationAnchor, columns);
             else
                 DrawUnavailableSceneSetupFields(columns);
 
@@ -240,7 +268,7 @@ namespace Genix.Editor.Windows
                 }
 
                 EditorGUI.LabelField(columns.Capacity, "-", EditorStyles.centeredGreyMiniLabel);
-                EditorGUI.LabelField(columns.Forward, "-", EditorStyles.centeredGreyMiniLabel);
+                DrawSurfaceRelationField(catalog, entry, columns.Relation);
                 return;
             }
 
@@ -255,31 +283,92 @@ namespace Genix.Editor.Windows
             if (GUI.Button(
                     columns.Capacity,
                     new GUIContent(
-                        descriptor.LimitCapacity ? descriptor.MaxCapacity.ToString() : "∞",
-                        descriptor.LimitCapacity
-                            ? $"Maximum {descriptor.MaxCapacity} placements on this surface."
-                            : "Unlimited placement capacity."),
+                        GetCapacitySummary(descriptor),
+                        GetCapacityTooltip(descriptor)),
                     EditorStyles.miniButton))
             {
                 ShowCapacityMenu(descriptor);
             }
 
-            EditorGUI.BeginChangeCheck();
-            bool useForward = EditorGUI.Toggle(columns.Forward, descriptor.UsePreferredForward);
-            if (EditorGUI.EndChangeCheck())
+            DrawSurfaceRelationField(catalog, entry, columns.Relation);
+        }
+
+        private void DrawSurfaceRelationField(
+            AssetCatalog catalog,
+            SceneSetupObjectEntry entry,
+            Rect fieldRect)
+        {
+            AssetRelationAnchor anchor = entry.GameObject.GetComponentInParent<AssetRelationAnchor>();
+
+            if (anchor)
             {
-                Undo.RecordObject(descriptor, "Change Preferred Surface Forward");
-                descriptor.SetPreferredForwardEnabled(useForward);
-                MarkSceneObjectChanged(descriptor);
+                string summary = anchor.RepresentedAsset
+                    ? anchor.RepresentedAsset.AssetName
+                    : anchor.AssetTags.Count > 0
+                        ? GetRelationAnchorTagSummary(anchor)
+                        : "Configure";
+                if (GUI.Button(
+                        fieldRect,
+                        new GUIContent(
+                            summary,
+                            $"Uses the Asset Relation Anchor on {anchor.gameObject.name}. Click to change its represented asset."),
+                        EditorStyles.miniButton))
+                {
+                    ShowRelationAnchorAssetMenu(catalog, anchor);
+                    _selectedSceneSetupObject = anchor;
+                }
+
+                return;
             }
+
+            if (GUI.Button(
+                    fieldRect,
+                    new GUIContent(
+                        "Add Anchor",
+                        "Add an Asset Relation Anchor to this object and optionally assign its represented asset."),
+                    EditorStyles.miniButton))
+            {
+                ShowAddRelationAnchorMenu(
+                    catalog,
+                    new[] { entry.GameObject },
+                    entry.SurfaceDescriptor);
+            }
+        }
+
+        private void DrawRelationAnchorEntryFields(
+            AssetCatalog catalog,
+            AssetRelationAnchor anchor,
+            SceneSetupColumns columns)
+        {
+            EditorGUI.LabelField(columns.Layer, "-", EditorStyles.centeredGreyMiniLabel);
+
+            if (GUI.Button(
+                    columns.Tags,
+                    new GUIContent(GetRelationAnchorTagSummary(anchor), GetRelationAnchorTagTooltip(anchor)),
+                    EditorStyles.miniButton))
+            {
+                ShowRelationAnchorTagMenu(catalog, anchor);
+            }
+
+            if (GUI.Button(
+                    columns.Relation,
+                    new GUIContent(
+                        anchor.RepresentedAsset ? anchor.RepresentedAsset.AssetName : "None",
+                        "Concrete Asset Definition represented by this fixed scene object. Front starts at local +Z and may be corrected through Front Yaw Offset in Details."),
+                    EditorStyles.miniButton))
+            {
+                ShowRelationAnchorAssetMenu(catalog, anchor);
+            }
+
+            EditorGUI.LabelField(columns.Capacity, "-", EditorStyles.centeredGreyMiniLabel);
         }
 
         private static void DrawUnavailableSceneSetupFields(SceneSetupColumns columns)
         {
             EditorGUI.LabelField(columns.Layer, "-", EditorStyles.centeredGreyMiniLabel);
             EditorGUI.LabelField(columns.Tags, "Collider-free", EditorStyles.centeredGreyMiniLabel);
+            EditorGUI.LabelField(columns.Relation, "-", EditorStyles.centeredGreyMiniLabel);
             EditorGUI.LabelField(columns.Capacity, "-", EditorStyles.centeredGreyMiniLabel);
-            EditorGUI.LabelField(columns.Forward, "-", EditorStyles.centeredGreyMiniLabel);
         }
 
         private List<SceneSetupObjectEntry> GetVisibleSceneSetupEntries(LayerMask configuredLayers)
@@ -290,6 +379,7 @@ namespace Genix.Editor.Windows
             entries = _sceneSetupTypeFilter switch
             {
                 SceneSetupTypeFilter.Surfaces => entries.Where(entry => entry.Type == SceneSetupObjectType.Surface),
+                SceneSetupTypeFilter.RelationAnchors => entries.Where(entry => entry.RelationAnchor),
                 SceneSetupTypeFilter.ExclusionRegions => entries.Where(entry => entry.Type == SceneSetupObjectType.ExclusionRegion),
                 _ => entries
             };
@@ -314,16 +404,25 @@ namespace Genix.Editor.Windows
             SceneSetupObjectEntry entry,
             LayerMask configuredLayers)
         {
-            string tags = entry.SurfaceDescriptor
+            string surfaceTags = entry.SurfaceDescriptor
                 ? string.Join(" ", entry.SurfaceDescriptor.SurfaceTags.Where(tag => tag).Select(tag => tag.DisplayName))
                 : string.Empty;
-            return $"{entry.Type} {tags} {GetSceneSetupStatus(entry, configuredLayers, out _)}";
+            string anchorTags = entry.RelationAnchor
+                ? string.Join(" ", entry.RelationAnchor.AssetTags.Where(tag => tag).Select(tag => tag.DisplayName))
+                : string.Empty;
+            string representedAsset = entry.RelationAnchor && entry.RelationAnchor.RepresentedAsset
+                ? entry.RelationAnchor.RepresentedAsset.AssetName
+                : string.Empty;
+            return $"{entry.Type} {surfaceTags} {anchorTags} {representedAsset} {GetSceneSetupStatus(entry, configuredLayers, out _)}";
         }
 
         private static bool HasSceneSetupIssue(
             SceneSetupObjectEntry entry,
-            LayerMask configuredLayers) =>
-            GetSceneSetupStatus(entry, configuredLayers, out _) != "Ready";
+            LayerMask configuredLayers)
+        {
+            GetSceneSetupStatus(entry, configuredLayers, out MessageType messageType);
+            return messageType is MessageType.Warning or MessageType.Error;
+        }
 
         private static string GetSceneSetupStatus(
             SceneSetupObjectEntry entry,
@@ -336,6 +435,24 @@ namespace Genix.Editor.Windows
             {
                 messageType = MessageType.Warning;
                 return "Inactive";
+            }
+
+            if (entry.RelationAnchor)
+            {
+                if (!entry.RelationAnchor || !entry.RelationAnchor.enabled)
+                {
+                    messageType = MessageType.Warning;
+                    return "Anchor disabled";
+                }
+
+                if (!entry.RelationAnchor.RepresentedAsset && entry.RelationAnchor.AssetTags.Count == 0)
+                {
+                    messageType = MessageType.Warning;
+                    return "No relation identity";
+                }
+
+                if (entry.Type == SceneSetupObjectType.RelationAnchor)
+                    return "Ready";
             }
 
             if (entry.Type == SceneSetupObjectType.ExclusionRegion)
@@ -399,6 +516,199 @@ namespace Genix.Editor.Windows
             };
             GUIContent icon = EditorGUIUtility.IconContent(iconName);
             return new GUIContent(string.Empty, icon.image, status);
+        }
+
+        private static List<GameObject> GetSelectedRelationAnchorTargets() => Selection.gameObjects
+            .Where(gameObject =>
+                gameObject &&
+                gameObject.scene.IsValid() &&
+                gameObject.scene.isLoaded &&
+                !gameObject.GetComponent<AssetRelationAnchor>() &&
+                !gameObject.GetComponentInParent<GeneratedObjectMetadata>())
+            .Distinct()
+            .ToList();
+
+        private void ShowAddRelationAnchorMenu(
+            AssetCatalog catalog,
+            IReadOnlyList<GameObject> targets,
+            PlacementSurfaceDescriptor preferredSupport = null)
+        {
+            GenericMenu menu = new();
+            menu.AddItem(
+                new GUIContent("Without Identity"),
+                false,
+                () => AddRelationAnchors(targets, null, preferredSupport));
+            menu.AddSeparator(string.Empty);
+
+            foreach (AssetDefinition asset in catalog.Assets
+                         .Where(asset => asset)
+                         .OrderBy(asset => asset.AssetName))
+            {
+                AssetDefinition captured = asset;
+                menu.AddItem(
+                    new GUIContent($"Represented Asset/{asset.AssetName}"),
+                    false,
+                    () => AddRelationAnchors(targets, captured, preferredSupport));
+            }
+
+            if (catalog.Assets.All(asset => !asset))
+                menu.AddDisabledItem(new GUIContent("Represented Asset/No assets available"));
+
+            menu.ShowAsContext();
+        }
+
+        private void AddRelationAnchors(
+            IReadOnlyList<GameObject> targets,
+            AssetDefinition representedAsset,
+            PlacementSurfaceDescriptor preferredSupport = null)
+        {
+            Undo.IncrementCurrentGroup();
+            int undoGroup = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName(targets.Count == 1
+                ? "Add Asset Relation Anchor"
+                : "Add Asset Relation Anchors");
+            AssetRelationAnchor firstAnchor = null;
+
+            foreach (GameObject targetObject in targets)
+            {
+                if (!targetObject || targetObject.GetComponent<AssetRelationAnchor>())
+                    continue;
+
+                AssetRelationAnchor anchor = Undo.AddComponent<AssetRelationAnchor>(targetObject);
+                Undo.RecordObject(anchor, "Configure Asset Relation Anchor");
+                anchor.SetRepresentedAsset(representedAsset);
+
+                PlacementSurfaceDescriptor ownSupport =
+                    targetObject.GetComponent<PlacementSurfaceDescriptor>();
+                PlacementSurfaceDescriptor[] childSupports =
+                    targetObject.GetComponentsInChildren<PlacementSurfaceDescriptor>(true);
+                if (targets.Count == 1 && preferredSupport)
+                    anchor.SetSupportSurface(preferredSupport);
+                else if (ownSupport)
+                    anchor.SetSupportSurface(ownSupport);
+                else if (childSupports.Length == 1)
+                    anchor.SetSupportSurface(childSupports[0]);
+
+                EditorUtility.SetDirty(anchor);
+                EditorSceneManager.MarkSceneDirty(targetObject.scene);
+                firstAnchor ??= anchor;
+            }
+
+            Undo.CollapseUndoOperations(undoGroup);
+            MarkSceneSetupDirty();
+
+            if (firstAnchor)
+                _selectedSceneSetupObject = firstAnchor;
+        }
+
+        private static string GetRelationAnchorTagSummary(AssetRelationAnchor anchor)
+        {
+            List<SemanticTag> tags = anchor.AssetTags.Where(tag => tag).ToList();
+            return tags.Count switch
+            {
+                0 => "None",
+                <= 2 => string.Join(", ", tags.Select(tag => tag.DisplayName)),
+                _ => $"{tags[0].DisplayName}, {tags[1].DisplayName} +{tags.Count - 2}"
+            };
+        }
+
+        private static string GetRelationAnchorTagTooltip(AssetRelationAnchor anchor)
+        {
+            List<string> tags = anchor.AssetTags
+                .Where(tag => tag)
+                .Select(tag => tag.Category
+                    ? $"{tag.Category.DisplayName}: {tag.DisplayName}"
+                    : tag.DisplayName)
+                .ToList();
+            return tags.Count > 0
+                ? string.Join("\n", tags)
+                : "No additional asset-compatible identities.";
+        }
+
+        private void ShowRelationAnchorAssetMenu(
+            AssetCatalog catalog,
+            AssetRelationAnchor anchor)
+        {
+            GenericMenu menu = new();
+            menu.AddItem(
+                new GUIContent("None"),
+                !anchor.RepresentedAsset,
+                () => SetRelationAnchorAsset(anchor, null));
+            menu.AddSeparator(string.Empty);
+
+            foreach (AssetDefinition asset in catalog.Assets
+                         .Where(asset => asset)
+                         .OrderBy(asset => asset.AssetName))
+            {
+                AssetDefinition captured = asset;
+                menu.AddItem(
+                    new GUIContent(asset.AssetName),
+                    anchor.RepresentedAsset == asset,
+                    () => SetRelationAnchorAsset(anchor, captured));
+            }
+
+            if (catalog.Assets.All(asset => !asset))
+                menu.AddDisabledItem(new GUIContent("No assets available"));
+
+            menu.ShowAsContext();
+        }
+
+        private void SetRelationAnchorAsset(
+            AssetRelationAnchor anchor,
+            AssetDefinition representedAsset)
+        {
+            Undo.RecordObject(anchor, "Change Relation Anchor Asset");
+            anchor.SetRepresentedAsset(representedAsset);
+            MarkSceneObjectChanged(anchor);
+            MarkSceneSetupDirty();
+        }
+
+        private void ShowRelationAnchorTagMenu(
+            AssetCatalog catalog,
+            AssetRelationAnchor anchor)
+        {
+            GenericMenu menu = new();
+            List<SemanticTag> selected = anchor.AssetTags.Where(tag => tag).ToList();
+            menu.AddItem(
+                new GUIContent("None"),
+                selected.Count == 0,
+                () => SetRelationAnchorTags(anchor, Array.Empty<SemanticTag>()));
+            menu.AddSeparator(string.Empty);
+
+            foreach (SemanticTag tag in catalog.Tags
+                         .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
+                         .OrderBy(tag => tag.Category.DisplayName)
+                         .ThenBy(tag => tag.DisplayName))
+            {
+                SemanticTag captured = tag;
+                menu.AddItem(
+                    new GUIContent($"{tag.Category.DisplayName}/{tag.DisplayName}"),
+                    selected.Contains(tag),
+                    () => ToggleRelationAnchorTag(anchor, captured));
+            }
+
+            if (catalog.Tags.All(tag => !tag || !tag.Category || !tag.Category.SupportsAssets))
+                menu.AddDisabledItem(new GUIContent("No asset-compatible tags available"));
+
+            menu.ShowAsContext();
+        }
+
+        private void ToggleRelationAnchorTag(AssetRelationAnchor anchor, SemanticTag tag)
+        {
+            List<SemanticTag> tags = anchor.AssetTags.Where(existing => existing).ToList();
+            if (!tags.Remove(tag))
+                tags.Add(tag);
+            SetRelationAnchorTags(anchor, tags);
+        }
+
+        private void SetRelationAnchorTags(
+            AssetRelationAnchor anchor,
+            IEnumerable<SemanticTag> tags)
+        {
+            Undo.RecordObject(anchor, "Change Relation Anchor Tags");
+            anchor.SetAssetTags(tags);
+            MarkSceneObjectChanged(anchor);
+            MarkSceneSetupDirty();
         }
 
         private static string GetSurfaceTagSummary(PlacementSurfaceDescriptor descriptor)
@@ -536,6 +846,32 @@ namespace Genix.Editor.Windows
             menu.ShowAsContext();
         }
 
+        private static string GetCapacitySummary(PlacementSurfaceDescriptor descriptor)
+        {
+            string total = descriptor.LimitCapacity ? descriptor.MaxCapacity.ToString() : "∞";
+            int specificRules = descriptor.AssetCapacityRules.Count(rule => rule?.IsConfigured == true);
+            return specificRules > 0 ? $"{total} +{specificRules}" : total;
+        }
+
+        private static string GetCapacityTooltip(PlacementSurfaceDescriptor descriptor)
+        {
+            List<string> lines = new()
+            {
+                descriptor.LimitCapacity
+                    ? $"Total capacity: {descriptor.MaxCapacity} placements."
+                    : "Total capacity: Unlimited."
+            };
+            lines.AddRange(descriptor.AssetCapacityRules
+                .Where(rule => rule?.IsConfigured == true)
+                .Select(rule => $"{rule.DisplayName}: maximum {rule.MaxCapacity}"));
+
+            if (lines.Count == 1)
+                lines.Add("No asset-specific limits.");
+
+            lines.Add("Open Details to edit asset-specific limits.");
+            return string.Join("\n", lines);
+        }
+
         private void SetSurfaceCapacity(
             PlacementSurfaceDescriptor descriptor,
             bool limited,
@@ -612,11 +948,61 @@ namespace Genix.Editor.Windows
             Repaint();
         }
 
+        private void DrawSceneSetupSettingsClipboard(UnityEngine.Object selectedObject)
+        {
+            if (selectedObject is not PlacementSurfaceDescriptor descriptor)
+                return;
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(
+                    new GUIContent(
+                        "Surface Settings",
+                        "Copy semantic tags, accepted-asset rules, total capacity, and asset-specific capacity limits between placement surfaces."),
+                    EditorStyles.boldLabel);
+                GUILayout.FlexibleSpace();
+
+                if (GUILayout.Button(
+                        new GUIContent(
+                            "Copy",
+                            "Copy this placement surface's designer-authored settings."),
+                        GUILayout.Width(58f)))
+                {
+                    _surfaceSettingsClipboard = PlacementSurfaceSettingsSnapshot.Capture(descriptor);
+                    ShowNotification(new GUIContent($"Copied surface settings from {descriptor.gameObject.name}."));
+                }
+
+                using (new EditorGUI.DisabledScope(_surfaceSettingsClipboard == null))
+                {
+                    string sourceName = _surfaceSettingsClipboard?.SourceName;
+                    if (GUILayout.Button(
+                            new GUIContent(
+                                "Paste",
+                                string.IsNullOrWhiteSpace(sourceName)
+                                    ? "Copy surface settings before pasting."
+                                    : $"Paste the surface settings copied from {sourceName}."),
+                            GUILayout.Width(58f)))
+                    {
+                        Undo.RecordObject(descriptor, "Paste Placement Surface Settings");
+                        _surfaceSettingsClipboard.ApplyTo(descriptor);
+                        EditorUtility.SetDirty(descriptor);
+                        EditorSceneManager.MarkSceneDirty(descriptor.gameObject.scene);
+                        PlacementSolver.ClearCandidateCache();
+                        DestroySelectedObjectEditor();
+                        MarkSceneSetupDirty();
+                        ShowNotification(new GUIContent($"Pasted surface settings to {descriptor.gameObject.name}."));
+                    }
+                }
+            }
+
+            EditorGUILayout.Space(4f);
+        }
+
         private void DrawSelectedSceneSetupValidation()
         {
             EnsureSceneSetupEntries();
             SceneSetupObjectEntry entry = _sceneSetupEntries.FirstOrDefault(candidate =>
-                candidate.DetailTarget == _selectedSceneSetupObject);
+                candidate.MatchesDetailTarget(_selectedSceneSetupObject));
 
             if (entry == null)
                 return;
@@ -625,13 +1011,12 @@ namespace Genix.Editor.Windows
                 entry,
                 GenixEditorWindow.GetConfiguredSurfaceLayerMask(),
                 out MessageType messageType);
-            EditorGUILayout.LabelField("Validation", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(
-                status == "Ready"
-                    ? "Ready. This object is active and its current Genix configuration is effective."
-                    : status,
-                messageType == MessageType.None ? MessageType.Info : messageType);
-            EditorGUILayout.Space(4f);
+            if (messageType is MessageType.Warning or MessageType.Error)
+            {
+                EditorGUILayout.LabelField("Validation", EditorStyles.boldLabel);
+                EditorGUILayout.HelpBox(status, messageType);
+                EditorGUILayout.Space(4f);
+            }
         }
 
         private void EnsureSceneSetupEntries()
@@ -650,7 +1035,7 @@ namespace Genix.Editor.Windows
             _sceneSetupDirty = false;
 
             if (_selectedSceneSetupObject &&
-                _sceneSetupEntries.All(entry => entry.DetailTarget != _selectedSceneSetupObject))
+                _sceneSetupEntries.All(entry => !entry.MatchesDetailTarget(_selectedSceneSetupObject)))
             {
                 _selectedSceneSetupObject = null;
                 DestroySelectedObjectEditor();
@@ -664,8 +1049,8 @@ namespace Genix.Editor.Windows
             public Rect Object { get; }
             public Rect Layer { get; }
             public Rect Tags { get; }
+            public Rect Relation { get; }
             public Rect Capacity { get; }
-            public Rect Forward { get; }
             public Rect Status { get; }
 
             public SceneSetupColumns(Rect row)
@@ -675,16 +1060,17 @@ namespace Genix.Editor.Windows
                 float height = row.height - 2f;
                 float y = row.y + 1f;
 
-                float compactWidth = 38f + gap + 38f + gap + 26f;
-                float flexibleWidth = Mathf.Max(180f, row.width - compactWidth - gap * 4f);
-                float objectWidth = Mathf.Clamp(flexibleWidth * 0.38f, 150f, 220f);
-                float layerWidth = Mathf.Clamp(flexibleWidth * 0.24f, 105f, 135f);
+                const float relationWidth = 120f;
+                float compactWidth = relationWidth + 38f + 26f + gap * 3f;
+                float flexibleWidth = Mathf.Max(300f, row.width - compactWidth - gap * 2f - 4f);
+                float objectWidth = Mathf.Clamp(flexibleWidth * 0.35f, 150f, 220f);
+                float layerWidth = Mathf.Clamp(flexibleWidth * 0.23f, 105f, 135f);
 
                 Object = Take(ref x, y, objectWidth, height, gap);
                 Layer = Take(ref x, y, layerWidth, height, gap);
                 Tags = Take(ref x, y, Mathf.Max(120f, row.xMax - x - compactWidth - gap - 2f), height, gap);
+                Relation = Take(ref x, y, relationWidth, height, gap);
                 Capacity = Take(ref x, y, 38f, height, gap);
-                Forward = Take(ref x, y, 38f, height, gap);
                 Status = new Rect(x, y, 26f, height);
             }
 

@@ -3,6 +3,7 @@ using System.Linq;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Placement;
+using Genix.Semantics;
 using UnityEngine;
 
 namespace Genix.Editor.Generation
@@ -283,6 +284,179 @@ namespace Genix.Editor.Generation
             {
                 Type = type;
                 Remaining = remaining;
+            }
+        }
+    }
+
+    /// <summary>Tracks exact and weighted accepted-placement budgets across semantic support tags.</summary>
+    internal sealed class SupportDistributionState
+    {
+        private readonly IReadOnlyList<SupportDistributionRule> _rules;
+        private readonly int[] _targets;
+        private readonly int[] _placed;
+        private int _activeGroup;
+
+        public bool IsActive { get; }
+        public int GroupCount => _targets.Length;
+        public System.Predicate<CandidateSeed> ActiveSeedFilter { get; }
+
+        private SupportDistributionState(GenerationContext context)
+        {
+            SupportDistributionSettings settings = context.SupportDistribution;
+            IsActive = true;
+            _rules = settings.Rules;
+            _targets = new int[_rules.Count + 1];
+            _placed = new int[_targets.Length];
+            ActiveSeedFilter = MatchesActiveGroup;
+            AllocateTargets(Mathf.Max(0, context.Count), settings.DefaultWeight);
+        }
+
+        public static SupportDistributionState Create(GenerationContext context) =>
+            context?.SupportDistribution?.IsEnabled == true ? new SupportDistributionState(context) : null;
+
+        public bool TrySelectUnderfilled(ISet<int> excluded, out int group)
+        {
+            group = -1;
+            float bestScore = float.NegativeInfinity;
+
+            for (int i = 0; i < _targets.Length; i++)
+            {
+                if ((excluded?.Contains(i) ?? false) || _placed[i] >= _targets[i])
+                    continue;
+
+                float score = (_targets[i] - _placed[i]) / (float)Mathf.Max(1, _targets[i]);
+                if (score <= bestScore)
+                    continue;
+
+                bestScore = score;
+                group = i;
+            }
+
+            return group >= 0;
+        }
+
+        public bool Matches(CandidateSeed seed, int group)
+        {
+            PlacementSurfaceDescriptor descriptor = PlacementSupportRules.GetDescriptor(seed.SurfaceCollider);
+            return Matches(descriptor, group);
+        }
+
+        private bool Matches(PlacementSurfaceDescriptor descriptor, int group)
+        {
+            int matchedGroup = _rules.Count;
+
+            if (descriptor)
+            {
+                for (int i = 0; i < _rules.Count; i++)
+                {
+                    SemanticTag tag = _rules[i].SupportTag;
+                    if (tag && descriptor.SurfaceTags.Contains(tag))
+                    {
+                        matchedGroup = i;
+                        break;
+                    }
+                }
+            }
+
+            return matchedGroup == group;
+        }
+
+        public void SelectGroup(int group) => _activeGroup = group;
+
+        public void RecordPlacement(int group)
+        {
+            if (group >= 0 && group < _placed.Length)
+                _placed[group]++;
+        }
+
+        public void RecordPlacement(PlacementCandidate candidate)
+        {
+            PlacementSurfaceDescriptor descriptor = PlacementSupportRules.GetDescriptor(candidate.SurfaceCollider);
+            for (int group = 0; group < _placed.Length; group++)
+            {
+                if (!Matches(descriptor, group))
+                    continue;
+
+                _placed[group]++;
+                return;
+            }
+        }
+
+        public int[] CreateCheckpoint() => (int[])_placed.Clone();
+
+        public void Restore(int[] checkpoint)
+        {
+            if (checkpoint == null || checkpoint.Length != _placed.Length)
+                return;
+
+            System.Array.Copy(checkpoint, _placed, _placed.Length);
+        }
+
+        public string GetLabel(int group) => group >= 0 && group < _rules.Count
+            ? _rules[group].SupportTag.DisplayName
+            : "Default / Other Surfaces";
+
+        public int GetTarget(int group) => group >= 0 && group < _targets.Length ? _targets[group] : 0;
+        public int GetPlaced(int group) => group >= 0 && group < _placed.Length ? _placed[group] : 0;
+
+        public string FormatBudgets() => string.Join(", ", Enumerable.Range(0, GroupCount)
+            .Select(group => $"{GetLabel(group)} {GetPlaced(group)}/{GetTarget(group)}"));
+
+        private bool MatchesActiveGroup(CandidateSeed seed) => Matches(seed, _activeGroup);
+
+        private void AllocateTargets(int count, int defaultWeight)
+        {
+            int remaining = count;
+
+            for (int i = 0; i < _rules.Count && remaining > 0; i++)
+            {
+                SupportDistributionRule rule = _rules[i];
+                if (rule.Mode != SupportDistributionRuleMode.ExactCount)
+                    continue;
+
+                int allocated = Mathf.Min(rule.Value, remaining);
+                _targets[i] = allocated;
+                remaining -= allocated;
+            }
+
+            if (remaining <= 0)
+                return;
+
+            List<(int Group, int Weight)> weights = new();
+            for (int i = 0; i < _rules.Count; i++)
+            {
+                SupportDistributionRule rule = _rules[i];
+                if (rule.Mode == SupportDistributionRuleMode.Weight && rule.Value > 0)
+                    weights.Add((i, rule.Value));
+            }
+
+            if (defaultWeight > 0)
+                weights.Add((_rules.Count, defaultWeight));
+
+            int totalWeight = weights.Sum(entry => entry.Weight);
+            if (totalWeight <= 0)
+            {
+                _targets[_rules.Count] += remaining;
+                return;
+            }
+
+            int assigned = 0;
+            List<(int Group, float Remainder)> remainders = new();
+            foreach ((int group, int weight) in weights)
+            {
+                float exact = remaining * weight / (float)totalWeight;
+                int whole = Mathf.FloorToInt(exact);
+                _targets[group] += whole;
+                assigned += whole;
+                remainders.Add((group, exact - whole));
+            }
+
+            foreach ((int group, _) in remainders
+                         .OrderByDescending(entry => entry.Remainder)
+                         .ThenBy(entry => entry.Group)
+                         .Take(remaining - assigned))
+            {
+                _targets[group]++;
             }
         }
     }

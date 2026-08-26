@@ -30,30 +30,33 @@ namespace Genix.Placement
             GenerationContext context,
             IDiagnosticsSink diagnostics,
             PlacementTarget? targets,
-            IGenerationProfiler profiler = null)
+            IGenerationProfiler profiler = null,
+            IReadOnlyList<AssetDefinition> assets = null)
         {
             diagnostics ??= NullDiagnosticsSink.Instance;
             profiler ??= NullGenerationProfiler.Instance;
 
             if (!ShouldUseLazy(context))
-                return new CandidatePool(Create(context, diagnostics, targets, profiler));
+                return new CandidatePool(Create(context, diagnostics, targets, profiler, assets));
 
-            string cacheKey = CreateCacheKey(context, targets);
+            string cacheKey = CreateCacheKey(context, targets, assets);
 
             if (CandidateSeedCache.TryGet(cacheKey, out _))
-                return new CandidatePool(Create(context, diagnostics, targets, profiler));
+                return new CandidatePool(Create(context, diagnostics, targets, profiler, assets));
 
             profiler.RecordCandidateCacheHit(false);
             int requestedCount = Mathf.Max(1, context.Count);
             int minimumCandidateCount = GetMinimumCandidateCount(context, requestedCount);
+            int candidateBudget = GetCandidateBudget(context, requestedCount, minimumCandidateCount);
             int batchCandidateCount = GetLazyBatchCandidateCount(requestedCount);
-            int maxBatchCount = GetLazyMaxBatchCount(context, requestedCount, batchCandidateCount);
+            int maxBatchCount = GetLazyMaxBatchCount(candidateBudget, batchCandidateCount);
             IReadOnlyList<ICandidateProvider> providers = CreateProviderList(
                 context,
                 targets,
                 requestedCount,
                 minimumCandidateCount,
-                batchCandidateCount);
+                batchCandidateCount,
+                assets);
 
             return new CandidatePool(
                 () => CreateLazyBatch(
@@ -62,7 +65,8 @@ namespace Genix.Placement
                     providers,
                     profiler,
                     requestedCount),
-                maxBatchCount);
+                maxBatchCount,
+                candidateBudget);
         }
 
         /// <summary>Creates independent pools for target-distribution policies that consume targets separately.</summary>
@@ -70,13 +74,14 @@ namespace Genix.Placement
             GenerationContext context,
             IDiagnosticsSink diagnostics,
             PlacementTarget? targets,
-            IGenerationProfiler profiler = null)
+            IGenerationProfiler profiler = null,
+            IReadOnlyList<AssetDefinition> assets = null)
         {
             diagnostics ??= NullDiagnosticsSink.Instance;
             profiler ??= NullGenerationProfiler.Instance;
 
             if (!ShouldUseLazy(context))
-                return CreateEagerPoolsByPlacementType(context, diagnostics, targets, profiler);
+                return CreateEagerPoolsByPlacementType(context, diagnostics, targets, profiler, assets);
 
             PlacementTarget selectedTargets = (targets ?? context.PlacementTargets) & PlacementTarget.All;
             List<PlacementType> placementTypes = GetPlacementTypes(selectedTargets);
@@ -89,14 +94,16 @@ namespace Genix.Placement
                 PlacementTarget target = ToPlacementTarget(placementType);
                 int requestedCount = GetRequestedObjectCount(context, placementType, placementTypes);
                 int minimumCandidateCount = GetMinimumCandidateCount(context, requestedCount);
+                int candidateBudget = GetCandidateBudget(context, requestedCount, minimumCandidateCount);
                 int batchCandidateCount = GetLazyBatchCandidateCount(requestedCount);
-                int maxBatchCount = GetLazyMaxBatchCount(context, requestedCount, batchCandidateCount);
+                int maxBatchCount = GetLazyMaxBatchCount(candidateBudget, batchCandidateCount);
                 IReadOnlyList<ICandidateProvider> providers = CreateProviderList(
                     context,
                     target,
                     requestedCount,
                     minimumCandidateCount,
-                    batchCandidateCount);
+                    batchCandidateCount,
+                    assets);
 
                 pools[placementType] = new CandidatePool(
                     () => CreateLazyBatch(
@@ -105,7 +112,8 @@ namespace Genix.Placement
                         providers,
                         profiler,
                         requestedCount),
-                    maxBatchCount);
+                    maxBatchCount,
+                    candidateBudget);
             }
 
             return pools;
@@ -116,11 +124,12 @@ namespace Genix.Placement
             GenerationContext context,
             IDiagnosticsSink diagnostics,
             PlacementTarget? targets,
-            IGenerationProfiler profiler = null)
+            IGenerationProfiler profiler = null,
+            IReadOnlyList<AssetDefinition> assets = null)
         {
             profiler ??= NullGenerationProfiler.Instance;
             Stopwatch stopwatch = profiler.IsEnabled ? Stopwatch.StartNew() : null;
-            string cacheKey = CreateCacheKey(context, targets);
+            string cacheKey = CreateCacheKey(context, targets, assets);
 
             if (CandidateSeedCache.TryGet(cacheKey, out CandidateSeedCacheEntry cached))
             {
@@ -135,7 +144,7 @@ namespace Genix.Placement
 
             List<CandidateSeed> seeds = new();
 
-            foreach (ICandidateProvider provider in CreateProviders(context, targets))
+            foreach (ICandidateProvider provider in CreateProviders(context, targets, assets: assets))
                 seeds.AddRange(provider.CreateCandidateSeeds(context, diagnostics, profiler));
 
             if (context.StyleSettings.algorithm is SamplingAlgorithm.Grid or SamplingAlgorithm.JitteredGrid)
@@ -152,9 +161,10 @@ namespace Genix.Placement
             GenerationContext context,
             IDiagnosticsSink diagnostics,
             PlacementTarget? targets,
-            IGenerationProfiler profiler)
+            IGenerationProfiler profiler,
+            IReadOnlyList<AssetDefinition> assets)
         {
-            List<CandidateSeed> seeds = Create(context, diagnostics, targets, profiler);
+            List<CandidateSeed> seeds = Create(context, diagnostics, targets, profiler, assets);
             Dictionary<PlacementType, List<CandidateSeed>> groupedSeeds = new();
 
             foreach (CandidateSeed seed in seeds)
@@ -202,7 +212,8 @@ namespace Genix.Placement
             PlacementTarget? targets,
             int requestedCount,
             int minimumCandidateCount,
-            int candidateCount)
+            int candidateCount,
+            IReadOnlyList<AssetDefinition> assets)
         {
             List<ICandidateProvider> providers = new();
 
@@ -211,7 +222,8 @@ namespace Genix.Placement
                          targets,
                          requestedCount,
                          minimumCandidateCount,
-                         candidateCount))
+                         candidateCount,
+                         assets))
             {
                 providers.Add(provider);
             }
@@ -252,13 +264,15 @@ namespace Genix.Placement
             PlacementTarget? targets,
             int requestedCount = -1,
             int minimumCandidateCount = -1,
-            int candidateCount = -1)
+            int candidateCount = -1,
+            IReadOnlyList<AssetDefinition> assets = null)
         {
             yield return new PlacementTargetCandidateProvider(
                 targets ?? context.PlacementTargets,
                 requestedCount,
                 minimumCandidateCount,
-                candidateCount);
+                candidateCount,
+                assets);
         }
 
         private static bool ShouldUseLazy(GenerationContext context) =>
@@ -270,21 +284,17 @@ namespace Genix.Placement
                 LazyMinimumBatchCandidateCount,
                 Mathf.Max(1, requestedCount) * LazyBatchCandidateMultiplier);
 
-        private static int GetLazyMaxBatchCount(
-            GenerationContext context,
-            int requestedCount,
-            int batchCandidateCount)
-        {
-            int fullCandidateCount = Mathf.Max(
-                Mathf.Max(1, requestedCount),
-                Mathf.Max(1, requestedCount) * context.StyleSettings.candidates.multiplier,
-                GetMinimumCandidateCount(context, requestedCount));
-
-            return Mathf.Clamp(
-                Mathf.CeilToInt(fullCandidateCount / (float)Mathf.Max(1, batchCandidateCount)),
+        private static int GetLazyMaxBatchCount(int candidateBudget, int batchCandidateCount) =>
+            Mathf.Clamp(
+                Mathf.CeilToInt(candidateBudget / (float)Mathf.Max(1, batchCandidateCount)),
                 1,
                 LazyMaxBatchCount);
-        }
+
+        private static int GetCandidateBudget(
+            GenerationContext context,
+            int requestedCount,
+            int minimumCandidateCount) =>
+            context.StyleSettings.candidates.GetBudget(requestedCount, minimumCandidateCount);
 
         private static int GetMinimumCandidateCount(GenerationContext context, int requestedCount)
         {
@@ -349,13 +359,21 @@ namespace Genix.Placement
                 _ => PlacementTarget.None
             };
 
-        private static string CreateCacheKey(GenerationContext context, PlacementTarget? targets)
+        private static string CreateCacheKey(
+            GenerationContext context,
+            PlacementTarget? targets,
+            IReadOnlyList<AssetDefinition> assets)
         {
             if (context == null || !context.UseFixedSeed)
                 return string.Empty;
 
             Bounds bounds = context.TargetBounds;
             Genix.Styles.StyleSettings settings = context.StyleSettings;
+
+            PlacementTarget selectedTargets = (targets ?? context.PlacementTargets) & PlacementTarget.All;
+            string supportSamplingKey = (selectedTargets & PlacementTarget.Floor) != 0
+                ? SupportSurfaceSampling.CreateCacheKey(context, assets, PlacementType.Floor)
+                : "support:not-used";
 
             return string.Join("|",
                 context.Area.SourceInfo.SourceId,
@@ -382,7 +400,8 @@ namespace Genix.Placement
                 settings.cluster.useMinCenterDistance,
                 FloatKey(settings.cluster.minCenterDistance),
                 FloatKey(settings.poisson.minDistance),
-                settings.poisson.attempts);
+                settings.poisson.attempts,
+                supportSamplingKey);
         }
 
         private static string VectorKey(Vector3 value) =>

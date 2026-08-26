@@ -144,6 +144,9 @@ namespace Genix.Editor.Windows
         private PlacementTarget _placementTargets = PlacementTarget.All;
         private TargetDistributionMode _targetDistributionMode = TargetDistributionMode.Random;
         private TargetDistributionWeights _targetDistributionWeights = TargetDistributionWeights.Default;
+        private bool _supportDistributionEnabled;
+        private int _defaultSupportWeight = 1;
+        private readonly List<SupportDistributionRule> _supportDistributionRules = new();
         private RelativePlacementSource _relativeSource = RelativePlacementSource.None;
         private LayerMask _relativeSceneLayers = ~0;
 
@@ -180,7 +183,7 @@ namespace Genix.Editor.Windows
         [MenuItem("Tools/Genix/Generator")]
         public static void Open()
         {
-            GetWindow<GenixEditorWindow>("Genix Generator");
+            GenixWindowDocking.Open<GenixEditorWindow>("Genix Generator");
         }
 
         private void OnEnable()
@@ -404,7 +407,7 @@ namespace Genix.Editor.Windows
         {
             EditorGUI.BeginChangeCheck();
             bool profileRun = EditorGUILayout.Toggle(
-                new GUIContent("Profile Run", "Capture phase timings, counters, memory statistics, and rejection costs for the next runs. Adds measurement overhead."),
+                new GUIContent("Profile Run", "Capture phase timings, counters, memory statistics, and rejection costs for Generate, Re-Generate, and Preview Run until disabled. Adds measurement overhead."),
                 GenerationProfilerService.ProfilingEnabled);
 
             if (EditorGUI.EndChangeCheck())
@@ -501,9 +504,6 @@ namespace Genix.Editor.Windows
                     SaveCurrentLayout();
             }
 
-            if (GenerationProfilerService.ProfilingEnabled)
-                EditorGUILayout.HelpBox("Generate, Re-Generate, and Preview Run will capture performance profiles until Profile is disabled.", MessageType.Info);
-
             DrawSceneSetupReport();
         }
 
@@ -549,7 +549,8 @@ namespace Genix.Editor.Windows
                 _useGenerationSeed,
                 _generationSeed,
                 _bestEffort,
-                _detailedDiagnostics);
+                _detailedDiagnostics,
+                CreateSupportDistributionSettings());
 
             return true;
         }
@@ -596,11 +597,13 @@ namespace Genix.Editor.Windows
 
             foreach (SceneSetupIssue issue in _lastSceneSetupReport.Issues)
             {
+                if (issue.Severity is not (SceneSetupIssueSeverity.Error or SceneSetupIssueSeverity.Warning))
+                    continue;
+
                 MessageType type = issue.Severity switch
                 {
                     SceneSetupIssueSeverity.Error => MessageType.Error,
-                    SceneSetupIssueSeverity.Warning => MessageType.Warning,
-                    _ => MessageType.Info
+                    _ => MessageType.Warning
                 };
                 EditorGUILayout.HelpBox(issue.Message, type);
             }

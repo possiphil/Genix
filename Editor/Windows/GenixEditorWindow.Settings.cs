@@ -34,6 +34,13 @@ namespace Genix.Editor.Windows
                 return;
             }
 
+            int candidateBudget = _selectedStylePreset.Settings.candidates.GetBudget(_objectCount);
+            EditorGUILayout.LabelField(
+                new GUIContent(
+                    "Maximum Candidates",
+                    "Hard upper bound on sampled candidate positions for this object count and generation style. Generation stops earlier as soon as the requested object count is reached."),
+                candidateBudget.ToString("N0"));
+
             _stylePreviewDrawer.Draw(_selectedStylePreset);
         }
 

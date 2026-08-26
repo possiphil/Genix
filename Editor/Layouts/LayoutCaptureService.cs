@@ -27,7 +27,10 @@ namespace Genix.Editor.Layouts
             AssetPool assetPool,
             string styleName,
             out SavedLayout layout,
-            out string error)
+            out string error,
+            string displayNameOverride = null,
+            string notes = null,
+            bool lockLayout = false)
         {
             layout = null;
 
@@ -59,7 +62,9 @@ namespace Genix.Editor.Layouts
             string sceneName = string.IsNullOrWhiteSpace(scene.name) ? "Unsaved Scene" : scene.name;
             string scenePath = scene.path ?? string.Empty;
             string safeAreaName = AssetFileService.SanitizeName(AreaName.ToUnitySafeDisplayName(areaName), "Target Area");
-            string displayName = $"{areaName} Layout {timestamp}";
+            string displayName = string.IsNullOrWhiteSpace(displayNameOverride)
+                ? $"{areaName} Layout {timestamp}"
+                : displayNameOverride.Trim();
             string safeDisplayName = AssetFileService.SanitizeName(displayName, "Saved Layout");
             string targetFolder = $"{ProjectContentPaths.Layouts}/{safeAreaName}";
             string prefabFolder = $"{targetFolder}/Prefabs";
@@ -109,13 +114,15 @@ namespace Genix.Editor.Layouts
                     bounds,
                     createdAt,
                     CreateAssetSummaries(generatedObjects));
+                if (!string.IsNullOrWhiteSpace(displayNameOverride) || !string.IsNullOrWhiteSpace(notes) || lockLayout)
+                    layout.SetDesignerMetadata(displayName, notes ?? string.Empty, false, lockLayout);
 
                 string layoutPath = AssetDatabase.GenerateUniqueAssetPath(
                     $"{targetFolder}/{safeDisplayName}.asset");
                 AssetDatabase.CreateAsset(layout, layoutPath);
                 EditorUtility.SetDirty(layout);
                 AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh();
+                LayoutRepository.InvalidateCache();
                 error = string.Empty;
                 return true;
             }

@@ -1,5 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Genix.Core;
+using Genix.Editor.Genix.Editor.Assets;
 using Genix.Placement;
+using Genix.Semantics;
 using UnityEditor;
 using UnityEngine;
 
@@ -14,6 +19,8 @@ namespace Genix.Editor.Inspectors
         private SerializedProperty _size;
         private SerializedProperty _radius;
         private SerializedProperty _affectedTargets;
+        private SerializedProperty _exemptAssetTags;
+        private SerializedProperty _alwaysShowRegion;
 
         private void OnEnable()
         {
@@ -22,6 +29,8 @@ namespace Genix.Editor.Inspectors
             _size = serializedObject.FindProperty("size");
             _radius = serializedObject.FindProperty("radius");
             _affectedTargets = serializedObject.FindProperty("affectedTargets");
+            _exemptAssetTags = serializedObject.FindProperty("exemptAssetTags");
+            _alwaysShowRegion = serializedObject.FindProperty("alwaysShowRegion");
         }
 
         /// <summary>Draws the custom region inspector.</summary>
@@ -29,21 +38,16 @@ namespace Genix.Editor.Inspectors
         {
             serializedObject.Update();
 
-            EditorGUILayout.HelpBox(
-                "Reserves placement space without creating a Collider, Trigger, or any gameplay physics behavior. Overlapping regions combine automatically.",
-                MessageType.Info);
-
             EditorGUILayout.PropertyField(_shape, new GUIContent(
                 "Shape",
-                "Box is suited to paths and door clearances. Sphere is suited to radial safety or interaction zones."));
-            EditorGUILayout.PropertyField(_center, new GUIContent(
-                "Center",
-                "Local offset from this object's transform. Transform scale is intentionally ignored."));
-
+                "Reserves placement space without creating a Collider, Trigger, or gameplay physics behavior. Overlapping regions combine automatically. Box is suited to paths and door clearances; Sphere is suited to radial safety or interaction zones."));
             ExclusionRegionShape shape = (ExclusionRegionShape)_shape.enumValueIndex;
 
             if (shape == ExclusionRegionShape.Box)
             {
+                EditorGUILayout.PropertyField(_center, new GUIContent(
+                    "Center",
+                    "Local offset from this object's transform. Transform scale is intentionally ignored."));
                 EditorGUI.BeginChangeCheck();
                 Vector3 size = EditorGUILayout.Vector3Field(new GUIContent(
                     "Size",
@@ -58,8 +62,11 @@ namespace Genix.Editor.Inspectors
                         Mathf.Max(0.01f, size.z));
                 }
             }
-            else
+            else if (shape == ExclusionRegionShape.Sphere)
             {
+                EditorGUILayout.PropertyField(_center, new GUIContent(
+                    "Center",
+                    "Local offset from this object's transform. Transform scale is intentionally ignored."));
                 EditorGUI.BeginChangeCheck();
                 float radius = EditorGUILayout.FloatField(new GUIContent(
                     "Radius",
@@ -70,9 +77,11 @@ namespace Genix.Editor.Inspectors
                     _radius.floatValue = Mathf.Max(0f, radius);
             }
 
-            EditorGUILayout.PropertyField(_affectedTargets, new GUIContent(
-                "Affected Targets",
-                "Only candidates of these placement target types are rejected by this region."));
+            DrawAffectedTargets();
+            DrawExemptAssetTags();
+            EditorGUILayout.PropertyField(_alwaysShowRegion, new GUIContent(
+                "Always Show Region",
+                "Keep this region visible in the Scene view while another object is selected. Unity's global Gizmos switch still controls all gizmo rendering."));
 
             if (((PlacementTarget)_affectedTargets.intValue & PlacementTarget.All) == PlacementTarget.None)
             {
@@ -82,6 +91,118 @@ namespace Genix.Editor.Inspectors
             }
 
             serializedObject.ApplyModifiedProperties();
+        }
+
+        private void DrawExemptAssetTags()
+        {
+            IReadOnlyList<SemanticTag> selected = GetTags();
+            string summary = selected.Count switch
+            {
+                0 => "None",
+                <= 2 => string.Join(", ", selected.Select(tag => tag.DisplayName)),
+                _ => $"{selected[0].DisplayName}, {selected[1].DisplayName} +{selected.Count - 2}"
+            };
+            Rect row = EditorGUILayout.GetControlRect();
+            Rect button = EditorGUI.PrefixLabel(row, new GUIContent(
+                "Exempt Asset Tags",
+                "Assets carrying any selected asset-compatible tag may overlap this region. Use this for path furniture on collider-backed path exclusions."));
+
+            if (!EditorGUI.DropdownButton(button, new GUIContent(summary), FocusType.Keyboard))
+                return;
+
+            GenericMenu menu = new();
+            menu.AddItem(new GUIContent("None"), selected.Count == 0, () => SetTags(Array.Empty<SemanticTag>()));
+            menu.AddSeparator(string.Empty);
+            List<SemanticTag> available = AssetCatalogService.GetOrCreate().Tags
+                .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
+                .OrderBy(tag => tag.Category.DisplayName)
+                .ThenBy(tag => tag.DisplayName)
+                .ToList();
+
+            foreach (SemanticTag tag in available)
+            {
+                SemanticTag captured = tag;
+                menu.AddItem(
+                    new GUIContent($"{tag.Category.DisplayName}/{tag.DisplayName}"),
+                    selected.Contains(tag),
+                    () => ToggleTag(captured));
+            }
+
+            if (available.Count == 0)
+                menu.AddDisabledItem(new GUIContent("No asset-compatible tags available"));
+
+            menu.DropDown(button);
+        }
+
+        private IReadOnlyList<SemanticTag> GetTags()
+        {
+            List<SemanticTag> tags = new();
+            for (int i = 0; i < _exemptAssetTags.arraySize; i++)
+            {
+                if (_exemptAssetTags.GetArrayElementAtIndex(i).objectReferenceValue is SemanticTag tag && tag)
+                    tags.Add(tag);
+            }
+
+            return tags;
+        }
+
+        private void ToggleTag(SemanticTag tag)
+        {
+            List<SemanticTag> tags = GetTags().ToList();
+            if (!tags.Remove(tag))
+                tags.Add(tag);
+            SetTags(tags);
+        }
+
+        private void SetTags(IEnumerable<SemanticTag> tags)
+        {
+            serializedObject.Update();
+            _exemptAssetTags.ClearArray();
+            foreach (SemanticTag tag in tags.Where(tag => tag).Distinct())
+            {
+                int index = _exemptAssetTags.arraySize;
+                _exemptAssetTags.InsertArrayElementAtIndex(index);
+                _exemptAssetTags.GetArrayElementAtIndex(index).objectReferenceValue = tag;
+            }
+            serializedObject.ApplyModifiedProperties();
+            EditorUtility.SetDirty(target);
+        }
+
+        private void DrawAffectedTargets()
+        {
+            PlacementTarget targets = PlacementTargetSelectionField.Normalize(
+                (PlacementTarget)_affectedTargets.intValue);
+            _affectedTargets.intValue = (int)targets;
+
+            Rect controlRect = EditorGUILayout.GetControlRect();
+            Rect dropdownRect = EditorGUI.PrefixLabel(
+                controlRect,
+                new GUIContent(
+                    "Affected Targets",
+                    "Only candidates of these placement target types are rejected by this region."));
+
+            if (!EditorGUI.DropdownButton(
+                    dropdownRect,
+                    new GUIContent(PlacementTargetSelectionField.GetLabel(targets, "None")),
+                    FocusType.Keyboard))
+            {
+                return;
+            }
+
+            PlacementTargetSelectionField.Show(
+                dropdownRect,
+                targets,
+                SetAffectedTargets,
+                "Clear every affected target. The exclusion region then has no effect.",
+                "Reject Floor, Wall, Ceiling, and Inside Space candidates.");
+        }
+
+        private void SetAffectedTargets(PlacementTarget targets)
+        {
+            serializedObject.Update();
+            _affectedTargets.intValue = (int)PlacementTargetSelectionField.Normalize(targets);
+            serializedObject.ApplyModifiedProperties();
+            Repaint();
         }
 
         [MenuItem("GameObject/Genix/Exclusion Region", false, 30)]

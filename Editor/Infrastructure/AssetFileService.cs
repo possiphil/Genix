@@ -111,8 +111,14 @@ namespace Genix.Editor.Infrastructure
                 return true;
 
             string folderPath = Path.GetDirectoryName(currentPath)?.Replace("\\", "/");
-            string targetPath = AssetDatabase.GenerateUniqueAssetPath($"{folderPath}/{cleanName}.asset");
-            string uniqueName = Path.GetFileNameWithoutExtension(targetPath);
+            string currentFileName = Path.GetFileNameWithoutExtension(currentPath);
+            string uniqueName = string.Equals(
+                currentFileName,
+                cleanName,
+                System.StringComparison.OrdinalIgnoreCase)
+                ? cleanName
+                : Path.GetFileNameWithoutExtension(AssetDatabase.GenerateUniqueAssetPath(
+                    $"{folderPath}/{cleanName}.asset"));
             error = AssetDatabase.RenameAsset(currentPath, uniqueName);
 
             if (!string.IsNullOrWhiteSpace(error))

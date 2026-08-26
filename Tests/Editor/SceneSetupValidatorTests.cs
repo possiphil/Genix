@@ -173,16 +173,132 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void SceneSetupDiscoveryIncludesAssetRelationAnchorWithoutCollider()
+        {
+            AssetRelationAnchor anchor = CreateSceneObject("Fixed Desk Anchor")
+                .AddComponent<AssetRelationAnchor>();
+
+            List<SceneSetupObjectEntry> entries = SceneSetupObjectDiscovery.Collect(0);
+
+            Assert.That(entries.Any(entry =>
+                entry.Type == SceneSetupObjectType.RelationAnchor &&
+                entry.RelationAnchor == anchor &&
+                entry.DetailTarget == anchor), Is.True);
+        }
+
+        [Test]
+        public void SceneSetupDiscoveryMergesSurfaceAndAnchorOnSameObject()
+        {
+            GameObject surface = CreateSceneObject("Desktop Anchor");
+            surface.layer = 30;
+            surface.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = surface.AddComponent<PlacementSurfaceDescriptor>();
+            AssetRelationAnchor anchor = surface.AddComponent<AssetRelationAnchor>();
+
+            List<SceneSetupObjectEntry> entries = SceneSetupObjectDiscovery.Collect(1 << 30);
+            List<SceneSetupObjectEntry> matchingEntries = entries
+                .Where(entry => entry.GameObject == surface)
+                .ToList();
+
+            Assert.That(matchingEntries, Has.Count.EqualTo(1));
+            Assert.That(matchingEntries[0].Type, Is.EqualTo(SceneSetupObjectType.Surface));
+            Assert.That(matchingEntries[0].SurfaceDescriptor, Is.EqualTo(descriptor));
+            Assert.That(matchingEntries[0].RelationAnchor, Is.EqualTo(anchor));
+            Assert.That(matchingEntries[0].MatchesDetailTarget(descriptor), Is.True);
+            Assert.That(matchingEntries[0].MatchesDetailTarget(anchor), Is.True);
+        }
+
+        [Test]
+        public void PlacementSurfaceSettingsSnapshotCopiesCapacityRules()
+        {
+            _scene = new GenerationTestScene(CreateSettings(~0, PlacementTarget.Floor));
+            AssetDefinition monitor = _scene.CreateAsset("Snapshot Monitor", PlacementType.Floor);
+            PlacementSurfaceCapacityRule monitorLimit = new();
+            monitorLimit.ConfigureAsset(monitor, 1);
+            PlacementSurfaceDescriptor source = CreateSceneObject("Source Desktop")
+                .AddComponent<PlacementSurfaceDescriptor>();
+            PlacementSurfaceDescriptor target = CreateSceneObject("Target Desktop")
+                .AddComponent<PlacementSurfaceDescriptor>();
+            source.SetCapacity(true, 6);
+            source.SetAssetCapacityRules(new[] { monitorLimit });
+
+            PlacementSurfaceSettingsSnapshot.Capture(source).ApplyTo(target);
+
+            Assert.That(target.LimitCapacity, Is.True);
+            Assert.That(target.MaxCapacity, Is.EqualTo(6));
+            Assert.That(target.AssetCapacityRules, Has.Count.EqualTo(1));
+            Assert.That(target.AssetCapacityRules[0].Scope, Is.EqualTo(PlacementSurfaceCapacityRuleScope.Asset));
+            Assert.That(target.AssetCapacityRules[0].Asset, Is.EqualTo(monitor));
+            Assert.That(target.AssetCapacityRules[0].MaxCapacity, Is.EqualTo(1));
+            Assert.That(target.AssetCapacityRules[0], Is.Not.SameAs(monitorLimit));
+        }
+
+        [Test]
         public void SceneSetupDiscoveryExcludesGeneratedObjects()
         {
             GameObject generated = CreateSceneObject("Generated Surface");
             generated.layer = 30;
             Collider collider = generated.AddComponent<BoxCollider>();
             generated.AddComponent<GeneratedObjectMetadata>();
+            AssetRelationAnchor anchor = generated.AddComponent<AssetRelationAnchor>();
 
             List<SceneSetupObjectEntry> entries = SceneSetupObjectDiscovery.Collect(1 << 30);
 
             Assert.That(entries.Any(entry => entry.SurfaceCollider == collider), Is.False);
+            Assert.That(entries.Any(entry => entry.RelationAnchor == anchor), Is.False);
+        }
+
+        [Test]
+        public void SupportSurfaceAuthoringCreatesExplicitRegionWithInheritedDescriptor()
+        {
+            GameObject shelf = CreateSceneObject("Shelf");
+            shelf.layer = 30;
+            BoxCollider shelfCollider = shelf.AddComponent<BoxCollider>();
+            shelfCollider.center = new Vector3(0f, 0.8f, 0f);
+            shelfCollider.size = new Vector3(0.4f, 1.6f, 0.8f);
+            PlacementSurfaceDescriptor descriptor = shelf.AddComponent<PlacementSurfaceDescriptor>();
+
+            GameObject region = SupportSurfaceRegionAuthoring.Create(
+                shelf,
+                1 << 30,
+                selectCreatedObject: false);
+            _sceneObjects.Add(region);
+
+            BoxCollider regionCollider = region.GetComponent<BoxCollider>();
+            Assert.That(region.transform.parent, Is.EqualTo(shelf.transform));
+            Assert.That(region.layer, Is.EqualTo(30));
+            Assert.That(regionCollider, Is.Not.Null);
+            Assert.That(regionCollider.isTrigger, Is.False);
+            Assert.That(regionCollider.size.x, Is.EqualTo(0.4f).Within(0.0001f));
+            Assert.That(regionCollider.size.z, Is.EqualTo(0.8f).Within(0.0001f));
+            Assert.That(region.transform.localPosition.y + regionCollider.size.y * 0.5f,
+                Is.EqualTo(1.6f).Within(0.0001f));
+            Assert.That(region.GetComponentInParent<PlacementSurfaceDescriptor>(), Is.EqualTo(descriptor));
+            Assert.That(region.GetComponent<PlacementSurfaceDescriptor>(), Is.Null);
+        }
+
+        [Test]
+        public void SupportSurfaceAuthoringAddsDescriptorAndUniqueSiblingNames()
+        {
+            GameObject owner = CreateSceneObject("Unconfigured Shelf");
+
+            GameObject first = SupportSurfaceRegionAuthoring.Create(
+                owner,
+                1 << 30,
+                selectCreatedObject: false);
+            GameObject second = SupportSurfaceRegionAuthoring.Create(
+                first,
+                1 << 30,
+                selectCreatedObject: false);
+            _sceneObjects.Add(first);
+            _sceneObjects.Add(second);
+
+            Assert.That(owner.GetComponent<PlacementSurfaceDescriptor>(), Is.Not.Null);
+            Assert.That(first.transform.parent, Is.EqualTo(owner.transform));
+            Assert.That(second.transform.parent, Is.EqualTo(owner.transform));
+            Assert.That(first.name, Is.Not.EqualTo(second.name));
+            Assert.That(first.layer, Is.EqualTo(30));
+            Assert.That(second.layer, Is.EqualTo(30));
         }
 
         private GameObject CreateSceneObject(string name)

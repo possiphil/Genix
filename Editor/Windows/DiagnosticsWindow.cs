@@ -153,7 +153,7 @@ namespace Genix.Editor.Windows
 
                 if (reports.Count == 0)
                 {
-                    EditorGUILayout.HelpBox("No reports found.", MessageType.Info);
+                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
                 }
                 else
                 {
@@ -321,10 +321,7 @@ namespace Genix.Editor.Windows
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 if (!_selectedReport)
-                {
-                    EditorGUILayout.HelpBox("Select a report from the list.", MessageType.Info);
                     return;
-                }
 
                 _detailsScroll = EditorGUILayout.BeginScrollView(_detailsScroll);
 

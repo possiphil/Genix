@@ -74,8 +74,13 @@ namespace Genix.Areas
             if (asset.SurfaceFitMode == SurfaceFitMode.Adaptive &&
                 candidate.PlacementType != PlacementType.InsideSpace)
             {
-                return candidate.HasSurfaceFit ||
-                       ContainsAdaptivePlacementFootprint(candidate, asset, profiler);
+                // Wall fitting can change the normal after the initial footprint probes. Recheck the
+                // footprint in its final orientation so a previously valid patch cannot rotate away
+                // from the supporting surface.
+                if (candidate.HasSurfaceFit && candidate.PlacementType != PlacementType.Wall)
+                    return true;
+
+                return ContainsAdaptivePlacementFootprint(candidate, asset, profiler);
             }
 
             Vector3 up = NormalizeOrFallback(candidate.Rotation * Vector3.up, candidate.SurfaceNormal, Vector3.up);
@@ -122,7 +127,8 @@ namespace Genix.Areas
                 ? NormalizeOrFallback(candidate.SurfaceNormal, candidate.Rotation * Vector3.forward, Vector3.forward)
                 : NormalizeOrFallback(candidate.Rotation * Vector3.up, candidate.SurfaceNormal, Vector3.up);
             float normalSize = isWall ? asset.Depth : asset.Height;
-            Vector3 surfaceCenter = candidate.Position - supportNormal * (Mathf.Max(0.01f, normalSize) * 0.5f);
+            Vector3 surfaceCenter = candidate.Position - supportNormal * (Mathf.Max(0.01f, normalSize) * 0.5f) +
+                                    supportNormal * asset.SurfaceSinkOffset;
 
             return _projector.TryEvaluateSurfaceFit(
                 surfaceCenter,
@@ -138,6 +144,21 @@ namespace Genix.Areas
         /// <summary>Tests whether every required sample of an oriented box lies in valid volume cells.</summary>
         public bool ContainsVolume(OrientedBounds candidateBounds) =>
             _occupancy.ContainsVolume(candidateBounds);
+
+        /// <summary>Tests reserved clearance against volume cells or the area's world bounds.</summary>
+        public bool ContainsClearanceVolume(OrientedBounds candidateBounds)
+        {
+            if (_occupancy.HasVolumeCells)
+                return _occupancy.ContainsVolume(candidateBounds);
+
+            Bounds bounds = candidateBounds.ToAxisAlignedBounds();
+            return bounds.min.x >= _worldBounds.min.x - FootprintBoundsTolerance &&
+                   bounds.max.x <= _worldBounds.max.x + FootprintBoundsTolerance &&
+                   bounds.min.y >= _worldBounds.min.y - FootprintBoundsTolerance &&
+                   bounds.max.y <= _worldBounds.max.y + FootprintBoundsTolerance &&
+                   bounds.min.z >= _worldBounds.min.z - FootprintBoundsTolerance &&
+                   bounds.max.z <= _worldBounds.max.z + FootprintBoundsTolerance;
+        }
 
         public bool ContainsVolumePoint(Vector3 position) =>
             _occupancy.ContainsVolumePoint(position);

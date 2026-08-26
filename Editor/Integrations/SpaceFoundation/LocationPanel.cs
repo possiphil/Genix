@@ -159,13 +159,7 @@ namespace Genix.SpaceFoundation.Editor
 
                 if (anchors.Count == 0)
                 {
-                    bool hasLocations = Object.FindObjectsByType<SfsAnchor>()
-                        .Any(anchor => anchor);
-                    string message = hasLocations
-                        ? "No locations match the current filters."
-                        : "No SFS locations found in the current scene.";
-
-                    EditorGUILayout.HelpBox(message, MessageType.Info);
+                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
                 }
                 else
                 {
@@ -293,12 +287,7 @@ namespace Genix.SpaceFoundation.Editor
                 .ToList();
 
             if (categories.Count == 0)
-            {
-                EditorGUILayout.HelpBox(
-                    "No Asset or Asset and Surface tag categories are available.",
-                    MessageType.Info);
                 return;
-            }
 
             SemanticTagSet tagSet = GetTagSet(anchor);
 

@@ -114,7 +114,8 @@ namespace Genix.Editor.Generation
             Undo.RegisterCreatedObjectUndo(instance, CreateObjectUndoName);
 
             instance.name = plannedObject.ObjectName;
-            instance.transform.rotation = plannedObject.Candidate.Rotation;
+            instance.transform.rotation = plannedObject.Asset.ApplyPrefabRotationOffset(
+                plannedObject.Candidate.Rotation);
             instance.transform.position =
                 plannedObject.Candidate.Position -
                 plannedObject.Candidate.Rotation * plannedObject.Asset.BoundsCenterOffset;
@@ -126,7 +127,11 @@ namespace Genix.Editor.Generation
 
             PlacementSurfaceDescriptor supportSurface = PlacementSupportRules.GetDescriptor(
                 plannedObject.Candidate.SurfaceCollider);
-            metadata.Initialize(plannedObject.Candidate.PlacementType, supportSurface);
+            metadata.Initialize(
+                plannedObject.Candidate.PlacementType,
+                supportSurface,
+                plannedObject.Asset,
+                RelativeAnchorProvider.GetPersistentIdentityKey(plannedObject.RelationAnchorIdentity));
             return instance;
         }
 

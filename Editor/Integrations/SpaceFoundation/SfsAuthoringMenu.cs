@@ -1,3 +1,4 @@
+using Genix.Authoring;
 using SpaceFoundationSystem;
 using UnityEditor;
 using UnityEngine;
@@ -62,6 +63,28 @@ namespace Genix.SpaceFoundation.Editor
             {
                 if (gameObject.GetComponent<Collider>())
                     return true;
+            }
+
+            return false;
+        }
+
+        [MenuItem(Root + "Add Free Space Display", false, 31)]
+        private static void AddFreeSpaceDisplay()
+        {
+            if (!SfsAuthoringSceneBuilder.TryAddFreeSpaceDisplay(Selection.activeGameObject, out string error))
+                Debug.LogWarning(error);
+        }
+
+        [MenuItem(Root + "Add Free Space Display", true)]
+        private static bool ValidateAddFreeSpaceDisplay()
+        {
+            for (Transform current = Selection.activeTransform; current; current = current.parent)
+            {
+                if (current.GetComponent<SfsAuthoringLayoutDisplay>() ||
+                    current.Find("Delimiters") && current.Find("Anchors"))
+                {
+                    return true;
+                }
             }
 
             return false;

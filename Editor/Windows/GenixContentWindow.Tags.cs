@@ -91,11 +91,7 @@ namespace Genix.Editor.Windows
 
             if (categories.Count == 0)
             {
-                string message = catalog.Categories.Any(category => category)
-                    ? "No categories match the current filters."
-                    : "No categories created yet.";
-
-                EditorGUILayout.HelpBox(message, MessageType.Info);
+                GUILayout.Space(EditorGUIUtility.singleLineHeight);
             }
             else
             {
@@ -224,11 +220,7 @@ namespace Genix.Editor.Windows
 
             if (tags.Count == 0)
             {
-                string message = filterBySelectedCategory
-                    ? "No tags in this category yet."
-                    : "No tags created yet.";
-
-                EditorGUILayout.HelpBox(message, MessageType.Info);
+                GUILayout.Space(EditorGUIUtility.singleLineHeight);
             }
             else
             {

@@ -68,6 +68,8 @@ namespace Genix.Diagnostics
         public List<PlacementDiagnostic> Placements { get; } = new();
         /// <summary>Gets target budgets.</summary>
         public List<TargetBudgetDiagnostic> TargetBudgets { get; } = new();
+        /// <summary>Gets semantic support-surface budgets.</summary>
+        public List<SupportBudgetDiagnostic> SupportBudgets { get; } = new();
         /// <summary>Gets candidate rejection counts.</summary>
         public IReadOnlyDictionary<RejectionReason, int> CandidateRejectionCounts => _candidateRejectionCounts;
 
@@ -120,6 +122,23 @@ namespace Genix.Diagnostics
             RejectedCandidateCount++;
             _candidateRejectionCounts.TryGetValue(rejectionReason, out int count);
             _candidateRejectionCounts[rejectionReason] = count + 1;
+        }
+
+        /// <summary>Removes accepted outcomes whose placements were transactionally rolled back.</summary>
+        public void RollbackAcceptedOutcomes(int count)
+        {
+            int removed = Mathf.Clamp(count, 0, AcceptedCandidateCount);
+            AcceptedCandidateCount -= removed;
+            TestedCandidateCount = Mathf.Max(0, TestedCandidateCount - removed);
+
+            for (int i = Candidates.Count - 1; i >= 0 && removed > 0; i--)
+            {
+                if (!Candidates[i].Accepted)
+                    continue;
+
+                Candidates.RemoveAt(i);
+                removed--;
+            }
         }
 
         /// <summary>Stores top rejection reason.</summary>
@@ -185,6 +204,25 @@ namespace Genix.Diagnostics
         public TargetBudgetDiagnostic(PlacementType placementType, int targetCount, int placedCount)
         {
             PlacementType = placementType;
+            TargetCount = Mathf.Max(0, targetCount);
+            PlacedCount = Mathf.Max(0, placedCount);
+        }
+    }
+
+    /// <summary>Stores the requested and achieved placement count for one semantic support group.</summary>
+    public sealed class SupportBudgetDiagnostic
+    {
+        /// <summary>Gets the explicit support tag label or the default-group label.</summary>
+        public string Label { get; }
+        /// <summary>Gets the requested accepted-placement count.</summary>
+        public int TargetCount { get; }
+        /// <summary>Gets the achieved accepted-placement count.</summary>
+        public int PlacedCount { get; }
+
+        /// <summary>Initializes a normalized support-budget diagnostic.</summary>
+        public SupportBudgetDiagnostic(string label, int targetCount, int placedCount)
+        {
+            Label = string.IsNullOrWhiteSpace(label) ? "Unnamed Support" : label;
             TargetCount = Mathf.Max(0, targetCount);
             PlacedCount = Mathf.Max(0, placedCount);
         }

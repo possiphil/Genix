@@ -64,9 +64,24 @@ namespace Genix.Editor.Windows
 
         private void DrawLayoutList(IReadOnlyList<SavedLayout> layouts)
         {
+            int pageCount = Mathf.Max(1, Mathf.CeilToInt(layouts.Count / (float)LayoutPageSize));
+            _layoutPage = Mathf.Clamp(_layoutPage, 0, pageCount - 1);
+
             DrawSectionHeader($"Layouts ({layouts.Count})", () =>
             {
                 DrawLayoutSortDropdown();
+
+                using (new EditorGUI.DisabledScope(layouts.Count == 0))
+                {
+                    if (GUILayout.Button(
+                            new GUIContent(
+                                "Delete Matching",
+                                "Deletes every layout matching the current search and scope filters, including locked evaluation layouts."),
+                            GUILayout.Width(104f)))
+                    {
+                        DeleteMatchingLayouts(layouts);
+                    }
+                }
 
                 using (new EditorGUI.DisabledScope(!_selectedLayout || _selectedLayout.Locked))
                 {
@@ -75,18 +90,45 @@ namespace Genix.Editor.Windows
                 }
             });
 
+            if (pageCount > 1)
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    using (new EditorGUI.DisabledScope(_layoutPage == 0))
+                    {
+                        if (GUILayout.Button("Previous", GUILayout.Width(72f)))
+                            _layoutPage--;
+                    }
+
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"Page {_layoutPage + 1:N0} / {pageCount:N0}", EditorStyles.miniLabel);
+                    GUILayout.FlexibleSpace();
+
+                    using (new EditorGUI.DisabledScope(_layoutPage >= pageCount - 1))
+                    {
+                        if (GUILayout.Button("Next", GUILayout.Width(72f)))
+                            _layoutPage++;
+                    }
+                }
+            }
+
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.Height(ListHeight)))
             {
                 _layoutListScroll = EditorGUILayout.BeginScrollView(_layoutListScroll);
 
                 if (layouts.Count == 0)
                 {
-                    EditorGUILayout.HelpBox("No layouts match the current filters.", MessageType.Info);
+                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
                 }
                 else
                 {
-                    foreach (SavedLayout layout in layouts)
+                    int first = _layoutPage * LayoutPageSize;
+                    int last = Mathf.Min(first + LayoutPageSize, layouts.Count);
+                    for (int i = first; i < last; i++)
+                    {
+                        SavedLayout layout = layouts[i];
                         DrawLayoutListItem(layout);
+                    }
                 }
 
                 EditorGUILayout.EndScrollView();
@@ -189,11 +231,7 @@ namespace Genix.Editor.Windows
             }
 
             if (areaSource != null && !canApply)
-            {
-                EditorGUILayout.HelpBox(
-                    "This layout belongs to a different scene or target area than the selected apply target.",
-                    MessageType.Info);
-            }
+                EditorGUILayout.HelpBox("This layout belongs to a different scene or target area than the selected apply target.", MessageType.Warning);
         }
 
         private void DrawLayoutApplyTargetSelector()
@@ -255,6 +293,37 @@ namespace Genix.Editor.Windows
             Repaint();
         }
 
+        private void DeleteMatchingLayouts(IReadOnlyList<SavedLayout> layouts)
+        {
+            SavedLayout[] targets = layouts.Where(layout => layout).Distinct().ToArray();
+            if (targets.Length == 0)
+                return;
+
+            int lockedCount = targets.Count(layout => layout.Locked);
+            string warning = lockedCount > 0
+                ? $"\n\nThis includes {lockedCount:N0} locked evaluation layout(s). Reports that reference deleted layouts retain their numeric results, but those observations can no longer be applied or used as visual evidence."
+                : string.Empty;
+            bool confirmed = EditorUtility.DisplayDialog(
+                "Delete Matching Layouts",
+                $"Delete all {targets.Length:N0} layouts matching the current scope and search filters, together with their saved prefabs?{warning}\n\nThis cannot be undone.",
+                $"Delete {targets.Length:N0}",
+                "Cancel");
+            if (!confirmed)
+                return;
+
+            _selectedLayout = null;
+            DestroySelectedObjectEditor();
+            if (!LayoutWorkflow.DeleteLayouts(targets, true, out int deletedCount, out string error))
+            {
+                Debug.LogWarning(error);
+                return;
+            }
+
+            _layoutPage = 0;
+            Debug.Log($"Deleted {deletedCount:N0} saved Genix layout(s) and their owned prefabs.");
+            Repaint();
+        }
+
         private void DrawLayoutSortDropdown()
         {
             LayoutSortMode[] modes =
@@ -309,6 +378,7 @@ namespace Genix.Editor.Windows
             _layoutSearch = string.Empty;
             _layoutScopeFilter = LayoutScopeFilter.CurrentScene;
             _layoutSortMode = LayoutSortMode.NewestFirst;
+            _layoutPage = 0;
         }
 
         private bool MatchesLayoutSearch(SavedLayout layout)

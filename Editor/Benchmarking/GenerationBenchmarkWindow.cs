@@ -53,12 +53,7 @@ namespace Genix.Editor.Benchmarking
             EditorGUILayout.Space(4f);
 
             if (!_suite)
-            {
-                EditorGUILayout.HelpBox(
-                    "Create or select a Benchmark Suite. A suite stores explicit scenes, targets, generation settings, object counts, and deterministic seeds.",
-                    MessageType.Info);
                 return;
-            }
 
             EnsureSerializedSuite();
             DrawRunPanel();
@@ -143,7 +138,8 @@ namespace Genix.Editor.Benchmarking
                     : GenerationBenchmarkRunner.Status;
                 EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(false, 19f), progress, progressLabel);
 
-                if (!string.IsNullOrWhiteSpace(_validationMessage))
+                if (!string.IsNullOrWhiteSpace(_validationMessage) &&
+                    _validationMessageType is MessageType.Warning or MessageType.Error)
                     EditorGUILayout.HelpBox(_validationMessage, _validationMessageType);
                 if (!string.IsNullOrWhiteSpace(GenerationBenchmarkRunner.LastError))
                     EditorGUILayout.HelpBox(GenerationBenchmarkRunner.LastError, MessageType.Error);
@@ -257,7 +253,6 @@ namespace Genix.Editor.Benchmarking
 
                 if (scenarios.arraySize == 0)
                 {
-                    EditorGUILayout.HelpBox("Add a scenario or import the evaluation scenes.", MessageType.Info);
                     EditorGUILayout.EndScrollView();
                     return;
                 }
@@ -384,10 +379,8 @@ namespace Genix.Editor.Benchmarking
         {
             _serializedSuite.ApplyModifiedProperties();
             List<string> errors = GenerationBenchmarkRunner.Validate(_suite);
-            _validationMessage = errors.Count == 0
-                ? "Suite configuration is valid. Scene-local target IDs are resolved again when each scene is opened."
-                : string.Join("\n", errors);
-            _validationMessageType = errors.Count == 0 ? MessageType.Info : MessageType.Error;
+            _validationMessage = errors.Count == 0 ? string.Empty : string.Join("\n", errors);
+            _validationMessageType = errors.Count == 0 ? MessageType.None : MessageType.Error;
         }
 
         private void CreateSuite()
@@ -432,10 +425,8 @@ namespace Genix.Editor.Benchmarking
 
             EditorUtility.SetDirty(_suite);
             EnsureSerializedSuite(force: true);
-            _validationMessage = scenes.Count == 0
-                ? "All Performance and RealWorld evaluation scenes are already present."
-                : $"Added {scenes.Count} evaluation scenes. Assign a pool, style, and target for each scenario.";
-            _validationMessageType = MessageType.Info;
+            _validationMessage = string.Empty;
+            _validationMessageType = MessageType.None;
         }
 
         private void SetSuite(GenerationBenchmarkSuite suite)

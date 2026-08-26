@@ -23,6 +23,8 @@ namespace Genix.Placement
         public bool HasSurfaceFit { get; }
         /// <summary>Gets surface fit.</summary>
         public SurfaceFitResult SurfaceFit { get; }
+        /// <summary>Gets the relation anchor that determined this candidate's placement, when applicable.</summary>
+        public object RelationAnchorIdentity { get; }
 
         /// <summary>Initializes a new instance of placement candidate.</summary>
         public PlacementCandidate(
@@ -33,7 +35,8 @@ namespace Genix.Placement
             int? voxelLayer = null,
             PlacementType placementType = PlacementType.Floor,
             bool hasSurfaceFit = false,
-            SurfaceFitResult surfaceFit = default)
+            SurfaceFitResult surfaceFit = default,
+            object relationAnchorIdentity = null)
         {
             Position = position;
             Rotation = rotation;
@@ -43,6 +46,7 @@ namespace Genix.Placement
             PlacementType = placementType;
             HasSurfaceFit = hasSurfaceFit;
             SurfaceFit = surfaceFit;
+            RelationAnchorIdentity = relationAnchorIdentity;
         }
     }
 }

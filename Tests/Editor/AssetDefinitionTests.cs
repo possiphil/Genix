@@ -59,6 +59,40 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void PrefabRotationOffsetCorrectsPlacementBoundsAndRotation()
+        {
+            Vector3 offset = new(0f, 90f, 0f);
+            Quaternion placementRotation = Quaternion.Euler(0f, 35f, 0f);
+            _asset.SetPrefabRotationOffset(offset);
+
+            Quaternion prefabRotation = _asset.ApplyPrefabRotationOffset(placementRotation);
+
+            Assert.That(_asset.PrefabRotationOffset, Is.EqualTo(offset));
+            Assert.That(Vector3.Distance(_asset.BoundsSize, new Vector3(4f, 3f, 2f)), Is.LessThan(0.0001f));
+            Assert.That(
+                Vector3.Distance(
+                    _asset.BoundsCenterOffset,
+                    Quaternion.Euler(offset) * new Vector3(1f, 0f, -1f)),
+                Is.LessThan(0.0001f));
+            Assert.That(
+                Quaternion.Angle(
+                    _asset.RemovePrefabRotationOffset(prefabRotation),
+                    placementRotation),
+                Is.LessThan(0.0001f));
+        }
+
+        [Test]
+        public void BoundsCenterOffsetIncludesPrefabRootScaleExactlyOnce()
+        {
+            _prefab.transform.localScale = new Vector3(0.5f, 0.25f, 2f);
+            _asset.SetBoundsCenterOffset(new Vector3(2f, 4f, 3f));
+
+            Assert.That(
+                Vector3.Distance(_asset.BoundsCenterOffset, new Vector3(1f, 1f, 6f)),
+                Is.LessThan(0.0001f));
+        }
+
+        [Test]
         public void PlacementLimitAndWallRelationshipExposeSanitizedValues()
         {
             _asset.SetPlacementLimit(true, -3);
@@ -86,6 +120,149 @@ namespace Genix.Tests
             Assert.That(_asset.MaxSurfaceHeightDifference, Is.Zero);
             Assert.That(_asset.MinSurfaceSupport, Is.EqualTo(1f));
             Assert.That(_asset.SurfaceSinkOffset, Is.Zero);
+        }
+
+        [Test]
+        public void ClearanceUsesPrefabOriginRotationAndClampedSize()
+        {
+            _asset.SetClearance(true, new Vector3(-1f, 2f, 3f), new Vector3(1f, 0f, 0f));
+            Quaternion rotation = Quaternion.Euler(0f, 90f, 0f);
+
+            Genix.Placement.OrientedBounds bounds = _asset.CreateClearanceBounds(
+                new Vector3(2f, 3f, 4f),
+                rotation);
+
+            Assert.That(_asset.ReserveClearance, Is.True);
+            Assert.That(bounds.Size, Is.EqualTo(new Vector3(0.01f, 2f, 3f)));
+            Assert.That(Vector3.Distance(bounds.Center, new Vector3(2f, 3f, 3f)), Is.LessThan(0.0001f));
+            Assert.That(bounds.Rotation, Is.EqualTo(rotation));
+        }
+
+        [Test]
+        public void ClearanceCenterOffsetIncludesPrefabRootScaleExactlyOnce()
+        {
+            _prefab.transform.localScale = new Vector3(0.5f, 0.25f, 2f);
+            _asset.SetClearance(true, Vector3.one, new Vector3(2f, 4f, 3f));
+
+            Genix.Placement.OrientedBounds bounds = _asset.CreateClearanceBounds(
+                Vector3.zero,
+                Quaternion.identity);
+
+            Assert.That(Vector3.Distance(bounds.Center, new Vector3(1f, 1f, 6f)), Is.LessThan(0.0001f));
+        }
+
+        [Test]
+        public void AssetSpacingUsesGreatestMatchingRule()
+        {
+            AssetDefinition other = ScriptableObject.CreateInstance<AssetDefinition>();
+            AssetSpacingRule exact = new();
+            AssetSpacingRule tagged = new();
+            _asset.AddTag(_tag);
+            other.AddTag(_tag);
+            exact.ConfigureAsset(other, 2f);
+            tagged.ConfigureTag(_tag, 4f);
+            _asset.SetSpacingRules(new[] { exact, tagged });
+
+            try
+            {
+                Assert.That(_asset.GetMinimumSpacingTo(other), Is.EqualTo(4f));
+                Assert.That(_asset.MaxSpacingDistance, Is.EqualTo(4f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(other);
+            }
+        }
+
+        [Test]
+        public void AssetRelativePlacementNormalizesDistancesAndRequiresAssetCompatibleTags()
+        {
+            AssetDefinition desk = ScriptableObject.CreateInstance<AssetDefinition>();
+            TagCategory surfaceCategory = ScriptableObject.CreateInstance<TagCategory>();
+            SemanticTag surfaceTag = ScriptableObject.CreateInstance<SemanticTag>();
+            surfaceCategory.Initialize(true, TagCategoryUsage.Surface);
+            surfaceTag.Initialize(surfaceCategory);
+
+            try
+            {
+                _asset.AssetRelativePlacement.ConfigureAsset(
+                    desk,
+                    AssetRelativeAnchorSource.GeneratedObjects,
+                    AssetRelativeSide.Front,
+                    4f,
+                    1f,
+                    AssetRelativeFacing.Toward,
+                    sameSupportSurface: true);
+
+                Assert.That(_asset.AssetRelativePlacement.IsConfigured, Is.True);
+                Assert.That(_asset.AssetRelativePlacement.MinimumDistance, Is.EqualTo(4f));
+                Assert.That(_asset.AssetRelativePlacement.MaximumDistance, Is.EqualTo(4f));
+                Assert.That(_asset.AssetRelativePlacement.RequireSameSupportSurface, Is.True);
+                Assert.That(_asset.AssetRelativePlacement.Matches(desk, null), Is.True);
+                _asset.AssetRelativePlacement.SetSides(new[]
+                {
+                    AssetRelativeSide.Left,
+                    AssetRelativeSide.Right
+                });
+                Assert.That(_asset.AssetRelativePlacement.AllowsSide(AssetRelativeSide.Left), Is.True);
+                Assert.That(_asset.AssetRelativePlacement.AllowsSide(AssetRelativeSide.Right), Is.True);
+                Assert.That(_asset.AssetRelativePlacement.AllowsSide(AssetRelativeSide.Front), Is.False);
+                _asset.AssetRelativePlacement.SetPerAnchorLimit(true, 0);
+                Assert.That(_asset.AssetRelativePlacement.LimitPerAnchor, Is.True);
+                Assert.That(_asset.AssetRelativePlacement.MaxPerAnchor, Is.EqualTo(1));
+                Assert.That(
+                    _asset.AssetRelativePlacement.CardinalityMode,
+                    Is.EqualTo(AssetRelativeCardinalityMode.AtMost));
+                _asset.AssetRelativePlacement.SetCardinality(AssetRelativeCardinalityMode.Exactly, 2);
+                Assert.That(_asset.AssetRelativePlacement.HasMinimumPerAnchor, Is.True);
+                Assert.That(_asset.AssetRelativePlacement.HasMaximumPerAnchor, Is.True);
+                Assert.That(_asset.AssetRelativePlacement.MinimumPerAnchor, Is.EqualTo(2));
+                Assert.That(_asset.AssetRelativePlacement.CardinalityCount, Is.EqualTo(2));
+                _asset.AssetRelativePlacement.SetCardinalityRange(1, 2);
+                Assert.That(
+                    _asset.AssetRelativePlacement.CardinalityMode,
+                    Is.EqualTo(AssetRelativeCardinalityMode.Between));
+                Assert.That(_asset.AssetRelativePlacement.MinimumPerAnchor, Is.EqualTo(1));
+                Assert.That(_asset.AssetRelativePlacement.MaximumPerAnchor, Is.EqualTo(2));
+                _asset.AssetRelativePlacement.SetFacingVariation(240f);
+                Assert.That(_asset.AssetRelativePlacement.FacingVariationDegrees, Is.EqualTo(180f));
+                _asset.AssetRelativePlacement.SetAlignment(AssetRelativeAlignment.Center);
+                Assert.That(
+                    _asset.AssetRelativePlacement.Alignment,
+                    Is.EqualTo(AssetRelativeAlignment.Center));
+
+                _asset.AssetRelativePlacement.ConfigureTag(
+                    surfaceTag,
+                    AssetRelativeAnchorSource.Any,
+                    AssetRelativeSide.Any,
+                    0f,
+                    2f,
+                    AssetRelativeFacing.Any);
+
+                Assert.That(_asset.AssetRelativePlacement.IsConfigured, Is.False);
+
+                _asset.AssetRelativePlacement.ConfigureTag(
+                    _tag,
+                    AssetRelativeAnchorSource.SceneAnchors,
+                    AssetRelativeSide.Right,
+                    -1f,
+                    3f,
+                    AssetRelativeFacing.MatchForward);
+
+                Assert.That(_asset.AssetRelativePlacement.IsConfigured, Is.True);
+                Assert.That(_asset.AssetRelativePlacement.MinimumDistance, Is.Zero);
+                Assert.That(_asset.AssetRelativePlacement.Matches(null, new[] { _tag }), Is.True);
+                Assert.That(_asset.AssetRelativePlacement.UsesFacing, Is.True);
+
+                _asset.AssetRelativePlacement.Disable();
+                Assert.That(_asset.AssetRelativePlacement.IsConfigured, Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(surfaceTag);
+                Object.DestroyImmediate(surfaceCategory);
+                Object.DestroyImmediate(desk);
+            }
         }
 
         [Test]

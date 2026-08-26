@@ -1,35 +1,42 @@
 using System.Collections.Generic;
 using Genix.Assets;
 using Genix.Core;
+using Genix.Semantics;
 using UnityEngine;
 
 namespace Genix.Placement
 {
-    /// <summary>Primitive shape used by a collider-free placement exclusion region.</summary>
+    /// <summary>Geometry source used by a placement exclusion region.</summary>
     public enum ExclusionRegionShape
     {
         /// <summary>Uses an oriented box.</summary>
         [InspectorName("Box")] Box,
         /// <summary>Uses a world-space sphere.</summary>
-        [InspectorName("Sphere")] Sphere
+        [InspectorName("Sphere")] Sphere,
+        /// <summary>Uses the enabled colliders below this object as exact exclusion geometry.</summary>
+        [InspectorName("Child Colliders")] ChildColliders
     }
 
     /// <summary>
-    /// Reserves a box- or sphere-shaped scene volume without adding a collider or affecting gameplay physics.
+    /// Reserves primitive volume or existing child-collider geometry for procedural placement.
+    /// Primitive regions do not add colliders; child-collider regions reuse authored geometry without changing it.
     /// </summary>
     [ExecuteAlways]
     [DisallowMultipleComponent]
     public sealed class PlacementExclusionRegion : MonoBehaviour
     {
         private static readonly HashSet<PlacementExclusionRegion> ActiveRegions = new();
+        private static readonly Collider[] OverlapBuffer = new Collider[256];
 
         [SerializeField] private ExclusionRegionShape shape = ExclusionRegionShape.Box;
         [SerializeField] private Vector3 center;
         [SerializeField] private Vector3 size = Vector3.one;
         [SerializeField, Min(0f)] private float radius = 0.5f;
         [SerializeField] private PlacementTarget affectedTargets = PlacementTarget.All;
+        [SerializeField] private List<SemanticTag> exemptAssetTags = new();
+        [SerializeField] private bool alwaysShowRegion;
 
-        /// <summary>Gets the configured primitive shape.</summary>
+        /// <summary>Gets the configured geometry source.</summary>
         public ExclusionRegionShape Shape => shape;
         /// <summary>Gets the local center offset, interpreted without transform scale.</summary>
         public Vector3 Center => center;
@@ -39,6 +46,10 @@ namespace Genix.Placement
         public float Radius => Mathf.Max(0f, radius);
         /// <summary>Gets the placement targets rejected by this region.</summary>
         public PlacementTarget AffectedTargets => affectedTargets & PlacementTarget.All;
+        /// <summary>Gets asset-compatible tags that may overlap this region.</summary>
+        public IReadOnlyList<SemanticTag> ExemptAssetTags => exemptAssetTags;
+        /// <summary>Gets whether the region remains visible while it is not selected.</summary>
+        public bool AlwaysShowRegion => alwaysShowRegion;
         /// <summary>Gets the world-space center.</summary>
         public Vector3 WorldCenter => transform.position + transform.rotation * center;
 
@@ -60,15 +71,38 @@ namespace Genix.Placement
             affectedTargets = targets & PlacementTarget.All;
         }
 
-        /// <summary>Determines whether the supplied candidate bounds intersect this region for the requested target.</summary>
-        public bool Intersects(OrientedBounds candidateBounds, PlacementType placementType)
+        /// <summary>Uses enabled colliders below this object as exclusion geometry.</summary>
+        public void ConfigureChildColliders(PlacementTarget targets = PlacementTarget.All)
         {
-            if (!isActiveAndEnabled || (AffectedTargets & ToTarget(placementType)) == 0)
-                return false;
+            shape = ExclusionRegionShape.ChildColliders;
+            affectedTargets = targets & PlacementTarget.All;
+        }
 
-            return shape == ExclusionRegionShape.Sphere
-                ? IntersectsSphere(candidateBounds)
-                : candidateBounds.Intersects(new OrientedBounds(WorldCenter, Size, transform.rotation));
+        /// <summary>Replaces the tags whose assets may overlap this region.</summary>
+        public void SetExemptAssetTags(IEnumerable<SemanticTag> tags)
+        {
+            exemptAssetTags = NormalizeTags(tags);
+        }
+
+        /// <summary>Determines whether the supplied candidate bounds intersect this region for the requested target.</summary>
+        public bool Intersects(
+            OrientedBounds candidateBounds,
+            PlacementType placementType,
+            AssetDefinition asset = null)
+        {
+            if (!isActiveAndEnabled ||
+                (AffectedTargets & ToTarget(placementType)) == 0 ||
+                IsExempt(asset))
+            {
+                return false;
+            }
+
+            return shape switch
+            {
+                ExclusionRegionShape.Sphere => IntersectsSphere(candidateBounds),
+                ExclusionRegionShape.ChildColliders => IntersectsChildColliders(candidateBounds),
+                _ => candidateBounds.Intersects(new OrientedBounds(WorldCenter, Size, transform.rotation))
+            };
         }
 
         /// <summary>Copies active regions whose broad bounds overlap the selected target bounds.</summary>
@@ -98,12 +132,41 @@ namespace Genix.Placement
             size = PositiveSize(size);
             radius = Mathf.Max(0f, radius);
             affectedTargets &= PlacementTarget.All;
+            exemptAssetTags = NormalizeTags(exemptAssetTags);
+        }
+
+        private void OnDrawGizmos()
+        {
+            if (alwaysShowRegion)
+                DrawRegion(selected: false);
         }
 
         private void OnDrawGizmosSelected()
         {
-            Color fill = new(0.95f, 0.2f, 0.16f, 0.13f);
-            Color wire = new(0.95f, 0.2f, 0.16f, 0.9f);
+            DrawRegion(selected: true);
+        }
+
+        private void DrawRegion(bool selected)
+        {
+            Color fill = selected
+                ? new Color(0.95f, 0.2f, 0.16f, 0.13f)
+                : new Color(0.95f, 0.2f, 0.16f, 0.035f);
+            Color wire = selected
+                ? new Color(0.95f, 0.2f, 0.16f, 0.9f)
+                : new Color(0.95f, 0.2f, 0.16f, 0.5f);
+            Color previousColor = Gizmos.color;
+
+            if (shape == ExclusionRegionShape.ChildColliders)
+            {
+                Gizmos.color = wire;
+                foreach (Collider collider in GetComponentsInChildren<Collider>())
+                {
+                    if (collider && collider.enabled)
+                        Gizmos.DrawWireCube(collider.bounds.center, collider.bounds.size);
+                }
+                Gizmos.color = previousColor;
+                return;
+            }
 
             if (shape == ExclusionRegionShape.Sphere)
             {
@@ -111,6 +174,7 @@ namespace Genix.Placement
                 Gizmos.DrawSphere(WorldCenter, Radius);
                 Gizmos.color = wire;
                 Gizmos.DrawWireSphere(WorldCenter, Radius);
+                Gizmos.color = previousColor;
                 return;
             }
 
@@ -121,6 +185,7 @@ namespace Genix.Placement
             Gizmos.color = wire;
             Gizmos.DrawWireCube(Vector3.zero, Size);
             Gizmos.matrix = previous;
+            Gizmos.color = previousColor;
         }
 
         private bool IntersectsSphere(OrientedBounds candidateBounds)
@@ -134,12 +199,85 @@ namespace Genix.Placement
             return (localCenter - closest).sqrMagnitude <= Radius * Radius;
         }
 
+        private bool IntersectsChildColliders(OrientedBounds candidateBounds)
+        {
+            int count = Physics.OverlapBoxNonAlloc(
+                candidateBounds.Center,
+                candidateBounds.Extents,
+                OverlapBuffer,
+                candidateBounds.Rotation,
+                Physics.AllLayers,
+                QueryTriggerInteraction.Collide);
+
+            for (int i = 0; i < count; i++)
+            {
+                Collider collider = OverlapBuffer[i];
+                OverlapBuffer[i] = null;
+                if (collider && collider.transform.IsChildOf(transform))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool IsExempt(AssetDefinition asset)
+        {
+            if (!asset || exemptAssetTags == null)
+                return false;
+
+            foreach (SemanticTag tag in exemptAssetTags)
+            {
+                if (tag && asset.HasTag(tag))
+                    return true;
+            }
+
+            return false;
+        }
+
         private Bounds GetAxisAlignedBounds()
         {
             if (shape == ExclusionRegionShape.Sphere)
                 return new Bounds(WorldCenter, Vector3.one * (Radius * 2f));
 
+            if (shape == ExclusionRegionShape.ChildColliders)
+            {
+                Bounds combined = new(transform.position, Vector3.zero);
+                bool hasBounds = false;
+                foreach (Collider collider in GetComponentsInChildren<Collider>())
+                {
+                    if (!collider || !collider.enabled)
+                        continue;
+
+                    if (!hasBounds)
+                    {
+                        combined = collider.bounds;
+                        hasBounds = true;
+                    }
+                    else
+                    {
+                        combined.Encapsulate(collider.bounds);
+                    }
+                }
+
+                return combined;
+            }
+
             return new OrientedBounds(WorldCenter, Size, transform.rotation).ToAxisAlignedBounds();
+        }
+
+        private static List<SemanticTag> NormalizeTags(IEnumerable<SemanticTag> tags)
+        {
+            List<SemanticTag> normalized = new();
+            if (tags == null)
+                return normalized;
+
+            foreach (SemanticTag tag in tags)
+            {
+                if (tag && tag.Category && tag.Category.SupportsAssets && !normalized.Contains(tag))
+                    normalized.Add(tag);
+            }
+
+            return normalized;
         }
 
         private static PlacementTarget ToTarget(PlacementType placementType) =>

@@ -23,5 +23,19 @@ namespace Genix.Sampling
             this.minimumCount = minimumCount;
             this.shuffle = shuffle;
         }
+
+        /// <summary>Returns the hard candidate-position budget for a requested object count.</summary>
+        /// <param name="requestedCount">Number of objects requested by the caller.</param>
+        /// <param name="minimumCandidateCount">
+        /// Optional scaled minimum. A negative value uses <see cref="minimumCount"/>.
+        /// </param>
+        public readonly int GetBudget(int requestedCount, int minimumCandidateCount = -1)
+        {
+            int count = Math.Max(1, requestedCount);
+            int minimum = Math.Max(1, minimumCandidateCount >= 0 ? minimumCandidateCount : minimumCount);
+            long scaled = (long)count * Math.Max(1, multiplier);
+            long budget = Math.Max(count, Math.Max(minimum, scaled));
+            return budget >= int.MaxValue ? int.MaxValue : (int)budget;
+        }
     }
 }

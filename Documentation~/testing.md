@@ -26,6 +26,18 @@ Results are grouped by subsystem. Green means every completed test in the group 
 
 The dashboard delegates execution to Unity's `TestRunnerApi`; the built-in Test Runner remains the source of truth. Runs started in either interface are collected by the dashboard.
 
+### Open-editor command runner
+
+Contributors and coding tools can launch the same presets in an already-open Unity editor from the package root:
+
+```sh
+./Tools~/run-open-editor-tests.sh Quick
+./Tools~/run-open-editor-tests.sh Full
+./Tools~/run-open-editor-tests.sh Stress
+```
+
+The command uses a file bridge under the host project's `Library/Genix` directory, refreshes local package sources before execution, waits for Unity's `TestRunnerApi`, prints every failed assertion and stack trace, and exits with a nonzero status when a test fails. It therefore avoids opening a second Unity process against the same project and prevents tests from silently using a stale script assembly. The editor must have imported and compiled the bridge itself at least once; focus Unity or trigger a refresh if the first request after installing this feature is not consumed. Set `GENIX_UNITY_PROJECT` when the package is not next to its host project and `GENIX_TEST_TIMEOUT` to override the 900-second timeout.
+
 Projects that install Space Foundation System also compile the optional
 `Genix.Tests.SpaceFoundation.Editor` assembly. Its focused tests cover voxel flood fill and
 surface extraction at the production adapter boundary without making SFS a dependency of the

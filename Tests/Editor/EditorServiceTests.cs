@@ -5,6 +5,7 @@ using Genix.Editor.Genix.Editor.Assets;
 using Genix.Editor.Infrastructure;
 using Genix.Editor.State;
 using Genix.Editor.Validation;
+using Genix.Geometry;
 using Genix.Placement;
 using Genix.Tests.Framework;
 using NUnit.Framework;
@@ -135,6 +136,24 @@ namespace Genix.Tests
             Assert.That(AssetDefinitionFactory.IsPrefabAsset(value), Is.False);
         }
 
+        [Test]
+        public void AssetDefinitionFactoryMeasuresBoundsBeforePrefabRootRotation()
+        {
+            GameObject value = CreateGameObject("Rotated Collider Prefab");
+            BoxCollider collider = value.AddComponent<BoxCollider>();
+            collider.size = new Vector3(2f, 3f, 4f);
+            collider.center = new Vector3(1f, 0f, -1f);
+            value.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+
+            Assert.That(AssetDefinitionFactory.TryGetPrefabBounds(value, out Vector3 size, out Vector3 offset), Is.True);
+            Assert.That(size.x, Is.EqualTo(2f).Within(0.0001f));
+            Assert.That(size.y, Is.EqualTo(3f).Within(0.0001f));
+            Assert.That(size.z, Is.EqualTo(4f).Within(0.0001f));
+            Assert.That(offset.x, Is.EqualTo(1f).Within(0.0001f));
+            Assert.That(offset.y, Is.EqualTo(0f).Within(0.0001f));
+            Assert.That(offset.z, Is.EqualTo(-1f).Within(0.0001f));
+        }
+
         [TestCase(null, "Fallback", "Fallback")]
         [TestCase("   ", "Fallback", "Fallback")]
         [TestCase("  Clean Name  ", "Fallback", "Clean Name")]
@@ -166,6 +185,33 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void AssetFileServiceDoesNotSuffixCaseOnlyRename()
+        {
+            AssetDefinition asset = ScriptableObject.CreateInstance<AssetDefinition>();
+            string originalPath = AssetDatabase.GenerateUniqueAssetPath("Assets/genixcaserenametest.asset");
+            AssetDatabase.CreateAsset(asset, originalPath);
+
+            try
+            {
+                bool renamed = AssetFileService.Rename(
+                    asset,
+                    "GenixCaseRenameTest",
+                    "Fallback",
+                    out string error);
+
+                Assert.That(renamed, Is.True, error);
+                Assert.That(asset.name, Is.EqualTo("GenixCaseRenameTest"));
+                Assert.That(asset.name, Does.Not.EndWith(" 1"));
+            }
+            finally
+            {
+                string path = AssetDatabase.GetAssetPath(asset);
+                if (!string.IsNullOrEmpty(path))
+                    AssetDatabase.DeleteAsset(path);
+            }
+        }
+
+        [Test]
         public void AssetDefinitionFactoryRejectsMissingOrUnboundedObjects()
         {
             GameObject unbounded = CreateGameObject("Unbounded");
@@ -179,6 +225,55 @@ namespace Genix.Tests
         public void AssetDefinitionFactoryHandlesMissingPrefabSequence()
         {
             Assert.That(AssetDefinitionFactory.CreateAssetsFromPrefabs(null), Is.Empty);
+        }
+
+        [Test]
+        public void MeasuredBoundsMatchScaledPrefabWithRotationOffsetAtRuntime()
+        {
+            GameObject source = CreateGameObject("Rotated Scaled Prefab");
+            BoxCollider collider = source.AddComponent<BoxCollider>();
+            collider.size = new Vector3(1.8f, 2.4f, 4.6f);
+            collider.center = new Vector3(0f, 0.7f, 0f);
+            source.transform.localScale = Vector3.one * 0.3f;
+            source.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+            Assert.That(
+                AssetDefinitionFactory.TryGetPrefabBounds(source, out Vector3 size, out Vector3 center),
+                Is.True);
+
+            AssetDefinition asset = ScriptableObject.CreateInstance<AssetDefinition>();
+            _objects.Add(asset);
+            asset.Initialize(source, size, center);
+            asset.SetPrefabRotationOffset(new Vector3(0f, 90f, 0f));
+
+            for (int yaw = 0; yaw < 360; yaw += 15)
+            {
+                Quaternion placementRotation = Quaternion.Euler(0f, yaw, 0f);
+                GameObject instance = Object.Instantiate(source);
+                _objects.Add(instance);
+                instance.transform.SetPositionAndRotation(
+                    Vector3.zero,
+                    asset.ApplyPrefabRotationOffset(placementRotation));
+                Physics.SyncTransforms();
+
+                Assert.That(BoundsUtility.TryGetColliderBounds(instance.transform, out Bounds actual, true, false), Is.True);
+                OrientedBounds declared = new(
+                    placementRotation * asset.BoundsCenterOffset,
+                    asset.BoundsSize,
+                    placementRotation);
+
+                AssertBoundsContains(declared.ToAxisAlignedBounds(), actual, yaw, "declared bounds");
+            }
+        }
+
+        private static void AssertBoundsContains(Bounds container, Bounds actual, int yaw, string label)
+        {
+            const float tolerance = 0.002f;
+            Assert.That(actual.min.x, Is.GreaterThanOrEqualTo(container.min.x - tolerance), $"{label}, yaw {yaw}: min x");
+            Assert.That(actual.min.y, Is.GreaterThanOrEqualTo(container.min.y - tolerance), $"{label}, yaw {yaw}: min y");
+            Assert.That(actual.min.z, Is.GreaterThanOrEqualTo(container.min.z - tolerance), $"{label}, yaw {yaw}: min z");
+            Assert.That(actual.max.x, Is.LessThanOrEqualTo(container.max.x + tolerance), $"{label}, yaw {yaw}: max x");
+            Assert.That(actual.max.y, Is.LessThanOrEqualTo(container.max.y + tolerance), $"{label}, yaw {yaw}: max y");
+            Assert.That(actual.max.z, Is.LessThanOrEqualTo(container.max.z + tolerance), $"{label}, yaw {yaw}: max z");
         }
 
         private GameObject CreateGameObject(string name)

@@ -136,6 +136,27 @@ namespace Genix.Editor.Generation
             _lastPreviewPlan = null;
         }
 
+        /// <summary>
+        /// Replaces generated output through the production generation path and returns its summary diagnostics.
+        /// This entry point is reserved for unattended editor evaluation and deliberately omits UI logging wrappers.
+        /// </summary>
+        internal static bool GenerateForEvaluation(
+            GenerationRequest request,
+            out GenerationDiagnostics diagnostics)
+        {
+            diagnostics = null;
+
+            if (!Validate(request))
+                return false;
+
+            ClearPreviewPlan();
+            ClearPreviewDiagnostics();
+            SceneGenerationService.Clear(request.AreaSource);
+            bool succeeded = GenerateInternal(request);
+            diagnostics = DiagnosticsStore.LastDiagnostics;
+            return succeeded;
+        }
+
         private static bool GenerateInternal(GenerationRequest request)
         {
             bool shouldProfile = GenerationProfilerService.ProfilingEnabled;

@@ -6,10 +6,11 @@ using UnityEngine;
 namespace Genix.Core
 {
     /// <summary>
-    /// Describes one immutable generation operation before spatial data and assets are resolved.
+    /// Describes one generation operation through get-only run parameters before spatial data and assets are resolved.
     /// </summary>
     /// <remarks>
-    /// A request contains designer intent only. Use <see cref="GenerationPreflight"/> to validate it and
+    /// A request fixes references and scalar choices for one invocation but does not deep-copy referenced
+    /// Unity objects. Use <see cref="GenerationPreflight"/> to validate it and
     /// <see cref="GenerationContextFactory"/> to resolve its area and scene-dependent state.
     /// </remarks>
     public sealed class GenerationRequest
@@ -29,6 +30,8 @@ namespace Genix.Core
         public TargetDistributionMode TargetDistributionMode { get; }
         /// <summary>Gets target distribution weights.</summary>
         public TargetDistributionWeights TargetDistributionWeights { get; }
+        /// <summary>Gets optional semantic support-surface distribution.</summary>
+        public SupportDistributionSettings SupportDistribution { get; }
         /// <summary>Gets style name.</summary>
         public string StyleName { get; }
         /// <summary>Gets style settings.</summary>
@@ -59,6 +62,7 @@ namespace Genix.Core
         /// <param name="randomSeed">Deterministic seed used when <paramref name="useFixedSeed"/> is true.</param>
         /// <param name="bestEffort">Whether a valid partial plan may be returned.</param>
         /// <param name="detailedDiagnostics">Whether per-attempt diagnostic geometry should be retained.</param>
+        /// <param name="supportDistribution">Optional placement budgets for explicitly tagged and default support surfaces.</param>
         public GenerationRequest(
             IAreaSource areaSource,
             AssetPool assetPool,
@@ -73,7 +77,8 @@ namespace Genix.Core
             bool useFixedSeed = false,
             int randomSeed = 0,
             bool bestEffort = true,
-            bool detailedDiagnostics = false)
+            bool detailedDiagnostics = false,
+            SupportDistributionSettings supportDistribution = null)
         {
             AreaSource = areaSource;
             AreaBuildSettings = areaBuildSettings;
@@ -82,6 +87,7 @@ namespace Genix.Core
             PlacementTargets = placementTargets;
             TargetDistributionMode = targetDistributionMode;
             TargetDistributionWeights = targetDistributionWeights;
+            SupportDistribution = supportDistribution?.Copy() ?? SupportDistributionSettings.Disabled;
             StyleName = styleName;
             StyleSettings = styleSettings;
             RelativePlacement = relativePlacement ?? RelativePlacementSettings.Disabled;

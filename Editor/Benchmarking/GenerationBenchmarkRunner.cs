@@ -64,6 +64,7 @@ namespace Genix.Editor.Benchmarking
         private static string _currentBlockKey = string.Empty;
         private static IAreaSource _areaSource;
         private static IBenchmarkAreaResolver _areaResolver;
+        private static bool _scenePrepared;
         private static GameObject _generatedParent;
         private static bool _cancelRequested;
         private static bool _profilingWasEnabled;
@@ -301,6 +302,7 @@ namespace Genix.Editor.Benchmarking
             _currentBlockKey = string.Empty;
             _areaSource = null;
             _areaResolver = null;
+            _scenePrepared = false;
             _status = $"Loading {item.Scenario.DisplayName}";
             _state = RunnerState.SettleScene;
         }
@@ -317,6 +319,16 @@ namespace Genix.Editor.Benchmarking
             Scene scene = SceneManager.GetActiveScene();
             _areaResolver = BenchmarkAreaResolverRegistry.CreateResolvers()
                 .FirstOrDefault(resolver => resolver.ProviderId == scenario.AreaProviderId);
+
+            if (!_scenePrepared && _areaResolver is IBenchmarkAreaPreparer preparer)
+            {
+                _status = $"Preparing authoritative spatial data for {scenario.DisplayName}";
+                if (!preparer.Prepare(scene, out string preparationError))
+                    throw new InvalidOperationException(preparationError);
+
+                _scenePrepared = true;
+            }
+
             IReadOnlyList<BenchmarkAreaTarget> targets = _areaResolver?.FindTargets(scene) ?? Array.Empty<BenchmarkAreaTarget>();
 
             if (targets.Count == 0)
@@ -550,7 +562,7 @@ namespace Genix.Editor.Benchmarking
                 processorCount = SystemInfo.processorCount,
                 systemMemoryMb = SystemInfo.systemMemorySize,
                 graphicsDevice = SystemInfo.graphicsDeviceName,
-                projectRevisionHash = string.IsNullOrWhiteSpace(suitePath)
+                suiteDependencyHash = string.IsNullOrWhiteSpace(suitePath)
                     ? string.Empty
                     : AssetDatabase.GetAssetDependencyHash(suitePath).ToString()
             };
@@ -590,6 +602,7 @@ namespace Genix.Editor.Benchmarking
                 _catalog = null;
                 _areaSource = null;
                 _areaResolver = null;
+                _scenePrepared = false;
                 _campaign = null;
                 _currentBlockKey = string.Empty;
                 _originalSceneSetup = Array.Empty<SceneSetup>();

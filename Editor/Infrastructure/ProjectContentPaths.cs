@@ -21,6 +21,10 @@ namespace Genix.Editor.Infrastructure
 
         public const string Profiles = Root + "/Profiles";
 
+        public const string Evaluations = Root + "/Evaluations";
+        public const string EvaluationSuites = Evaluations + "/Suites";
+        public const string EvaluationReports = Evaluations + "/Reports";
+
         public const string StylePresets = Root + "/Presets";
         public const string GenerationPresets = Root + "/Generation Presets";
     }

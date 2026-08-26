@@ -31,6 +31,7 @@ namespace Genix.Editor.Inspectors
         private bool _showTestedCandidates;
         private bool _showAcceptedCandidates;
         private bool _showUnusedCandidates;
+        private bool _showSupportCandidates;
 
         /// <summary>Draws and applies the custom Inspector interface.</summary>
         public override void OnInspectorGUI()
@@ -79,6 +80,7 @@ namespace Genix.Editor.Inspectors
                 }
 
                 DrawTargetBudgetEntries(report.TargetBudgets);
+                DrawSupportBudgetEntries(report.SupportBudgets);
             }
 
             _showStyleSettings = DrawFoldoutStat(
@@ -126,6 +128,27 @@ namespace Genix.Editor.Inspectors
                 EditorGUILayout.HelpBox(report.StopReason, MessageType.Warning);
         }
 
+        private void DrawSupportCandidateSummary(DiagnosticsReport report)
+        {
+            _showSupportCandidates = DrawFoldoutStat(
+                _showSupportCandidates,
+                "Semantic Support Coverage",
+                report.SupportCandidates.Count.ToString());
+
+            if (!_showSupportCandidates)
+                return;
+
+            using (new EditorGUI.IndentLevelScope())
+            {
+                foreach (DiagnosticsReport.SupportCandidateEntry entry in report.SupportCandidates)
+                {
+                    DrawStat(
+                        entry.Label,
+                        $"{entry.CandidateCount} candidates / {entry.SurfaceCount} surfaces");
+                }
+            }
+        }
+
         private static void DrawTargetBudgetEntries(
             IReadOnlyList<DiagnosticsReport.TargetBudgetEntry> entries)
         {
@@ -139,9 +162,24 @@ namespace Genix.Editor.Inspectors
             }
         }
 
+        private static void DrawSupportBudgetEntries(
+            IReadOnlyList<DiagnosticsReport.SupportBudgetEntry> entries)
+        {
+            if (entries == null || entries.Count == 0)
+                return;
+
+            EditorGUILayout.LabelField("Support Distribution", EditorStyles.miniBoldLabel);
+            using (new EditorGUI.IndentLevelScope())
+            {
+                foreach (DiagnosticsReport.SupportBudgetEntry entry in entries)
+                    DrawStat(entry.Label, $"{entry.PlacedCount}/{entry.TargetCount}");
+            }
+        }
+
         private void DrawSummaryCandidateSummary(DiagnosticsReport report)
         {
             DrawStat("Generated Positions", report.GeneratedCandidates.ToString());
+            DrawSupportCandidateSummary(report);
             DrawStat("Tested Positions", report.TestedCandidateSeeds.ToString());
             DrawStat("Accepted Positions", report.AcceptedPositions > 0
                 ? report.AcceptedPositions.ToString()
@@ -150,17 +188,15 @@ namespace Genix.Editor.Inspectors
             DrawStat("Asset Attempts", report.CandidateAttempts.ToString());
             DrawStat("Accepted Attempts", report.AcceptedCandidates.ToString());
             DrawStat("Rejected Attempts", report.RejectedCandidates.ToString());
+            if (report.SupportPrefilterSkips > 0)
+                DrawStat("Support Prefilter Skips", report.SupportPrefilterSkips.ToString());
             DrawStat("Unused Positions", report.UnusedCandidates.ToString());
 
             if (report.RejectionReasons.Count > 0)
             {
                 DiagnosticsReport.CountEntry topRejection = report.RejectionReasons[0];
-                DrawStat("Top Rejection", $"{topRejection.Label} ({topRejection.Count})");
-
                 string advice = RejectionReasonGuidance.GetAdvice(topRejection.Label);
-
-                if (!string.IsNullOrEmpty(advice))
-                    EditorGUILayout.HelpBox(advice, MessageType.Info);
+                DrawStat("Top Rejection", $"{topRejection.Label} ({topRejection.Count})", advice);
             }
         }
 
@@ -169,6 +205,9 @@ namespace Genix.Editor.Inspectors
             DrawStat("Tested Positions", report.TestedCandidateSeeds.ToString());
             DrawStat("Accepted Positions", report.AcceptedPositions.ToString());
             DrawStat("Rejected Positions", report.RejectedPositions.ToString());
+            DrawSupportCandidateSummary(report);
+            if (report.SupportPrefilterSkips > 0)
+                DrawStat("Support Prefilter Skips", report.SupportPrefilterSkips.ToString());
 
             _showGeneratedCandidates = DrawFoldoutStat(
                 _showGeneratedCandidates,
@@ -557,9 +596,9 @@ namespace Genix.Editor.Inspectors
             }
         }
 
-        private static void DrawStat(string label, string value)
+        private static void DrawStat(string label, string value, string tooltip = null)
         {
-            EditorGUILayout.LabelField(label, value);
+            EditorGUILayout.LabelField(new GUIContent(label, tooltip), new GUIContent(value, tooltip));
         }
 
         private static bool DrawFoldoutStat(bool expanded, string label, string value)

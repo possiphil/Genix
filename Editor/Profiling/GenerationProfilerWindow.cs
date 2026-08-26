@@ -88,10 +88,7 @@ namespace Genix.Editor.Profiling
                 GenerationProfile profile = GenerationProfilerService.LastProfile;
 
                 if (profile == null)
-                {
-                    EditorGUILayout.HelpBox("No profile captured yet. Enable Profile Run in the Genix Generator, then run Generate, Re-Generate, or Preview Run.", MessageType.Info);
                     return;
-                }
 
                 _currentScroll = EditorGUILayout.BeginScrollView(_currentScroll, GUILayout.MaxHeight(280f));
                 DrawRunSummary(profile);
@@ -117,7 +114,7 @@ namespace Genix.Editor.Profiling
 
                 if (reports.Count == 0)
                 {
-                    EditorGUILayout.HelpBox("No saved profiles found.", MessageType.Info);
+                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
                 }
                 else
                 {
@@ -929,6 +926,8 @@ namespace Genix.Editor.Profiling
                 ValidationProfileStep.Relative => "Relative",
                 ValidationProfileStep.Exclusion => "Exclusion Region",
                 ValidationProfileStep.WallRelationship => "Wall Relationship",
+                ValidationProfileStep.AssetSpacing => "Asset Spacing",
+                ValidationProfileStep.Clearance => "Clearance",
                 _ => step.ToString()
             };
 

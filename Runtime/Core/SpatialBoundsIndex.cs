@@ -18,6 +18,10 @@ namespace Genix.Core
         private readonly List<int> _queryMarkers;
         private readonly float _cellSize;
         private int _queryId;
+        private int _count;
+
+        /// <summary>Gets the number of indexed objects.</summary>
+        public int Count => _count;
 
         public SpatialBoundsIndex(float cellSize = DefaultCellSize, int capacity = 0)
         {
@@ -37,6 +41,7 @@ namespace Genix.Core
         /// <summary>Adds bounds under the caller-owned object index.</summary>
         public void Add(Bounds bounds, int objectIndex)
         {
+            _count++;
             EnsureMarker(objectIndex);
             CellRange range = CellRange.FromBounds(bounds, _cellSize);
 
@@ -114,6 +119,7 @@ namespace Genix.Core
             _globalIndices.Clear();
             _queryMarkers.Clear();
             _queryId = 0;
+            _count = 0;
         }
 
         private void EnsureMarker(int objectIndex)

@@ -43,6 +43,7 @@ namespace Genix.Diagnostics
         [SerializeField, HideInInspector] private int _acceptedCandidates;
         [SerializeField, HideInInspector] private int _rejectedCandidates;
         [SerializeField, HideInInspector] private int _unusedCandidates;
+        [SerializeField, HideInInspector] private int _supportPrefilterSkips;
 
         [SerializeField, HideInInspector] private Bounds _targetBounds;
         [SerializeField, HideInInspector] private SamplingAlgorithm _samplingAlgorithm;
@@ -51,6 +52,8 @@ namespace Genix.Diagnostics
         [SerializeField, HideInInspector] private List<CountEntry> _placedObjects = new();
         [SerializeField, HideInInspector] private List<CountEntry> _rejectionReasons = new();
         [SerializeField, HideInInspector] private List<TargetBudgetEntry> _targetBudgets = new();
+        [SerializeField, HideInInspector] private List<SupportBudgetEntry> _supportBudgets = new();
+        [SerializeField, HideInInspector] private List<SupportCandidateEntry> _supportCandidates = new();
 
         [SerializeField, HideInInspector] private List<Vector3> _candidateSeeds = new();
         [SerializeField, HideInInspector] private List<Vector3> _rawSamplePositions = new();
@@ -119,6 +122,8 @@ namespace Genix.Diagnostics
         public int RejectedCandidates => _rejectedCandidates;
         /// <summary>Gets unused candidates.</summary>
         public int UnusedCandidates => _unusedCandidates;
+        /// <summary>Gets asset attempts eliminated before full validation by immutable support rules.</summary>
+        public int SupportPrefilterSkips => _supportPrefilterSkips;
 
         /// <summary>Gets target bounds.</summary>
         public Bounds TargetBounds => _targetBounds;
@@ -133,6 +138,10 @@ namespace Genix.Diagnostics
         public IReadOnlyList<CountEntry> RejectionReasons => _rejectionReasons;
         /// <summary>Gets target budgets.</summary>
         public IReadOnlyList<TargetBudgetEntry> TargetBudgets => _targetBudgets;
+        /// <summary>Gets semantic support-surface budgets.</summary>
+        public IReadOnlyList<SupportBudgetEntry> SupportBudgets => _supportBudgets;
+        /// <summary>Gets candidate coverage grouped by semantic support kind.</summary>
+        public IReadOnlyList<SupportCandidateEntry> SupportCandidates => _supportCandidates;
 
         /// <summary>Gets candidate seeds.</summary>
         public IReadOnlyList<Vector3> CandidateSeeds => _candidateSeeds;
@@ -206,6 +215,7 @@ namespace Genix.Diagnostics
                 ? diagnostics.RejectedCandidateCount
                 : diagnostics.Candidates.Count(candidate => !candidate.Accepted);
             _unusedCandidates = Mathf.Max(0, _generatedCandidates - _testedCandidateSeeds);
+            _supportPrefilterSkips = diagnostics.Sampler.SupportPrefilterSkips;
 
             _targetBounds = diagnostics.TargetBounds;
             _samplingAlgorithm = diagnostics.SamplingAlgorithm;
@@ -214,6 +224,17 @@ namespace Genix.Diagnostics
             _placedObjects = CreatePlacedObjectCounts(diagnostics);
             _rejectionReasons = CreateRejectionReasonCounts(diagnostics);
             _targetBudgets = CreateTargetBudgetEntries(diagnostics);
+            _supportBudgets = diagnostics.SupportBudgets
+                .Select(entry => new SupportBudgetEntry(entry.Label, entry.TargetCount, entry.PlacedCount))
+                .ToList();
+            _supportCandidates = diagnostics.Sampler.SupportCandidates
+                .OrderByDescending(entry => entry.CandidateCount)
+                .ThenBy(entry => entry.Label)
+                .Select(entry => new SupportCandidateEntry(
+                    entry.Label,
+                    entry.CandidateCount,
+                    entry.SurfaceCount))
+                .ToList();
 
             CopyScenePreviewData(diagnostics);
         }
@@ -386,6 +407,54 @@ namespace Genix.Diagnostics
                 _target = target;
                 _targetCount = targetCount;
                 _placedCount = placedCount;
+            }
+        }
+
+        /// <summary>Stores one serialized semantic support-budget measurement.</summary>
+        [Serializable]
+        public struct SupportBudgetEntry
+        {
+            [SerializeField, HideInInspector] private string _label;
+            [SerializeField, HideInInspector] private int _targetCount;
+            [SerializeField, HideInInspector] private int _placedCount;
+
+            /// <summary>Gets the support-group label.</summary>
+            public string Label => _label;
+            /// <summary>Gets the requested accepted-placement count.</summary>
+            public int TargetCount => _targetCount;
+            /// <summary>Gets the achieved accepted-placement count.</summary>
+            public int PlacedCount => _placedCount;
+
+            /// <summary>Initializes a serialized support-budget entry.</summary>
+            public SupportBudgetEntry(string label, int targetCount, int placedCount)
+            {
+                _label = label;
+                _targetCount = Mathf.Max(0, targetCount);
+                _placedCount = Mathf.Max(0, placedCount);
+            }
+        }
+
+        /// <summary>Stores candidate coverage for one semantic support kind.</summary>
+        [Serializable]
+        public struct SupportCandidateEntry
+        {
+            [SerializeField, HideInInspector] private string _label;
+            [SerializeField, HideInInspector] private int _candidateCount;
+            [SerializeField, HideInInspector] private int _surfaceCount;
+
+            /// <summary>Gets the support label.</summary>
+            public string Label => _label;
+            /// <summary>Gets the number of candidates projected onto matching supports.</summary>
+            public int CandidateCount => _candidateCount;
+            /// <summary>Gets the number of represented physical supports.</summary>
+            public int SurfaceCount => _surfaceCount;
+
+            /// <summary>Initializes a serialized support candidate entry.</summary>
+            public SupportCandidateEntry(string label, int candidateCount, int surfaceCount)
+            {
+                _label = label;
+                _candidateCount = Mathf.Max(0, candidateCount);
+                _surfaceCount = Mathf.Max(0, surfaceCount);
             }
         }
 

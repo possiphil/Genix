@@ -3,6 +3,7 @@ using System.Linq;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Placement;
+using Genix.Semantics;
 using UnityEngine;
 
 namespace Genix.Diagnostics
@@ -56,12 +57,54 @@ namespace Genix.Diagnostics
 
             _diagnostics.Sampler.RequestedCandidates = Mathf.Max(_diagnostics.Sampler.RequestedCandidates, requestedCandidates);
             _diagnostics.Sampler.GeneratedCandidates += seeds.Count;
+            RecordSupportCandidates(seeds);
 
             if (_mode != DiagnosticsMode.Detailed)
                 return;
 
             foreach (CandidateSeed seed in seeds)
                 _diagnostics.Sampler.CandidateSeeds.Add(seed.Position);
+        }
+
+        /// <summary>Records assets skipped by immutable support compatibility.</summary>
+        public void RecordSupportPrefilterSkips(int count)
+        {
+            if (_mode != DiagnosticsMode.None && count > 0)
+                _diagnostics.Sampler.SupportPrefilterSkips += count;
+        }
+
+        private void RecordSupportCandidates(IReadOnlyList<CandidateSeed> seeds)
+        {
+            foreach (CandidateSeed seed in seeds)
+            {
+                PlacementSurfaceDescriptor descriptor = PlacementSupportRules.GetDescriptor(seed.SurfaceCollider);
+
+                if (!descriptor)
+                    continue;
+
+                string label = GetSupportLabel(descriptor);
+                SupportCandidateDiagnostic aggregate = _diagnostics.Sampler.SupportCandidates
+                    .FirstOrDefault(entry => entry.Label == label);
+
+                if (aggregate == null)
+                {
+                    aggregate = new SupportCandidateDiagnostic(label);
+                    _diagnostics.Sampler.SupportCandidates.Add(aggregate);
+                }
+
+                aggregate.Record(descriptor);
+            }
+        }
+
+        private static string GetSupportLabel(PlacementSurfaceDescriptor descriptor)
+        {
+            string[] tags = descriptor.SurfaceTags
+                .Where(tag => tag && tag.Category && tag.Category.SupportsSurfaces)
+                .Select(tag => tag.DisplayName)
+                .Distinct()
+                .OrderBy(name => name)
+                .ToArray();
+            return tags.Length > 0 ? string.Join(", ", tags) : descriptor.name;
         }
 
         /// <summary>Determines whether per-candidate diagnostic details should be retained.</summary>
@@ -106,6 +149,20 @@ namespace Genix.Diagnostics
             _diagnostics.Placements.Add(new PlacementDiagnostic(asset.AssetName, objectName, candidate.Position, candidate.Rotation, candidate.PlacementType));
         }
 
+        /// <summary>Removes placement records created by a rolled-back required composition.</summary>
+        public void RollbackPlacements(int placementCount)
+        {
+            placementCount = Mathf.Clamp(placementCount, 0, _diagnostics.Placements.Count);
+            if (placementCount < _diagnostics.Placements.Count)
+            {
+                int removed = _diagnostics.Placements.Count - placementCount;
+                _diagnostics.Placements.RemoveRange(
+                    placementCount,
+                    removed);
+                _diagnostics.RollbackAcceptedOutcomes(removed);
+            }
+        }
+
         /// <summary>Records target budgets.</summary>
         public void RecordTargetBudgets(IReadOnlyDictionary<PlacementType, int> targetCounts, IReadOnlyDictionary<PlacementType, int> placedCounts)
         {
@@ -124,6 +181,26 @@ namespace Genix.Diagnostics
                     : 0;
 
                 _diagnostics.TargetBudgets.Add(new TargetBudgetDiagnostic(placementType, targetCount, placedCount));
+            }
+        }
+
+        /// <summary>Records semantic support-surface budgets.</summary>
+        public void RecordSupportBudgets(IReadOnlyList<SupportBudgetDiagnostic> budgets)
+        {
+            if (_mode == DiagnosticsMode.None)
+                return;
+
+            _diagnostics.SupportBudgets.Clear();
+            if (budgets == null)
+                return;
+
+            foreach (SupportBudgetDiagnostic budget in budgets)
+            {
+                if (budget != null)
+                    _diagnostics.SupportBudgets.Add(new SupportBudgetDiagnostic(
+                        budget.Label,
+                        budget.TargetCount,
+                        budget.PlacedCount));
             }
         }
 

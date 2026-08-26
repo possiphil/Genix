@@ -9215,7 +9215,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aa73b3ef72c448487a21ee7a3eb5d34, type: 3}
   m_Name: 
   m_EditorClassIdentifier: DyrdaDev.SpaceFoundationSystemForUnity.Runtime::SpaceFoundationSystem.SpaceFoundation
-  assetName: SpaceFoundation
+  assetName: GenixEval_DenseObstacles
   data: {fileID: 0}
   chunkMainData: {fileID: 0}
   voxelSize: 1

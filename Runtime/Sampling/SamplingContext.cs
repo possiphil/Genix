@@ -45,10 +45,7 @@ namespace Genix.Sampling
             RequestedCount = requestedCount;
             CandidateCount = candidateCountOverride > 0
                 ? candidateCountOverride
-                : Mathf.Max(
-                    requestedCount,
-                    requestedCount * styleSettings.candidates.multiplier,
-                    minimumCandidateCount >= 0 ? minimumCandidateCount : styleSettings.candidates.minimumCount);
+                : styleSettings.candidates.GetBudget(requestedCount, minimumCandidateCount);
             StyleSettings = styleSettings;
             Diagnostics = diagnostics ?? NullDiagnosticsSink.Instance;
             Random = random;

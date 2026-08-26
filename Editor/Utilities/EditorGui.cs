@@ -71,6 +71,9 @@ namespace Genix.Editor.Utilities
         /// <summary>Draws a help box when the supplied message is not empty.</summary>
         public static void DrawHelpBox(string message, MessageType messageType, float height = 42f)
         {
+            if (messageType is not (MessageType.Warning or MessageType.Error))
+                return;
+
             Rect rect = EditorGUILayout.GetControlRect(false, height);
             EditorGUI.HelpBox(rect, message, messageType);
         }

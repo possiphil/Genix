@@ -24,18 +24,12 @@ namespace Genix.Editor.Windows
             IAreaSource areaSource = CreateAreaSource();
 
             if (areaSource == null)
-            {
-                EditorGUILayout.HelpBox("Choose a target area to save, compare, or apply layouts.", MessageType.Info);
                 return;
-            }
 
             SavedLayout[] layouts = GetLayoutsForSelectedArea(areaSource);
 
             if (layouts.Length == 0)
-            {
-                EditorGUILayout.HelpBox("No saved layouts for this target area yet. Generate objects, then save the current layout.", MessageType.Info);
                 return;
-            }
 
             foreach (SavedLayout layout in layouts)
                 DrawGeneratedLayoutItem(layout, areaSource);

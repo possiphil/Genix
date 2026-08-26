@@ -69,12 +69,7 @@ namespace Genix.Editor.Windows
                     SetSelectedGenerationPresetAsDefault(useAsDefault);
             }
 
-            if (_selectedGenerationPreset && !_selectedGenerationPreset.Matches(CaptureGenerationPresetSettings()))
-            {
-                EditorGUILayout.HelpBox(
-                    "Current settings differ from the selected preset. Update the preset to keep the changes, or Reload to discard them.",
-                    MessageType.Info);
-            }
+            // The Update and Reload button tooltips explain how to resolve local preset changes.
         }
 
         private void RefreshGenerationPresets()
@@ -163,7 +158,8 @@ namespace Genix.Editor.Windows
                 _relativeSceneLayers,
                 _useGenerationSeed,
                 _generationSeed,
-                _bestEffort);
+                _bestEffort,
+                CreateSupportDistributionSettings());
         }
 
         private void ApplyGenerationPreset(GenerationPreset preset)
@@ -178,6 +174,7 @@ namespace Genix.Editor.Windows
             _placementTargets = settings.PlacementTargets;
             _targetDistributionMode = settings.TargetDistributionMode;
             _targetDistributionWeights = settings.TargetDistributionWeights;
+            ApplySupportDistributionSettings(settings.SupportDistribution);
             _areaDecompositionMode = settings.AreaDecompositionMode;
             _surfaceDiscoveryMode = settings.SurfaceDiscoveryMode;
             _floorSurfaceLayers = settings.FloorSurfaceLayers;

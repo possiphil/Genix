@@ -25,8 +25,12 @@ namespace Genix.Placement
         OutsideRelativeRadius,
         /// <summary>The sampled surface does not satisfy the asset's required or forbidden support tags.</summary>
         UnsupportedSupportSurface,
+        /// <summary>The sampled surface's asset allow or deny tags reject this asset.</summary>
+        SurfaceRejectsAsset,
         /// <summary>The sampled surface has already reached its configured maximum placement capacity.</summary>
         SupportCapacityReached,
+        /// <summary>The sampled surface has reached a capacity rule for this asset or one of its tags.</summary>
+        SupportAssetCapacityReached,
         /// <summary>The asset requests support-facing orientation but the sampled surface provides no usable direction.</summary>
         MissingSupportDirection,
         /// <summary>The candidate lies farther from the nearest detected wall than the asset allows.</summary>
@@ -36,6 +40,34 @@ namespace Genix.Placement
         /// <summary>The area provides no suitable wall reference for the requested relationship.</summary>
         MissingWallReference,
         /// <summary>The candidate intersects an active collider-free placement exclusion region.</summary>
-        InsideExclusionRegion
+        InsideExclusionRegion,
+        /// <summary>The candidate violates an asset-specific minimum-distance rule.</summary>
+        AssetSpacingViolation,
+        /// <summary>The asset's reserved clearance volume leaves the selected target volume.</summary>
+        ClearanceOutsideTargetVolume,
+        /// <summary>The asset's visual or reserved clearance volume conflicts with existing geometry or clearance.</summary>
+        ClearanceBlocked,
+        /// <summary>No generated object or scene relation anchor matches the asset's semantic target.</summary>
+        MissingAssetRelationAnchor,
+        /// <summary>Matching anchors exist, but none lies within the asset's configured distance interval.</summary>
+        OutsideAssetRelationRange,
+        /// <summary>A matching anchor is in range, but the candidate lies on the wrong local side.</summary>
+        WrongAssetRelationSide,
+        /// <summary>A matching anchor and candidate belong to different semantic support surfaces.</summary>
+        DifferentAssetRelationSupportSurface,
+        /// <summary>The matched relation anchor already owns the configured maximum number of this asset.</summary>
+        AssetRelationAnchorCapacityReached,
+        /// <summary>The matched anchor reached a pooled maximum shared by assets carrying one tag.</summary>
+        AssetRelationGroupCapacityReached,
+        /// <summary>The candidate does not fit completely inside the matched relation anchor bounds.</summary>
+        OutsideAssetRelationBounds,
+        /// <summary>No semantic path source matches the asset's configured path tag.</summary>
+        MissingPathReference,
+        /// <summary>The candidate lies outside the configured horizontal distance interval from its nearest path.</summary>
+        OutsidePathDistance,
+        /// <summary>The candidate lies on the opposite side of its nearest path segment.</summary>
+        WrongPathSide,
+        /// <summary>The candidate lies inside the configured exclusion margin at either path endpoint.</summary>
+        TooCloseToPathEndpoint
     }
 }

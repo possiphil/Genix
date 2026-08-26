@@ -64,7 +64,11 @@ namespace Genix.Profiling
         /// <summary>Identifies collider-free exclusion-region validation.</summary>
         Exclusion,
         /// <summary>Identifies optional asset-to-wall distance validation.</summary>
-        WallRelationship
+        WallRelationship,
+        /// <summary>Identifies asset-specific distance-rule validation.</summary>
+        AssetSpacing,
+        /// <summary>Identifies reserved-clearance validation.</summary>
+        Clearance
     }
 
     /// <summary>Available planning profile step values.</summary>

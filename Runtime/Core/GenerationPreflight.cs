@@ -52,8 +52,47 @@ namespace Genix.Core
                 return false;
             }
 
+            if (!IsValidSupportDistribution(request, out error))
+                return false;
+
             if (request.RelativePlacement.IsEnabled)
                 return IsValidRelativePlacementRequest(request, out error);
+
+            error = null;
+            return true;
+        }
+
+        private static bool IsValidSupportDistribution(GenerationRequest request, out string error)
+        {
+            SupportDistributionSettings settings = request.SupportDistribution;
+            if (settings?.IsEnabled != true)
+            {
+                error = null;
+                return true;
+            }
+
+            int exactTotal = 0;
+            int remainderWeight = settings.DefaultWeight;
+
+            foreach (SupportDistributionRule rule in settings.Rules)
+            {
+                if (rule.Mode == SupportDistributionRuleMode.ExactCount)
+                    exactTotal += rule.Value;
+                else
+                    remainderWeight += rule.Value;
+            }
+
+            if (exactTotal > request.ObjectCount)
+            {
+                error = $"Support Distribution requests {exactTotal} exact placements, but Object Count is only {request.ObjectCount}. Reduce the exact counts or increase Object Count.";
+                return false;
+            }
+
+            if (exactTotal < request.ObjectCount && remainderWeight <= 0)
+            {
+                error = "Support Distribution has objects remaining after exact counts, but every Weight rule and Default / Other Surfaces weight is zero. Increase at least one weight.";
+                return false;
+            }
 
             error = null;
             return true;

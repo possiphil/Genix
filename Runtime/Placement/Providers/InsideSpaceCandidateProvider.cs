@@ -14,7 +14,6 @@ namespace Genix.Placement.Providers
     /// </summary>
     internal sealed class InsideSpaceCandidateProvider : CandidateProviderBase
     {
-        private const int RandomOversampling = 4;
         private const int MaxGeneratedSeeds = 50_000;
 
         public InsideSpaceCandidateProvider(
@@ -97,9 +96,7 @@ namespace Genix.Placement.Providers
             GenerationContext context,
             SamplingContext samplingContext)
         {
-            int count = Mathf.Min(
-                MaxGeneratedSeeds,
-                Mathf.Max(samplingContext.CandidateCount, context.Count * RandomOversampling));
+            int count = GetBoundedCandidateCount(samplingContext);
 
             for (int i = 0; i < count; i++)
             {
@@ -115,9 +112,7 @@ namespace Genix.Placement.Providers
             SamplingContext samplingContext)
         {
             Bounds bounds = samplingContext.Bounds;
-            int count = Mathf.Min(
-                MaxGeneratedSeeds,
-                Mathf.Max(samplingContext.CandidateCount, samplingContext.CandidateCount * RandomOversampling));
+            int count = GetBoundedCandidateCount(samplingContext);
 
             for (int i = 0; i < count; i++)
             {
@@ -139,9 +134,7 @@ namespace Genix.Placement.Providers
                 ? cellSize * Mathf.Clamp01(context.StyleSettings.grid.jitterAmount)
                 : 0f;
             int emitted = 0;
-            int maxCount = Mathf.Min(
-                MaxGeneratedSeeds,
-                Mathf.Max(samplingContext.CandidateCount, samplingContext.CandidateCount * RandomOversampling));
+            int maxCount = GetBoundedCandidateCount(samplingContext);
 
             for (float x = bounds.min.x; x <= bounds.max.x && emitted < maxCount; x += cellSize)
             {
@@ -165,5 +158,8 @@ namespace Genix.Placement.Providers
                 }
             }
         }
+
+        private static int GetBoundedCandidateCount(SamplingContext samplingContext) =>
+            Mathf.Clamp(samplingContext.CandidateCount, 1, MaxGeneratedSeeds);
     }
 }

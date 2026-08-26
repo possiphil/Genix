@@ -22,6 +22,8 @@ namespace Genix.Tests.Integration
         private AssetDefinition _asset;
         private AssetPool _pool;
         private StubAreaSource _areaSource;
+        private TagCategory _surfaceCategory;
+        private SemanticTag _surfaceTag;
 
         [SetUp]
         public void SetUp()
@@ -34,6 +36,11 @@ namespace Genix.Tests.Integration
             _pool.Initialize("Pool", AssetPoolMode.Static);
             _pool.AddStaticAsset(_asset);
             _areaSource = new StubAreaSource(_areaObject.transform);
+            _surfaceCategory = ScriptableObject.CreateInstance<TagCategory>();
+            _surfaceCategory.Initialize(true, TagCategoryUsage.Surface);
+            _surfaceTag = ScriptableObject.CreateInstance<SemanticTag>();
+            _surfaceTag.name = "Desktop";
+            _surfaceTag.Initialize(_surfaceCategory);
         }
 
         [TearDown]
@@ -43,6 +50,8 @@ namespace Genix.Tests.Integration
             UnityEngine.Object.DestroyImmediate(_asset);
             UnityEngine.Object.DestroyImmediate(_prefab);
             UnityEngine.Object.DestroyImmediate(_areaObject);
+            UnityEngine.Object.DestroyImmediate(_surfaceTag);
+            UnityEngine.Object.DestroyImmediate(_surfaceCategory);
         }
 
         [Test]
@@ -81,6 +90,30 @@ namespace Genix.Tests.Integration
 
             Assert.That(GenerationPreflight.IsValid(request, out string error), Is.False);
             Assert.That(error, Does.Contain("weights"));
+        }
+
+        [Test]
+        public void SupportDistributionRejectsExactCountsAboveObjectCount()
+        {
+            SupportDistributionSettings distribution = new(
+                true,
+                1,
+                new[] { new SupportDistributionRule(_surfaceTag, SupportDistributionRuleMode.ExactCount, 11) });
+
+            Assert.That(GenerationPreflight.IsValid(CreateRequest(supportDistribution: distribution), out string error), Is.False);
+            Assert.That(error, Does.Contain("11 exact placements"));
+        }
+
+        [Test]
+        public void SupportDistributionRequiresWeightForObjectsRemainingAfterExactRules()
+        {
+            SupportDistributionSettings distribution = new(
+                true,
+                0,
+                new[] { new SupportDistributionRule(_surfaceTag, SupportDistributionRuleMode.ExactCount, 4) });
+
+            Assert.That(GenerationPreflight.IsValid(CreateRequest(supportDistribution: distribution), out string error), Is.False);
+            Assert.That(error, Does.Contain("every Weight rule"));
         }
 
         [Test]
@@ -161,7 +194,8 @@ namespace Genix.Tests.Integration
         private GenerationRequest CreateRequest(
             PlacementTarget placementTargets = PlacementTarget.Floor,
             TargetDistributionMode targetDistributionMode = TargetDistributionMode.Random,
-            TargetDistributionWeights? weights = null)
+            TargetDistributionWeights? weights = null,
+            SupportDistributionSettings supportDistribution = null)
         {
             return new GenerationRequest(
                 _areaSource,
@@ -171,7 +205,8 @@ namespace Genix.Tests.Integration
                 targetDistributionMode,
                 weights ?? TargetDistributionWeights.Default,
                 default,
-                default);
+                default,
+                supportDistribution: supportDistribution);
         }
 
         private sealed class StubAreaSource : IAreaSource

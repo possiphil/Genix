@@ -42,4 +42,17 @@ namespace Genix.Areas
         /// <summary>Invalidates all spatial data owned by this area source.</summary>
         void ClearCache();
     }
+
+    /// <summary>
+    /// Exposes whether an area build used its authoritative spatial representation or a degraded fallback.
+    /// Evaluation tooling uses this capability to reject methodologically invalid runs without coupling to
+    /// a specific spatial-system integration.
+    /// </summary>
+    public interface IAreaSourceEvaluationStatus
+    {
+        /// <summary>Gets whether the most recent successful area build used authoritative spatial data.</summary>
+        bool UsedAuthoritativeSpatialData { get; }
+        /// <summary>Gets a concise explanation of the spatial source used by the most recent area build.</summary>
+        string SpatialDataStatusMessage { get; }
+    }
 }

@@ -23,16 +23,61 @@ namespace Genix.Placement
             float yawBase,
             IGenerationProfiler profiler = null)
         {
-            Vector3 surfaceNormal = seed.SurfaceNormal.sqrMagnitude <= 0.001f
-                ? Vector3.up
-                : seed.SurfaceNormal.normalized;
             Quaternion baseRotation = CreateBaseRotation(
                 seed,
                 context,
                 asset,
                 rotationIndex,
                 rotationCount,
-                yawBase);
+                yawBase,
+                out object relationAnchorIdentity);
+            PlacementCandidate candidate = CreateWithBaseRotation(
+                seed,
+                context,
+                asset,
+                baseRotation,
+                relationAnchorIdentity,
+                profiler);
+
+            if (relationAnchorIdentity != null ||
+                seed.PlacementType == PlacementType.Wall ||
+                asset.AssetRelativePlacement?.UsesFacing != true ||
+                !RelativeAnchorProvider.TryFindAssetAnchor(
+                    context,
+                    asset,
+                    candidate.Position,
+                    GetBounds(candidate, asset).ToAxisAlignedBounds(),
+                    PlacementSupportRules.GetDescriptor(candidate.SurfaceCollider),
+                    out RelativeAnchor finalAnchor))
+            {
+                return candidate;
+            }
+
+            Quaternion anchoredRotation = CreateAssetRelativeRotationWithVariation(
+                seed,
+                context,
+                asset,
+                finalAnchor);
+            return CreateWithBaseRotation(
+                seed,
+                context,
+                asset,
+                anchoredRotation,
+                finalAnchor.Identity,
+                profiler);
+        }
+
+        private static PlacementCandidate CreateWithBaseRotation(
+            CandidateSeed seed,
+            GenerationContext context,
+            AssetDefinition asset,
+            Quaternion baseRotation,
+            object relationAnchorIdentity,
+            IGenerationProfiler profiler)
+        {
+            Vector3 surfaceNormal = seed.SurfaceNormal.sqrMagnitude <= 0.001f
+                ? Vector3.up
+                : seed.SurfaceNormal.normalized;
             Quaternion initialRotation = AlignCandidateRotation(seed.PlacementType, baseRotation, surfaceNormal);
             Vector3 position = CreatePosition(seed, context, asset, surfaceNormal, initialRotation);
             bool hasSurfaceFit = false;
@@ -49,8 +94,10 @@ namespace Genix.Placement
                     profiler))
             {
                 hasSurfaceFit = true;
-                position -= surfaceNormal * asset.SurfaceSinkOffset;
             }
+
+            if (seed.PlacementType != PlacementType.InsideSpace)
+                position -= surfaceNormal * asset.SurfaceSinkOffset;
 
             Quaternion rotation = AlignCandidateRotation(seed.PlacementType, baseRotation, surfaceNormal);
 
@@ -62,7 +109,8 @@ namespace Genix.Placement
                 seed.VoxelLayer,
                 seed.PlacementType,
                 hasSurfaceFit,
-                surfaceFit);
+                surfaceFit,
+                relationAnchorIdentity);
         }
 
         /// <summary>Builds the candidate's oriented bounds from the asset dimensions.</summary>
@@ -75,7 +123,7 @@ namespace Genix.Placement
             AssetDefinition asset,
             PlacementType placementType)
         {
-            if (UsesContextualFacing(context, asset))
+            if (UsesContextualFacing(context, asset, placementType))
                 return 1;
 
             return UsesRandomRotation(context, asset, placementType) ? RandomRotationAttempts : 1;
@@ -89,7 +137,7 @@ namespace Genix.Placement
         {
             return asset.RandomYawRotation &&
                    placementType != PlacementType.Wall &&
-                   !UsesContextualFacing(context, asset);
+                   !UsesContextualFacing(context, asset, placementType);
         }
 
         /// <summary>Determines whether a deterministic random base angle is required for this target.</summary>
@@ -98,7 +146,7 @@ namespace Genix.Placement
             AssetDefinition asset,
             PlacementType placementType)
         {
-            if (UsesContextualFacing(context, asset))
+            if (UsesContextualFacing(context, asset, placementType))
                 return false;
 
             return placementType == PlacementType.Wall
@@ -111,7 +159,7 @@ namespace Genix.Placement
             AssetDefinition asset,
             PlacementType placementType)
         {
-            if (UsesContextualFacing(context, asset))
+            if (UsesContextualFacing(context, asset, placementType))
                 return false;
 
             if (placementType == PlacementType.InsideSpace)
@@ -166,11 +214,14 @@ namespace Genix.Placement
             return position;
         }
 
-        private static float CreateStableWallHeightFactor(CandidateSeed seed, int randomSeed)
+        private static float CreateStableWallHeightFactor(CandidateSeed seed, int randomSeed) =>
+            CreateStableFactor(seed, randomSeed, 0u);
+
+        private static float CreateStableFactor(CandidateSeed seed, int randomSeed, uint salt)
         {
             unchecked
             {
-                uint hash = 2166136261u;
+                uint hash = 2166136261u ^ salt;
                 hash = (hash ^ (uint)randomSeed) * 16777619u;
                 hash = (hash ^ (uint)Mathf.RoundToInt(seed.Position.x * 1000f)) * 16777619u;
                 hash = (hash ^ (uint)Mathf.RoundToInt(seed.Position.y * 1000f)) * 16777619u;
@@ -185,13 +236,40 @@ namespace Genix.Placement
             AssetDefinition asset,
             int rotationIndex,
             int rotationCount,
-            float yawBase)
+            float yawBase,
+            out object relationAnchorIdentity)
         {
+            relationAnchorIdentity = null;
+            Vector3 relationQueryPosition = GetRelationQueryPosition(seed, asset);
+            if (seed.PlacementType != PlacementType.Wall &&
+                asset.AssetRelativePlacement.UsesFacing &&
+                RelativeAnchorProvider.TryFindAssetAnchor(
+                    context,
+                    asset,
+                    relationQueryPosition,
+                    PlacementSupportRules.GetDescriptor(seed.SurfaceCollider),
+                    out RelativeAnchor assetAnchor))
+            {
+                relationAnchorIdentity = assetAnchor.Identity;
+                return CreateAssetRelativeRotationWithVariation(seed, context, asset, assetAnchor);
+            }
+
+            if (seed.PlacementType != PlacementType.Wall &&
+                asset.PathPlacement.UsesFacing &&
+                PathPlacementSource.TryFindNearest(
+                    context,
+                    asset.PathPlacement,
+                    relationQueryPosition,
+                    out PathPlacementFrame pathFrame))
+            {
+                return CreatePathRelativeRotationWithVariation(seed, context, asset, pathFrame);
+            }
+
             if (asset.OrientationMode == OrientationMode.MatchSupportForward)
             {
                 PlacementSurfaceDescriptor descriptor = PlacementSupportRules.GetDescriptor(seed.SurfaceCollider);
 
-                if (PlacementSupportRules.TryGetPreferredForward(seed, descriptor, out Vector3 supportForward))
+                if (PlacementSupportRules.TryGetSupportForward(seed, descriptor, out Vector3 supportForward))
                 {
                     Vector3 normal = seed.SurfaceNormal.sqrMagnitude > 0.001f
                         ? seed.SurfaceNormal.normalized
@@ -236,6 +314,96 @@ namespace Genix.Placement
             }
 
             return rotation;
+        }
+
+        private static Quaternion CreateAssetRelativeRotationWithVariation(
+            CandidateSeed seed,
+            GenerationContext context,
+            AssetDefinition asset,
+            RelativeAnchor anchor)
+        {
+            Quaternion relationRotation = CreateAssetRelativeRotation(
+                seed,
+                asset.AssetRelativePlacement.Facing,
+                anchor);
+            float maxDeviation = asset.AssetRelativePlacement.FacingVariationDegrees;
+            if (maxDeviation <= 0f)
+                return relationRotation;
+
+            float deviation = Mathf.Lerp(
+                -maxDeviation,
+                maxDeviation,
+                CreateStableFactor(seed, context.RandomSeed, 0x9e3779b9u));
+            Vector3 axis = seed.PlacementType == PlacementType.Ceiling
+                ? Vector3.down
+                : Vector3.up;
+            return Quaternion.AngleAxis(deviation, axis) * relationRotation;
+        }
+
+        private static Quaternion CreatePathRelativeRotationWithVariation(
+            CandidateSeed seed,
+            GenerationContext context,
+            AssetDefinition asset,
+            PathPlacementFrame frame)
+        {
+            Vector3 direction = asset.PathPlacement.Facing switch
+            {
+                PathPlacementFacing.AlongPath => frame.Forward,
+                PathPlacementFacing.AgainstPath => -frame.Forward,
+                PathPlacementFacing.TowardPath => frame.Center - seed.Position,
+                PathPlacementFacing.AwayFromPath => seed.Position - frame.Center,
+                _ => seed.Rotation * Vector3.forward
+            };
+            direction = Vector3.ProjectOnPlane(direction, Vector3.up);
+            if (direction.sqrMagnitude <= 0.001f)
+                return seed.Rotation;
+
+            Quaternion rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            float variation = asset.PathPlacement.FacingVariationDegrees;
+            if (variation <= 0f)
+                return rotation;
+
+            float deviation = Mathf.Lerp(
+                -variation,
+                variation,
+                CreateStableFactor(seed, context.RandomSeed, 0x85ebca6bu));
+            return Quaternion.AngleAxis(deviation, Vector3.up) * rotation;
+        }
+
+        private static Vector3 GetRelationQueryPosition(CandidateSeed seed, AssetDefinition asset)
+        {
+            if (seed.PlacementType is PlacementType.InsideSpace or PlacementType.Wall)
+                return seed.Position;
+
+            Vector3 normal = seed.SurfaceNormal.sqrMagnitude > 0.001f
+                ? seed.SurfaceNormal.normalized
+                : seed.PlacementType == PlacementType.Ceiling ? Vector3.down : Vector3.up;
+            return seed.Position + normal * (Mathf.Max(0.01f, asset.Height) * 0.5f);
+        }
+
+        private static Quaternion CreateAssetRelativeRotation(
+            CandidateSeed seed,
+            AssetRelativeFacing facing,
+            RelativeAnchor anchor)
+        {
+            Vector3 direction = facing switch
+            {
+                AssetRelativeFacing.Toward => anchor.Position - seed.Position,
+                AssetRelativeFacing.Away => seed.Position - anchor.Position,
+                AssetRelativeFacing.MatchForward => anchor.Forward,
+                _ => seed.Rotation * Vector3.forward
+            };
+
+            if (seed.PlacementType != PlacementType.InsideSpace)
+                direction.y = 0f;
+
+            if (direction.sqrMagnitude <= 0.001f)
+                return seed.Rotation;
+
+            Vector3 up = seed.PlacementType == PlacementType.Ceiling
+                ? Vector3.down
+                : Vector3.up;
+            return Quaternion.LookRotation(direction.normalized, up);
         }
 
         private static bool TryApplyAdaptiveSurfaceFit(
@@ -315,9 +483,14 @@ namespace Genix.Placement
                    context.RelativePlacement.IsEnabled;
         }
 
-        private static bool UsesContextualFacing(GenerationContext context, AssetDefinition asset)
+        private static bool UsesContextualFacing(
+            GenerationContext context,
+            AssetDefinition asset,
+            PlacementType placementType)
         {
-            return FacesRelativeAnchor(context, asset) ||
+            return (placementType != PlacementType.Wall &&
+                    (asset.AssetRelativePlacement.UsesFacing || asset.PathPlacement.UsesFacing)) ||
+                   FacesRelativeAnchor(context, asset) ||
                    asset.OrientationMode == OrientationMode.MatchSupportForward;
         }
 

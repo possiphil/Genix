@@ -2,7 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Areas;
+using Genix.Assets;
+using Genix.Core;
 using Genix.Diagnostics;
+using Genix.Layouts;
 using Genix.Placement;
 using Genix.Semantics;
 using Genix.Tests.Framework;
@@ -58,6 +61,29 @@ namespace Genix.Tests
 
             Assert.That(index.Count, Is.Zero);
             Assert.That(index.HasBounds, Is.False);
+        }
+
+        [Test]
+        public void GeneratedIndexUsesAssetPlacementBoundsInsteadOfRendererBounds()
+        {
+            GameObject parent = CreateGameObject("Generated");
+            GameObject child = CreatePrimitive("Placed", new Vector3(3f, 0f, 0f));
+            child.transform.localScale = Vector3.one * 10f;
+            child.transform.SetParent(parent.transform);
+            AssetDefinition asset = ScriptableObject.CreateInstance<AssetDefinition>();
+            _objects.Add(asset);
+            asset.Initialize(child, new Vector3(0.5f, 1f, 1.5f));
+            child.AddComponent<GeneratedObjectMetadata>().Initialize(
+                PlacementType.Floor,
+                sourceAsset: asset);
+
+            SceneObjectIndex.Entry entry = SceneObjectIndex
+                .CollectGenerated(parent.transform)
+                .Entries
+                .Single();
+
+            Assert.That(Vector3.Distance(entry.Bounds.center, new Vector3(3f, 0f, 0f)), Is.LessThan(0.0001f));
+            Assert.That(Vector3.Distance(entry.Bounds.size, new Vector3(0.5f, 1f, 1.5f)), Is.LessThan(0.0001f));
         }
 
         [Test]

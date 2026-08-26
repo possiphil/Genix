@@ -406,6 +406,67 @@ namespace Genix.Tests
             Assert.That(Vector3.Dot(result.Normal, Vector3.forward), Is.GreaterThan(0.99f));
         }
 
+        [TestCase(SurfaceHeightMode.Average, -4.633333f)]
+        [TestCase(SurfaceHeightMode.Lowest, -4.9f)]
+        [TestCase(SurfaceHeightMode.Highest, -4.5f)]
+        public void WallSurfaceFitUsesSelectedDepthMode(SurfaceHeightMode mode, float expectedDepth)
+        {
+            CreateBox(
+                "Outer Wall Section",
+                new Vector3(-0.5f, 2.5f, -4.75f),
+                new Vector3(1.9f, 5f, 0.5f));
+            CreateBox(
+                "Recessed Wall Section",
+                new Vector3(1f, 2.5f, -5.15f),
+                new Vector3(0.8f, 5f, 0.5f));
+            GenerationTestScene.SetSerialized(_asset, "surfaceHeightMode", mode);
+            GenerationTestScene.SetSerialized(_asset, "maxSurfaceHeightDifference", 0.5f);
+            Physics.SyncTransforms();
+
+            bool valid = _area.TryEvaluateSurfaceFit(
+                new Vector3(0f, 2.5f, -4.5f),
+                Quaternion.LookRotation(Vector3.forward, Vector3.up),
+                _asset,
+                null,
+                null,
+                PlacementType.Wall,
+                out SurfaceFitResult result);
+
+            Assert.That(valid, Is.True);
+            Assert.That(result.Position.z, Is.EqualTo(expectedDepth).Within(0.001f));
+            Assert.That(result.HeightDifference, Is.EqualTo(0.4f).Within(0.001f));
+            Assert.That(result.SupportRatio, Is.EqualTo(1f).Within(0.0001f));
+        }
+
+        [Test]
+        public void WallDeepestModeResolvesDepthAlongTheFittedNormal()
+        {
+            BoxCollider wall = CreateBox(
+                "Angled Adaptive Wall",
+                new Vector3(0f, 2.5f, -4.75f),
+                new Vector3(8f, 5f, 0.5f));
+            wall.transform.rotation = Quaternion.Euler(0f, 20f, 0f);
+            Vector3 wallNormal = (wall.transform.rotation * Vector3.forward).normalized;
+            Vector3 surfaceCenter = wall.transform.position + wallNormal * 0.25f;
+            GenerationTestScene.SetSerialized(_asset, "surfaceHeightMode", SurfaceHeightMode.Lowest);
+            GenerationTestScene.SetSerialized(_asset, "maxSurfaceHeightDifference", 1f);
+            Physics.SyncTransforms();
+
+            bool valid = _area.TryEvaluateSurfaceFit(
+                surfaceCenter,
+                Quaternion.LookRotation(Vector3.forward, Vector3.up),
+                _asset,
+                wall,
+                null,
+                PlacementType.Wall,
+                out SurfaceFitResult result);
+
+            Assert.That(valid, Is.True);
+            Assert.That(Vector3.Angle(result.Normal, wallNormal), Is.LessThan(0.01f));
+            Assert.That(Vector3.Dot(result.Position - surfaceCenter, wallNormal), Is.EqualTo(0f).Within(0.001f));
+            Assert.That(result.HeightDifference, Is.LessThan(0.001f));
+        }
+
         [Test]
         public void WallSurfaceFitRejectsFootprintWithoutRequiredSupport()
         {

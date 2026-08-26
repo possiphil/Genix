@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Genix.Authoring;
 using SpaceFoundationSystem;
 using UnityEditor;
 using UnityEngine;
@@ -70,6 +71,13 @@ namespace Genix.SpaceFoundation.Editor
             GameObject root = new(plan.Name);
             Undo.RegisterCreatedObjectUndo(root, $"Create {plan.Name}");
             root.transform.position = plan.ActualCenter;
+            SfsAuthoringLayoutDisplay display = Undo.AddComponent<SfsAuthoringLayoutDisplay>(root);
+            display.Configure(plan.InteriorVolumes.Select(volume =>
+            {
+                Bounds worldBounds = volume.ToWorldBounds(plan.VoxelSize);
+                return new Bounds(root.transform.InverseTransformPoint(worldBounds.center), worldBounds.size);
+            }));
+            EditorUtility.SetDirty(display);
             GameObject delimiterRoot = CreateChild("Delimiters", root.transform);
             GameObject anchorRoot = CreateChild("Anchors", root.transform);
 
@@ -84,6 +92,62 @@ namespace Genix.SpaceFoundation.Editor
             Undo.CollapseUndoOperations(undoGroup);
             error = string.Empty;
             return root;
+        }
+
+        public static bool TryAddFreeSpaceDisplay(GameObject selectedObject, out string error)
+        {
+            Transform layoutRoot = FindLayoutRoot(selectedObject ? selectedObject.transform : null);
+            if (!layoutRoot)
+            {
+                error = "Select an SFS Authoring layout parent or one of its children.";
+                return false;
+            }
+
+            if (layoutRoot.TryGetComponent(out SfsAuthoringLayoutDisplay existing))
+            {
+                Selection.activeGameObject = layoutRoot.gameObject;
+                EditorGUIUtility.PingObject(existing);
+                error = string.Empty;
+                return true;
+            }
+
+            Anchor anchor = layoutRoot.GetComponentInChildren<Anchor>(true);
+            SpaceFoundationSystem.SpaceFoundation foundation = anchor ? anchor.correspondingSpaceFoundation : null;
+            float voxelSize = foundation ? foundation.voxelSize : 0f;
+            if (voxelSize <= 0f)
+            {
+                error = "The selected layout has no valid SFS Foundation reference or voxel size.";
+                return false;
+            }
+
+            Transform delimiters = layoutRoot.Find("Delimiters");
+            if (!TryGetBoundaryCenter(delimiters, "Boundary Left", layoutRoot, out Vector3 left) ||
+                !TryGetBoundaryCenter(delimiters, "Boundary Right", layoutRoot, out Vector3 right) ||
+                !TryGetBoundaryCenter(delimiters, "Boundary Bottom", layoutRoot, out Vector3 bottom) ||
+                !TryGetBoundaryCenter(delimiters, "Boundary Top", layoutRoot, out Vector3 top) ||
+                !TryGetBoundaryCenter(delimiters, "Boundary Back", layoutRoot, out Vector3 back) ||
+                !TryGetBoundaryCenter(delimiters, "Boundary Front", layoutRoot, out Vector3 front))
+            {
+                error = "This older layout cannot be reconstructed safely. Recreate non-rectangular or grid layouts with the current SFS Authoring version.";
+                return false;
+            }
+
+            Vector3 minimum = new(left.x + voxelSize, bottom.y + voxelSize, back.z + voxelSize);
+            Vector3 maximum = new(right.x - voxelSize, top.y - voxelSize, front.z - voxelSize);
+            Vector3 size = maximum - minimum + Vector3.one * voxelSize;
+            if (size.x <= 0f || size.y <= 0f || size.z <= 0f)
+            {
+                error = "The recovered boundary shell does not contain a positive free-space volume.";
+                return false;
+            }
+
+            SfsAuthoringLayoutDisplay display = Undo.AddComponent<SfsAuthoringLayoutDisplay>(layoutRoot.gameObject);
+            display.Configure(new[] { new Bounds((minimum + maximum) * 0.5f, size) });
+            EditorUtility.SetDirty(display);
+            Selection.activeGameObject = layoutRoot.gameObject;
+            EditorGUIUtility.PingObject(display);
+            error = string.Empty;
+            return true;
         }
 
         public static Anchor CreateAnchor(
@@ -304,6 +368,32 @@ namespace Genix.SpaceFoundation.Editor
 
             SpaceFoundationSystem.SpaceFoundation foundation = parent.GetComponentInParent<SpaceFoundationSystem.SpaceFoundation>();
             return foundation ? foundation.transform.parent : parent;
+        }
+
+        private static Transform FindLayoutRoot(Transform selected)
+        {
+            for (Transform current = selected; current; current = current.parent)
+            {
+                if (current.Find("Delimiters") && current.Find("Anchors"))
+                    return current;
+            }
+
+            return null;
+        }
+
+        private static bool TryGetBoundaryCenter(
+            Transform delimiterRoot,
+            string name,
+            Transform layoutRoot,
+            out Vector3 localCenter)
+        {
+            localCenter = default;
+            Transform boundary = delimiterRoot ? delimiterRoot.Find(name) : null;
+            if (!boundary || !boundary.TryGetComponent(out BoxCollider collider))
+                return false;
+
+            localCenter = layoutRoot.InverseTransformPoint(boundary.TransformPoint(collider.center));
+            return true;
         }
     }
 }

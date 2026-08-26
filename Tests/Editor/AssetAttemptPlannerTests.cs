@@ -49,6 +49,28 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void CreateOrderPromotesReadyDependenciesWithoutDroppingAssets()
+        {
+            AssetDefinition root = CreateAsset("Root", Vector3.one, SurfaceFitMode.Strict);
+            AssetDefinition dependent = CreateAsset("Dependent", Vector3.one, SurfaceFitMode.Strict);
+            AssetDefinition other = CreateAsset("Other", Vector3.one, SurfaceFitMode.Strict);
+            AssetAttemptPlanner.Catalog catalog = AssetAttemptPlanner.CreateCatalog(
+                new[] { root, dependent, other });
+            List<AssetDefinition> order = new();
+
+            catalog.CreateOrder(
+                PlacementType.Floor,
+                new GenerationRandom(17),
+                order,
+                _ => true,
+                asset => asset == dependent);
+
+            Assert.That(order, Has.Count.EqualTo(3));
+            Assert.That(order[0], Is.SameAs(dependent));
+            Assert.That(order, Is.EquivalentTo(new[] { root, dependent, other }));
+        }
+
+        [Test]
         public void PruneRemainingPreservesAllValidAssetsAfterGeometryFailure()
         {
             AssetDefinition adaptiveLarge = CreateAsset("Adaptive Large", new Vector3(4f, 1f, 4f), SurfaceFitMode.Adaptive);

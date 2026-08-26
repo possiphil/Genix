@@ -3,6 +3,7 @@ using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Editor.Generation;
+using Genix.Semantics;
 using Genix.Styles;
 using Genix.Tests.Framework;
 using NUnit.Framework;
@@ -97,6 +98,42 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void PresetRoundTripPreservesIndependentSupportDistributionRules()
+        {
+            TagCategory category = ScriptableObject.CreateInstance<TagCategory>();
+            SemanticTag tag = ScriptableObject.CreateInstance<SemanticTag>();
+            GenerationPreset preset = ScriptableObject.CreateInstance<GenerationPreset>();
+
+            try
+            {
+                category.Initialize(true, TagCategoryUsage.Surface);
+                tag.name = "Desktop";
+                tag.Initialize(category);
+                SupportDistributionSettings distribution = new(
+                    true,
+                    3,
+                    new[] { new SupportDistributionRule(tag, SupportDistributionRuleMode.ExactCount, 2) });
+                GenerationPresetSettings expected = CreateSettings(null, null, 12, distribution);
+
+                preset.Apply(expected);
+                SupportDistributionSettings actual = preset.Settings.SupportDistribution;
+
+                Assert.That(actual.IsEnabled, Is.True);
+                Assert.That(actual.DefaultWeight, Is.EqualTo(3));
+                Assert.That(actual.Rules, Has.Count.EqualTo(1));
+                Assert.That(actual.Rules[0].SupportTag, Is.EqualTo(tag));
+                Assert.That(actual.Rules[0].Value, Is.EqualTo(2));
+                Assert.That(preset.Matches(expected), Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(preset);
+                Object.DestroyImmediate(tag);
+                Object.DestroyImmediate(category);
+            }
+        }
+
+        [Test]
         public void DefaultPreferenceResolvesPresetByGuidAfterMove()
         {
             GenerationPreset previousDefault = GenerationPresetPreferences.GetDefault();
@@ -133,7 +170,8 @@ namespace Genix.Tests
         private static GenerationPresetSettings CreateSettings(
             AssetPool pool,
             StylePreset style,
-            int objectCount)
+            int objectCount,
+            SupportDistributionSettings supportDistribution = null)
         {
             return new GenerationPresetSettings(
                 pool,
@@ -154,7 +192,8 @@ namespace Genix.Tests
                 LayerMask(10),
                 true,
                 -123456,
-                false);
+                false,
+                supportDistribution);
         }
 
         private static LayerMask LayerMask(int value) => new() { value = value };

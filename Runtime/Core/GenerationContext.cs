@@ -28,6 +28,8 @@ namespace Genix.Core
         public TargetDistributionMode TargetDistributionMode { get; }
         /// <summary>Gets target distribution weights.</summary>
         public TargetDistributionWeights TargetDistributionWeights { get; }
+        /// <summary>Gets optional semantic support-surface distribution.</summary>
+        public SupportDistributionSettings SupportDistribution { get; }
         /// <summary>Gets relative placement.</summary>
         public RelativePlacementSettings RelativePlacement { get; }
         /// <summary>Indicates whether fixed seed.</summary>
@@ -50,8 +52,35 @@ namespace Genix.Core
         internal IReadOnlyList<RelativeAnchor> SceneRelativeAnchors { get; }
         internal IReadOnlyList<RelativeAnchor> SelectedRelativeAnchors { get; }
         internal IReadOnlyList<PlacementExclusionRegion> ExclusionRegions { get; }
+        internal IReadOnlyList<PathPlacementSource> PathPlacementSources { get; }
+        internal object RequiredAssetRelationAnchorIdentity { get; set; }
+        private readonly Dictionary<AssetDefinition, IReadOnlyList<RelativeAnchor>> _pathStationAnchors = new();
+        private AssetRelationAnchorIndex _assetRelationAnchors;
+        internal AssetRelationAnchorIndex AssetRelationAnchors =>
+            _assetRelationAnchors ??= RelativeAnchorProvider.CollectAssetSceneAnchors(this);
         private WallProximityIndex _wallProximity;
         internal WallProximityIndex WallProximity => _wallProximity ??= WallProximityIndex.Create(Area);
+
+        /// <summary>
+        /// Resolves virtual path stations once per dependent asset and generation run.
+        /// Projection and exclusion checks are intentionally not repeated for every candidate.
+        /// </summary>
+        internal IReadOnlyList<RelativeAnchor> GetPathStationAnchors(AssetDefinition asset)
+        {
+            if (!asset)
+                return System.Array.Empty<RelativeAnchor>();
+
+            if (!_pathStationAnchors.TryGetValue(asset, out IReadOnlyList<RelativeAnchor> anchors))
+            {
+                anchors = PathPlacementSource.CollectStationAnchors(
+                    this,
+                    asset,
+                    asset.AssetRelativePlacement);
+                _pathStationAnchors.Add(asset, anchors);
+            }
+
+            return anchors;
+        }
 
         /// <summary>Gets target bounds.</summary>
         public Bounds TargetBounds => Area.WorldBounds;
@@ -102,6 +131,7 @@ namespace Genix.Core
             PlacementTargets = request.PlacementTargets;
             TargetDistributionMode = request.TargetDistributionMode;
             TargetDistributionWeights = request.TargetDistributionWeights;
+            SupportDistribution = request.SupportDistribution?.Copy() ?? SupportDistributionSettings.Disabled;
             RelativePlacement = request.RelativePlacement ?? RelativePlacementSettings.Disabled;
             UseFixedSeed = request.UseFixedSeed;
             BestEffort = request.BestEffort;
@@ -119,6 +149,7 @@ namespace Genix.Core
             SceneRelativeAnchors = RelativeAnchorProvider.CollectSceneAnchors(this);
             SelectedRelativeAnchors = RelativeAnchorProvider.CollectSelectedAnchors(this);
             ExclusionRegions = PlacementExclusionRegion.Collect(TargetBounds);
+            PathPlacementSources = PathPlacementSource.Collect(TargetBounds);
         }
     }
 }

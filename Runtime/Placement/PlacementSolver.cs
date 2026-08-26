@@ -29,11 +29,12 @@ namespace Genix.Placement
             GenerationContext context,
             IDiagnosticsSink diagnostics = null,
             PlacementTarget? targets = null,
-            IGenerationProfiler profiler = null)
+            IGenerationProfiler profiler = null,
+            IReadOnlyList<AssetDefinition> assets = null)
         {
             diagnostics ??= NullDiagnosticsSink.Instance;
             profiler ??= NullGenerationProfiler.Instance;
-            return CandidateSeedFactory.CreatePool(context, diagnostics, targets, profiler);
+            return CandidateSeedFactory.CreatePool(context, diagnostics, targets, profiler, assets);
         }
 
         /// <summary>Creates candidate pools by placement type.</summary>
@@ -41,11 +42,12 @@ namespace Genix.Placement
             GenerationContext context,
             IDiagnosticsSink diagnostics = null,
             PlacementTarget? targets = null,
-            IGenerationProfiler profiler = null)
+            IGenerationProfiler profiler = null,
+            IReadOnlyList<AssetDefinition> assets = null)
         {
             diagnostics ??= NullDiagnosticsSink.Instance;
             profiler ??= NullGenerationProfiler.Instance;
-            return CandidateSeedFactory.CreatePoolsByPlacementType(context, diagnostics, targets, profiler);
+            return CandidateSeedFactory.CreatePoolsByPlacementType(context, diagnostics, targets, profiler, assets);
         }
 
         /// <summary>Attempts to get valid candidate.</summary>
@@ -56,12 +58,13 @@ namespace Genix.Placement
             out PlacementCandidate candidate,
             IDiagnosticsSink diagnostics = null,
             string generatedObjectName = "",
-            IGenerationProfiler profiler = null)
+            IGenerationProfiler profiler = null,
+            Predicate<CandidateSeed> seedFilter = null)
         {
             diagnostics ??= NullDiagnosticsSink.Instance;
             profiler ??= NullGenerationProfiler.Instance;
 
-            if (!asset || asset.HasReachedPlacementLimit(context?.Plan?.GetAssetCount(asset) ?? 0))
+            if (!asset || context?.AssetPool?.HasReachedPlacementLimit(asset, context) != false)
             {
                 candidate = default;
                 return false;
@@ -70,7 +73,7 @@ namespace Genix.Placement
             while (true)
             {
                 long iterationStart = StartPlanningStep(profiler);
-                bool hasSeed = candidates.TryTakeNext(out CandidateSeed seed);
+                bool hasSeed = candidates.TryTakeNext(seedFilter, out CandidateSeed seed);
 
                 if (hasSeed)
                 {
@@ -118,7 +121,9 @@ namespace Genix.Placement
             IDiagnosticsSink diagnostics = null,
             IGenerationProfiler profiler = null,
             AssetAttemptPlanner.Catalog attemptCatalog = null,
-            List<AssetDefinition> remainingBuffer = null)
+            List<AssetDefinition> remainingBuffer = null,
+            Predicate<CandidateSeed> seedFilter = null,
+            Func<AssetDefinition, bool> assetFilter = null)
         {
             diagnostics ??= NullDiagnosticsSink.Instance;
             profiler ??= NullGenerationProfiler.Instance;
@@ -142,7 +147,7 @@ namespace Genix.Placement
             while (true)
             {
                 long iterationStart = StartPlanningStep(profiler);
-                bool hasSeed = candidates.TryTakeNext(out CandidateSeed seed);
+                bool hasSeed = candidates.TryTakeNext(seedFilter, out CandidateSeed seed);
 
                 if (hasSeed)
                 {
@@ -156,11 +161,30 @@ namespace Genix.Placement
                     break;
 
                 long orderStart = StartPlanningStep(profiler);
+                int supportPrefilterSkips = 0;
                 attemptCatalog.CreateOrder(
                     seed.PlacementType,
                     context.Random,
                     remaining,
-                    asset => !asset.HasReachedPlacementLimit(context.Plan.GetAssetCount(asset)));
+                    asset =>
+                    {
+                        if (context.AssetPool.HasReachedPlacementLimit(asset, context) ||
+                            !context.AssetPool.CanPlaceBeforeRequiredMinimum(asset, context) ||
+                            assetFilter?.Invoke(asset) == false ||
+                            !RelativeAnchorProvider.CanAttemptAsset(context, asset))
+                        {
+                            return false;
+                        }
+
+                        if (PlacementSupportRules.TryValidateCompatibility(seed, asset, out _, out _))
+                            return true;
+
+                        supportPrefilterSkips++;
+                        return false;
+                    },
+                    asset => context.AssetPool.ShouldPrioritizeForMinimum(asset, context) ||
+                             RelativeAnchorProvider.ShouldPrioritizeAsset(context, asset));
+                diagnostics.RecordSupportPrefilterSkips(supportPrefilterSkips);
                 StopAndRecordPlanningStep(profiler, PlanningProfileStep.AssetOrder, orderStart);
 
                 if (remaining.Count == 0)
@@ -222,7 +246,7 @@ namespace Genix.Placement
 
                 foundUsableAsset = true;
 
-                if (!asset.HasReachedPlacementLimit(context.Plan.GetAssetCount(asset)))
+                if (!context.AssetPool.HasReachedPlacementLimit(asset, context))
                     return false;
             }
 

@@ -68,12 +68,7 @@ namespace Genix.Editor.Inspectors
             DrawSemanticTagFiltersHeader();
 
             if (categories.Count == 0)
-            {
-                EditorGUILayout.HelpBox(
-                    "No Asset or Asset and Surface tag categories are available.",
-                    MessageType.Info);
                 return;
-            }
 
             foreach (TagCategory category in categories)
                 DrawDynamicCategoryFilter(catalog, category);

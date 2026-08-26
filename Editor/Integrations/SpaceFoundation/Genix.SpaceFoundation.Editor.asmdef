@@ -4,7 +4,8 @@
     "references": [
         "Genix.Runtime",
         "Genix.Editor.Common",
-        "DyrdaDev.SpaceFoundationSystemForUnity.Runtime"
+        "DyrdaDev.SpaceFoundationSystemForUnity.Runtime",
+        "DyrdaDev.SpaceFoundationSystemForUnity.Editor"
     ],
     "includePlatforms": [
         "Editor"

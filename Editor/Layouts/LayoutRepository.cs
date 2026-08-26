@@ -12,12 +12,17 @@ namespace Genix.Editor.Layouts
     /// <summary>Loads, filters, deletes, and bulk-clears saved layout assets.</summary>
     internal static class LayoutRepository
     {
+        private static SavedLayout[] _cachedLayouts;
+
         public static SavedLayout[] LoadAll()
         {
-            if (!AssetDatabase.IsValidFolder(ProjectContentPaths.Layouts))
-                return Array.Empty<SavedLayout>();
+            if (_cachedLayouts != null)
+                return _cachedLayouts;
 
-            return AssetDatabase
+            if (!AssetDatabase.IsValidFolder(ProjectContentPaths.Layouts))
+                return _cachedLayouts = Array.Empty<SavedLayout>();
+
+            return _cachedLayouts = AssetDatabase
                 .FindAssets($"t:{nameof(SavedLayout)}", new[] { ProjectContentPaths.Layouts })
                 .Select(AssetDatabase.GUIDToAssetPath)
                 .Select(AssetDatabase.LoadAssetAtPath<SavedLayout>)
@@ -27,6 +32,8 @@ namespace Genix.Editor.Layouts
                 .ThenBy(layout => layout.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
+
+        public static void InvalidateCache() => _cachedLayouts = null;
 
         public static SavedLayout[] LoadForArea(IAreaSource areaSource)
         {
@@ -126,35 +133,82 @@ namespace Genix.Editor.Layouts
             return true;
         }
 
-        private static void DeleteUnlocked(IEnumerable<SavedLayout> layouts, out int deletedCount)
+        public static bool DeleteMany(
+            IEnumerable<SavedLayout> layouts,
+            bool includeLocked,
+            out int deletedCount,
+            out string error)
         {
             deletedCount = 0;
+            error = string.Empty;
+
+            SavedLayout[] targets = layouts?
+                .Where(layout => layout && (includeLocked || !layout.Locked))
+                .Distinct()
+                .ToArray() ?? Array.Empty<SavedLayout>();
+            if (targets.Length == 0)
+                return true;
+
             HashSet<string> prefabPaths = new(StringComparer.OrdinalIgnoreCase);
             List<string> layoutPaths = new();
-
-            foreach (SavedLayout layout in layouts.Where(layout => layout && !layout.Locked))
+            foreach (SavedLayout layout in targets)
             {
                 string layoutPath = AssetDatabase.GetAssetPath(layout);
-
                 if (!string.IsNullOrWhiteSpace(layoutPath))
                     layoutPaths.Add(layoutPath);
 
                 string prefabPath = GetOwnedPrefabPath(layout);
-
                 if (!string.IsNullOrWhiteSpace(prefabPath))
                     prefabPaths.Add(prefabPath);
             }
 
-            foreach (string prefabPath in prefabPaths)
-                AssetDatabase.DeleteAsset(prefabPath);
-
-            foreach (string layoutPath in layoutPaths)
+            LayoutPreviewService.ClearAll();
+            AssetDatabase.StartAssetEditing();
+            try
             {
-                if (AssetDatabase.DeleteAsset(layoutPath))
-                    deletedCount++;
+                int completed = 0;
+                int total = prefabPaths.Count + layoutPaths.Count;
+                foreach (string prefabPath in prefabPaths)
+                {
+                    ShowDeleteProgress(completed++, total, prefabPath);
+                    AssetDatabase.DeleteAsset(prefabPath);
+                }
+
+                foreach (string layoutPath in layoutPaths)
+                {
+                    ShowDeleteProgress(completed++, total, layoutPath);
+                    if (AssetDatabase.DeleteAsset(layoutPath))
+                        deletedCount++;
+                }
+            }
+            catch (Exception exception)
+            {
+                error = $"Layout deletion stopped: {exception.Message}";
+                return false;
+            }
+            finally
+            {
+                AssetDatabase.StopAssetEditing();
+                EditorUtility.ClearProgressBar();
+                InvalidateCache();
+                AssetDatabase.SaveAssets();
             }
 
-            FinishChanges();
+            return true;
+        }
+
+        private static void DeleteUnlocked(IEnumerable<SavedLayout> layouts, out int deletedCount)
+        {
+            DeleteMany(layouts, false, out deletedCount, out _);
+        }
+
+        private static void ShowDeleteProgress(int completed, int total, string path)
+        {
+            if (completed % 25 != 0 && completed + 1 < total)
+                return;
+
+            float progress = total > 0 ? completed / (float)total : 1f;
+            EditorUtility.DisplayProgressBar("Deleting Genix Layouts", path, progress);
         }
 
         private static void DeleteOwnedPrefab(SavedLayout layout)
@@ -176,8 +230,8 @@ namespace Genix.Editor.Layouts
         private static void FinishChanges()
         {
             LayoutPreviewService.ClearAll();
+            InvalidateCache();
             AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
         }
     }
 }

@@ -444,8 +444,8 @@ namespace Genix.Areas
                 Mathf.Max(0f, asset.MinSurfaceSupport - 0.0001f) * totalSamples);
             float minDepth = float.PositiveInfinity;
             float maxDepth = float.NegativeInfinity;
-            float sumDepth = 0f;
             Vector3 normalSum = Vector3.zero;
+            Span<Vector3> supportPositions = stackalloc Vector3[totalSamples];
 
             for (int x = 0; x <= widthSegments; x++)
             {
@@ -478,6 +478,7 @@ namespace Genix.Areas
                         continue;
                     }
 
+                    supportPositions[supportedSamples] = support.Position;
                     supportedSamples++;
                     float depth = Vector3.Dot(support.Position - samplePosition, normal);
                     minDepth = Mathf.Min(minDepth, depth);
@@ -486,7 +487,6 @@ namespace Genix.Areas
                     if (maxDepth - minDepth > asset.MaxSurfaceHeightDifference)
                         return false;
 
-                    sumDepth += depth;
                     Vector3 supportNormal = support.Normal.normalized;
                     normalSum += Vector3.Dot(supportNormal, normal) < 0f ? -supportNormal : supportNormal;
                 }
@@ -500,10 +500,31 @@ namespace Genix.Areas
             if (supportRatio + 0.0001f < asset.MinSurfaceSupport)
                 return false;
 
-            float depthDifference = maxDepth - minDepth;
             Vector3 fittedNormal = normalSum.sqrMagnitude > 0.001f ? normalSum.normalized : normal;
+            float fittedMinDepth = float.PositiveInfinity;
+            float fittedMaxDepth = float.NegativeInfinity;
+            float fittedDepthSum = 0f;
+
+            for (int i = 0; i < supportedSamples; i++)
+            {
+                float fittedDepth = Vector3.Dot(supportPositions[i] - surfaceCenter, fittedNormal);
+                fittedMinDepth = Mathf.Min(fittedMinDepth, fittedDepth);
+                fittedMaxDepth = Mathf.Max(fittedMaxDepth, fittedDepth);
+                fittedDepthSum += fittedDepth;
+            }
+
+            float depthDifference = fittedMaxDepth - fittedMinDepth;
+            if (depthDifference > asset.MaxSurfaceHeightDifference)
+                return false;
+
+            float surfaceDepth = asset.SurfaceHeightMode switch
+            {
+                SurfaceHeightMode.Lowest => fittedMinDepth,
+                SurfaceHeightMode.Highest => fittedMaxDepth,
+                _ => fittedDepthSum / supportedSamples
+            };
             result = new SurfaceFitResult(
-                surfaceCenter + normal * (sumDepth / supportedSamples),
+                surfaceCenter + fittedNormal * surfaceDepth,
                 fittedNormal,
                 depthDifference,
                 supportRatio);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Genix.Tests.Framework;
 using NUnit.Framework.Interfaces;
@@ -245,6 +246,189 @@ namespace Genix.Tests.Dashboard
 
             public void TestFinished(ITestResultAdaptor result) =>
                 GenixTestDashboardState.instance.Record(result);
+        }
+    }
+
+    /// <summary>
+    /// Accepts file-based test requests so local automation can run the same presets while this
+    /// Unity project remains open in the editor.
+    /// </summary>
+    [InitializeOnLoad]
+    internal static class GenixOpenEditorTestBridge
+    {
+        private const string RequestPath = "Library/Genix/TestCommandRequest.json";
+        private const string ResponsePath = "Library/Genix/TestCommandResponse.json";
+        private const string RefreshSessionKey = "Genix.OpenEditorTestBridge.RefreshPending";
+        private const string ActiveRunSessionKey = "Genix.OpenEditorTestBridge.ActiveRun";
+        private const double PollIntervalSeconds = 0.25d;
+
+        private static readonly string[] KnownTestAssemblies =
+        {
+            "Genix.Tests.Editor",
+            "Genix.Tests.SpaceFoundation.Editor"
+        };
+
+        private static TestRunnerApi _runner;
+        private static bool _ownsActiveRun;
+        private static double _nextPollTime;
+
+        static GenixOpenEditorTestBridge()
+        {
+            bool interruptedByReload = SessionState.GetBool(ActiveRunSessionKey, false);
+            _ownsActiveRun = false;
+            SessionState.SetBool(ActiveRunSessionKey, false);
+
+            if (GenixTestDashboardState.instance.Running)
+            {
+                GenixTestDashboardState.instance.FailToStart(
+                    interruptedByReload
+                        ? "The previous test run was interrupted by a Unity domain reload."
+                        : "The previous test run ended without a completion callback.");
+            }
+
+            GenixTestDashboardState.Changed += OnDashboardStateChanged;
+            EditorApplication.update += Poll;
+        }
+
+        private static void Poll()
+        {
+            if (EditorApplication.timeSinceStartup < _nextPollTime)
+                return;
+
+            _nextPollTime = EditorApplication.timeSinceStartup + PollIntervalSeconds;
+
+            if (_ownsActiveRun ||
+                GenixTestDashboardState.instance.Running ||
+                EditorApplication.isCompiling ||
+                EditorApplication.isUpdating)
+            {
+                return;
+            }
+
+            if (!File.Exists(RequestPath))
+            {
+                SessionState.SetBool(RefreshSessionKey, false);
+                return;
+            }
+
+            // Local packages are not always auto-refreshed while Unity is in the background. Keep
+            // the request across the possible domain reload and consume it on the following poll.
+            if (!SessionState.GetBool(RefreshSessionKey, false))
+            {
+                SessionState.SetBool(RefreshSessionKey, true);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                return;
+            }
+
+            SessionState.SetBool(RefreshSessionKey, false);
+
+            TestCommandRequest request;
+
+            try
+            {
+                request = JsonUtility.FromJson<TestCommandRequest>(File.ReadAllText(RequestPath));
+                File.Delete(RequestPath);
+            }
+            catch (Exception exception)
+            {
+                WriteErrorResponse($"Could not read the test request: {exception.Message}");
+                return;
+            }
+
+            if (request == null ||
+                !Enum.TryParse(request.preset, true, out GenixTestPreset preset))
+            {
+                WriteErrorResponse("Preset must be Quick, Full, or Stress.");
+                return;
+            }
+
+            Start(preset);
+        }
+
+        private static void Start(GenixTestPreset preset)
+        {
+            string[] categories = preset switch
+            {
+                GenixTestPreset.Quick => new[] { GenixTestCategories.Quick },
+                GenixTestPreset.Full => new[] { GenixTestCategories.Full },
+                GenixTestPreset.Stress => new[] { GenixTestCategories.Full, GenixTestCategories.Stress },
+                _ => Array.Empty<string>()
+            };
+            string[] assemblies = KnownTestAssemblies
+                .Where(name => AppDomain.CurrentDomain.GetAssemblies()
+                    .Any(assembly => assembly.GetName().Name == name))
+                .ToArray();
+            GenixTestPresetContext.Current = preset;
+            GenixTestDashboardState state = GenixTestDashboardState.instance;
+            state.Begin(preset);
+            _ownsActiveRun = true;
+            SessionState.SetBool(ActiveRunSessionKey, true);
+            _runner = ScriptableObject.CreateInstance<TestRunnerApi>();
+
+            try
+            {
+                string guid = _runner.Execute(new ExecutionSettings(new Filter
+                {
+                    testMode = TestMode.EditMode,
+                    assemblyNames = assemblies,
+                    categoryNames = categories
+                }));
+
+                if (string.IsNullOrWhiteSpace(guid))
+                    state.FailToStart("Unity returned no run identifier for the file-based test request.");
+                else
+                    state.Started(guid);
+            }
+            catch (Exception exception)
+            {
+                state.FailToStart($"Unity could not start the file-based test run: {exception.Message}");
+            }
+        }
+
+        private static void OnDashboardStateChanged()
+        {
+            if (!_ownsActiveRun || GenixTestDashboardState.instance.Running)
+                return;
+
+            WriteResponse(GenixTestDashboardState.instance.ToExportJson());
+            _ownsActiveRun = false;
+            SessionState.SetBool(ActiveRunSessionKey, false);
+
+            if (_runner)
+                UnityEngine.Object.DestroyImmediate(_runner);
+
+            _runner = null;
+        }
+
+        private static void WriteErrorResponse(string message)
+        {
+            WriteResponse(JsonUtility.ToJson(new TestCommandError(message), true));
+        }
+
+        private static void WriteResponse(string json)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(ResponsePath) ?? "Library/Genix");
+            string temporaryPath = ResponsePath + ".tmp";
+            File.WriteAllText(temporaryPath, json);
+
+            if (File.Exists(ResponsePath))
+                File.Delete(ResponsePath);
+
+            File.Move(temporaryPath, ResponsePath);
+        }
+
+        [Serializable]
+        private sealed class TestCommandRequest
+        {
+            public string preset = string.Empty;
+        }
+
+        [Serializable]
+        private sealed class TestCommandError
+        {
+            [SerializeField] private string error;
+
+            public TestCommandError(string value) => error = value;
         }
     }
 }

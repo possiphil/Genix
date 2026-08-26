@@ -295,6 +295,9 @@ namespace Genix.Editor.Inspectors
             if (string.IsNullOrWhiteSpace(_staticAssetMessage))
                 return;
 
+            if (_staticAssetMessageType is not (MessageType.Warning or MessageType.Error))
+                return;
+
             if (EditorApplication.timeSinceStartup > _staticAssetMessageUntil)
                 return;
 

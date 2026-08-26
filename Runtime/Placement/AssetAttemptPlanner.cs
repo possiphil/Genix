@@ -128,7 +128,8 @@ namespace Genix.Placement
                 PlacementType placementType,
                 GenerationRandom random,
                 List<AssetDefinition> order,
-                Func<AssetDefinition, bool> isAvailable = null)
+                Func<AssetDefinition, bool> isAvailable = null,
+                Func<AssetDefinition, bool> shouldPrioritize = null)
             {
                 if (order == null)
                     throw new ArgumentNullException(nameof(order));
@@ -156,6 +157,7 @@ namespace Genix.Placement
                     AddIfAvailable(order, entries[i].Asset, isAvailable);
 
                 ShuffleRange(order, largerStart, order.Count, random);
+                Promote(order, shouldPrioritize);
             }
 
             private static void AddIfAvailable(
@@ -177,6 +179,25 @@ namespace Genix.Placement
                 {
                     int randomIndex = random.Range(startIndex, i + 1);
                     (order[i], order[randomIndex]) = (order[randomIndex], order[i]);
+                }
+            }
+
+            private static void Promote(
+                IList<AssetDefinition> order,
+                Func<AssetDefinition, bool> shouldPrioritize)
+            {
+                if (shouldPrioritize == null)
+                    return;
+
+                int priorityEnd = 0;
+
+                for (int i = 0; i < order.Count; i++)
+                {
+                    if (!shouldPrioritize(order[i]))
+                        continue;
+
+                    (order[priorityEnd], order[i]) = (order[i], order[priorityEnd]);
+                    priorityEnd++;
                 }
             }
 

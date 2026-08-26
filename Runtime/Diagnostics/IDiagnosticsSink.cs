@@ -12,6 +12,8 @@ namespace Genix.Diagnostics
         bool ShouldRecordCandidateDetails(bool accepted);
         /// <summary>Records candidate pool.</summary>
         void RecordCandidatePool(int requestedCandidates, IReadOnlyList<CandidateSeed> seeds);
+        /// <summary>Records assets skipped before validation because their immutable support rules cannot match a seed.</summary>
+        void RecordSupportPrefilterSkips(int count);
         /// <summary>Records candidate.</summary>
         void RecordCandidate(
             string assetId,
@@ -25,10 +27,14 @@ namespace Genix.Diagnostics
         void RecordTestedCandidateSeed(Vector3 position);
         /// <summary>Records placement.</summary>
         void RecordPlacement(AssetDefinition asset, string objectName, PlacementCandidate candidate);
+        /// <summary>Removes final-placement records after a transactional plan rollback.</summary>
+        void RollbackPlacements(int placementCount);
         /// <summary>Records target budgets.</summary>
         void RecordTargetBudgets(
             IReadOnlyDictionary<PlacementType, int> targetCounts,
             IReadOnlyDictionary<PlacementType, int> placedCounts);
+        /// <summary>Records semantic support-surface budgets.</summary>
+        void RecordSupportBudgets(IReadOnlyList<SupportBudgetDiagnostic> budgets);
         /// <summary>Records stop reason.</summary>
         void RecordStopReason(string stopReason);
         /// <summary>Records cluster center.</summary>
@@ -53,14 +59,20 @@ namespace Genix.Diagnostics
         public bool ShouldRecordCandidateDetails(bool accepted) => false;
         /// <summary>Records candidate pool.</summary>
         public void RecordCandidatePool(int requestedCandidates, IReadOnlyList<CandidateSeed> seeds) { }
+        /// <summary>Records support-prefilter skips.</summary>
+        public void RecordSupportPrefilterSkips(int count) { }
         /// <summary>Records candidate.</summary>
         public void RecordCandidate(string assetId, string objectName, PlacementCandidate candidate, Bounds bounds, bool accepted, RejectionReason rejectionReason, string relatedObjectName = "") { }
         /// <summary>Records tested candidate seed.</summary>
         public void RecordTestedCandidateSeed(Vector3 position) { }
         /// <summary>Records placement.</summary>
         public void RecordPlacement(AssetDefinition asset, string objectName, PlacementCandidate candidate) { }
+        /// <summary>Rolls back placement records.</summary>
+        public void RollbackPlacements(int placementCount) { }
         /// <summary>Records target budgets.</summary>
         public void RecordTargetBudgets(IReadOnlyDictionary<PlacementType, int> targetCounts, IReadOnlyDictionary<PlacementType, int> placedCounts) { }
+        /// <summary>Records semantic support-surface budgets.</summary>
+        public void RecordSupportBudgets(IReadOnlyList<SupportBudgetDiagnostic> budgets) { }
         /// <summary>Records stop reason.</summary>
         public void RecordStopReason(string stopReason) { }
         /// <summary>Records cluster center.</summary>

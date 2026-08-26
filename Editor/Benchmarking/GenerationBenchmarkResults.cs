@@ -118,7 +118,7 @@ namespace Genix.Editor.Benchmarking
         public int processorCount;
         public int systemMemoryMb;
         public string graphicsDevice;
-        public string projectRevisionHash;
+        public string suiteDependencyHash;
         public List<GenerationBenchmarkRunRecord> runs = new();
     }
 

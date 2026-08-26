@@ -175,10 +175,66 @@ namespace Genix.Tests
             Assert.That(result, Is.EqualTo(new[] { PlacementType.Floor }));
         }
 
+        [Test]
+        public void SupportDistributionAllocatesExactRulesThenWeightedRemainderAndDefault()
+        {
+            SemanticTag shelf = CreateSurfaceTag("Shelf");
+            SemanticTag desktop = CreateSurfaceTag("Desktop");
+            SupportDistributionSettings settings = new(
+                true,
+                6,
+                new[]
+                {
+                    new SupportDistributionRule(shelf, SupportDistributionRuleMode.ExactCount, 2),
+                    new SupportDistributionRule(desktop, SupportDistributionRuleMode.Weight, 4)
+                });
+            GenerationContext context = CreateContext(
+                20,
+                TargetDistributionMode.Random,
+                TargetDistributionWeights.Default,
+                settings);
+
+            SupportDistributionState state = SupportDistributionState.Create(context);
+
+            Assert.That(state.IsActive, Is.True);
+            Assert.That(state.GroupCount, Is.EqualTo(3));
+            Assert.That(state.GetTarget(0), Is.EqualTo(2));
+            Assert.That(state.GetTarget(1), Is.EqualTo(7));
+            Assert.That(state.GetTarget(2), Is.EqualTo(11));
+        }
+
+        [Test]
+        public void SupportDistributionUsesFirstExplicitMatchAndDefaultsUnlistedSurfaces()
+        {
+            SemanticTag shelf = CreateSurfaceTag("Shelf");
+            SemanticTag desktop = CreateSurfaceTag("Desktop");
+            SemanticTag path = CreateSurfaceTag("Path");
+            SupportDistributionSettings settings = new(
+                true,
+                1,
+                new[]
+                {
+                    new SupportDistributionRule(shelf, SupportDistributionRuleMode.Weight, 1),
+                    new SupportDistributionRule(desktop, SupportDistributionRuleMode.Weight, 1)
+                });
+            SupportDistributionState state = SupportDistributionState.Create(CreateContext(
+                3,
+                TargetDistributionMode.Random,
+                TargetDistributionWeights.Default,
+                settings));
+            CandidateSeed explicitSeed = CreateSupportSeed("Combined", new[] { shelf, desktop });
+            CandidateSeed defaultSeed = CreateSupportSeed("Path", new[] { path });
+
+            Assert.That(state.Matches(explicitSeed, 0), Is.True);
+            Assert.That(state.Matches(explicitSeed, 1), Is.False);
+            Assert.That(state.Matches(defaultSeed, 2), Is.True);
+        }
+
         private GenerationContext CreateContext(
             int count,
             TargetDistributionMode mode,
-            TargetDistributionWeights weights)
+            TargetDistributionWeights weights,
+            SupportDistributionSettings supportDistribution = null)
         {
             PlacementArea area = new(
                 new SpatialSourceInfo("Test", "Area", "distribution-tests"),
@@ -203,8 +259,36 @@ namespace Genix.Tests
                 style,
                 default,
                 useFixedSeed: true,
-                randomSeed: 9);
+                randomSeed: 9,
+                supportDistribution: supportDistribution);
             return new GenerationContext(request, _generatedRoot.transform, area);
+        }
+
+        private SemanticTag CreateSurfaceTag(string name)
+        {
+            TagCategory category = ScriptableObject.CreateInstance<TagCategory>();
+            category.name = name + " Category";
+            category.Initialize(true, TagCategoryUsage.Surface);
+            SemanticTag tag = ScriptableObject.CreateInstance<SemanticTag>();
+            tag.name = name;
+            tag.Initialize(category);
+            _objects.Add(category);
+            _objects.Add(tag);
+            return tag;
+        }
+
+        private CandidateSeed CreateSupportSeed(string name, IReadOnlyList<SemanticTag> tags)
+        {
+            GameObject support = CreateGameObject(name);
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetSurfaceTags(tags);
+            return new CandidateSeed(
+                Vector3.zero,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
         }
 
         private AssetDefinition CreateAsset(string name, PlacementType placementType)

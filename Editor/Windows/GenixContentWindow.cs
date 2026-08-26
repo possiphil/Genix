@@ -93,6 +93,7 @@ namespace Genix.Editor.Windows
         private double _assetCreationMessageUntil;
 
         private const float ListHeight = 240f;
+        private const int LayoutPageSize = 100;
 
         private ContentTab _tab = ContentTab.Assets;
 
@@ -138,6 +139,7 @@ namespace Genix.Editor.Windows
         private string _layoutSearch = string.Empty;
         private LayoutSortMode _layoutSortMode = LayoutSortMode.NewestFirst;
         private LayoutScopeFilter _layoutScopeFilter = LayoutScopeFilter.CurrentScene;
+        private int _layoutPage;
 
         private AssetPool _targetStaticPool;
         private readonly LocationPanelHost _locationPanel = new();
@@ -147,9 +149,7 @@ namespace Genix.Editor.Windows
         [MenuItem("Tools/Genix/Assets", false, 20)]
         public static void Open()
         {
-            GenixContentWindow window = GetWindow<GenixContentWindow>("Genix Assets");
-            window.Show();
-            window.Focus();
+            GenixWindowDocking.Open<GenixContentWindow>("Genix Assets");
         }
 
         private void OnEnable()
@@ -181,6 +181,7 @@ namespace Genix.Editor.Windows
         private void OnProjectChange()
         {
             AssetCatalogService.Refresh();
+            LayoutWorkflow.InvalidateLayoutCache();
             _locationPanel.Refresh();
             _layoutTargetAreaSelector.Refresh();
             Repaint();

@@ -6,6 +6,7 @@ using Genix.Core;
 using Genix.Diagnostics;
 using Genix.Placement;
 using Genix.Sampling;
+using Genix.Semantics;
 using Genix.Styles;
 using Genix.Tests.Framework;
 using NUnit.Framework;
@@ -106,6 +107,13 @@ namespace Genix.Tests
             diagnostics.StopReason = "Completed";
             diagnostics.Sampler.GeneratedCandidates = 8;
             diagnostics.Sampler.TestedCandidateSeeds = 5;
+            diagnostics.Sampler.SupportPrefilterSkips = 13;
+            SupportCandidateDiagnostic support = new("Desktop");
+            GameObject supportObject = new("Desk");
+            PlacementSurfaceDescriptor descriptor = supportObject.AddComponent<PlacementSurfaceDescriptor>();
+            support.Record(descriptor);
+            support.Record(descriptor);
+            diagnostics.Sampler.SupportCandidates.Add(support);
             diagnostics.RecordCandidateOutcome(true, RejectionReason.None);
             diagnostics.RecordCandidateOutcome(false, RejectionReason.OverlapsFixed);
             diagnostics.Placements.Add(new PlacementDiagnostic(
@@ -115,6 +123,7 @@ namespace Genix.Tests
                 Quaternion.identity,
                 PlacementType.Floor));
             diagnostics.TargetBudgets.Add(new TargetBudgetDiagnostic(PlacementType.Floor, 3, 1));
+            diagnostics.SupportBudgets.Add(new SupportBudgetDiagnostic("Desktop", 2, 1));
             DiagnosticsReport report = ScriptableObject.CreateInstance<DiagnosticsReport>();
 
             try
@@ -132,12 +141,18 @@ namespace Genix.Tests
                 Assert.That(report.AcceptedCandidates, Is.EqualTo(1));
                 Assert.That(report.RejectedCandidates, Is.EqualTo(1));
                 Assert.That(report.UnusedCandidates, Is.EqualTo(3));
+                Assert.That(report.SupportPrefilterSkips, Is.EqualTo(13));
+                Assert.That(report.SupportCandidates.Single().CandidateCount, Is.EqualTo(2));
+                Assert.That(report.SupportCandidates.Single().SurfaceCount, Is.EqualTo(1));
                 Assert.That(report.PlacedObjects.Single().Label, Is.EqualTo("Rock"));
                 Assert.That(report.RejectionReasons.Single().Count, Is.EqualTo(1));
                 Assert.That(report.TargetBudgets.Single().PlacedCount, Is.EqualTo(1));
+                Assert.That(report.SupportBudgets.Single().Label, Is.EqualTo("Desktop"));
+                Assert.That(report.SupportBudgets.Single().PlacedCount, Is.EqualTo(1));
             }
             finally
             {
+                Object.DestroyImmediate(supportObject);
                 Object.DestroyImmediate(report);
             }
         }

@@ -41,7 +41,7 @@ namespace Genix.Editor.TargetAreas
             {
                 EditorGUILayout.HelpBox(
                     "No location provider is available. Install or enable a Genix integration such as Space Foundation.",
-                    MessageType.Info);
+                    MessageType.Warning);
                 return;
             }
 

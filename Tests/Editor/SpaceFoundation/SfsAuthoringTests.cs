@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Genix.Authoring;
 using Genix.SpaceFoundation.Editor;
 using NUnit.Framework;
 using SpaceFoundationSystem;
@@ -209,6 +210,18 @@ namespace Genix.Tests.SpaceFoundation
             Assert.That(root.GetComponentsInChildren<Anchor>(), Has.Length.EqualTo(plan.Anchors.Count));
             Assert.That(root.GetComponentsInChildren<BoxCollider>(), Has.Length.EqualTo(plan.Delimiters.Count));
 
+            SfsAuthoringLayoutDisplay display = root.GetComponent<SfsAuthoringLayoutDisplay>();
+            Assert.That(display, Is.Not.Null);
+            Assert.That(display.AlwaysShowFreeSpace, Is.False);
+            Assert.That(display.LocalVolumes, Has.Count.EqualTo(plan.InteriorVolumes.Count));
+
+            for (int i = 0; i < plan.InteriorVolumes.Count; i++)
+            {
+                Bounds expected = plan.InteriorVolumes[i].ToWorldBounds(plan.VoxelSize);
+                Assert.That(display.LocalVolumes[i].center, Is.EqualTo(expected.center - plan.ActualCenter));
+                Assert.That(display.LocalVolumes[i].size, Is.EqualTo(expected.size));
+            }
+
             int layer = LayerMask.NameToLayer(SfsAuthoringSceneBuilder.DelimiterLayerName);
             Assert.That(layer, Is.GreaterThanOrEqualTo(0));
             Assert.That(root.GetComponentsInChildren<Delimiter>().All(value => value.gameObject.layer == layer), Is.True);
@@ -232,6 +245,29 @@ namespace Genix.Tests.SpaceFoundation
         public void BoundedLocationAnchorUsesLayoutName()
         {
             AssertSingleLocationAnchorUsesLayoutName(SfsAuthoringLayoutType.BoundedLocation);
+        }
+
+        [Test]
+        public void ExistingBoundedLayoutCanRecoverFreeSpaceDisplay()
+        {
+            SpaceFoundationSystem.SpaceFoundation foundation = CreateFoundation(1f);
+            SfsAuthoringRequest request = CreateRequest(SfsAuthoringLayoutType.BoundedLocation);
+            request.SizeMode = SfsAuthoringSizeMode.VoxelCounts;
+            request.VoxelCounts = new Vector3Int(6, 4, 8);
+            SfsAuthoringPlanner.TryCreate(request, foundation.voxelSize, out SfsAuthoringPlan plan, out _);
+            GameObject root = SfsAuthoringSceneBuilder.CreateLayout(plan, foundation, out string createError);
+            _objects.Add(root);
+            Object.DestroyImmediate(root.GetComponent<SfsAuthoringLayoutDisplay>());
+
+            bool added = SfsAuthoringSceneBuilder.TryAddFreeSpaceDisplay(root, out string error);
+            SfsAuthoringLayoutDisplay display = root.GetComponent<SfsAuthoringLayoutDisplay>();
+
+            Assert.That(root, Is.Not.Null, createError);
+            Assert.That(added, Is.True, error);
+            Assert.That(display, Is.Not.Null);
+            Assert.That(display.LocalVolumes, Has.Count.EqualTo(1));
+            Assert.That(display.LocalVolumes[0].center, Is.EqualTo(Vector3.zero));
+            Assert.That(display.LocalVolumes[0].size, Is.EqualTo(plan.ActualSize));
         }
 
         [Test]

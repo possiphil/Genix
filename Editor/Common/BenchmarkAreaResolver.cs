@@ -36,6 +36,18 @@ namespace Genix.Editor.TargetAreas
         IAreaSource Resolve(Scene scene, string targetId);
     }
 
+    /// <summary>
+    /// Optionally prepares authoritative provider data after a scene load and before benchmark or evaluation runs.
+    /// Preparation is deliberately outside the measured generation operation.
+    /// </summary>
+    public interface IBenchmarkAreaPreparer
+    {
+        /// <summary>
+        /// Ensures that the loaded scene contains authoritative spatial data for subsequent target resolution.
+        /// </summary>
+        bool Prepare(Scene scene, out string error);
+    }
+
     /// <summary>Discovers installed benchmark target resolvers without coupling the runner to one spatial system.</summary>
     public static class BenchmarkAreaResolverRegistry
     {

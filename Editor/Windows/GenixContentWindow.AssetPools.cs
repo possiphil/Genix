@@ -112,11 +112,7 @@ namespace Genix.Editor.Windows
 
                 if (assetPools.Count == 0)
                 {
-                    string message = catalog.AssetPools.Any(pool => pool)
-                        ? "No asset pools match the current filters."
-                        : "No asset pools created yet.";
-
-                    EditorGUILayout.HelpBox(message, MessageType.Info);
+                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
                 }
                 else
                 {

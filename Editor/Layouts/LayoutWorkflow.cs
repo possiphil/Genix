@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
@@ -18,6 +19,9 @@ namespace Genix.Editor.Layouts
         /// <summary>Loads layouts associated with the current scene.</summary>
         public static SavedLayout[] LoadLayoutsForCurrentScene() =>
             LayoutRepository.LoadForCurrentScene();
+
+        /// <summary>Invalidates the editor-side saved-layout catalog after project asset changes.</summary>
+        public static void InvalidateLayoutCache() => LayoutRepository.InvalidateCache();
 
         /// <summary>Determines whether a layout was captured for the specified target area.</summary>
         public static bool MatchesArea(SavedLayout layout, IAreaSource areaSource) =>
@@ -64,6 +68,14 @@ namespace Genix.Editor.Layouts
         /// <summary>Deletes a saved layout from the project.</summary>
         public static bool DeleteLayout(SavedLayout layout, out string error) =>
             LayoutRepository.Delete(layout, out error);
+
+        /// <summary>Deletes the supplied saved layouts and their owned prefabs in one asset-editing batch.</summary>
+        public static bool DeleteLayouts(
+            IEnumerable<SavedLayout> layouts,
+            bool includeLocked,
+            out int deletedCount,
+            out string error) =>
+            LayoutRepository.DeleteMany(layouts, includeLocked, out deletedCount, out error);
 
         /// <summary>Clears layouts.</summary>
         public static bool ClearLayouts(out int deletedCount, out string error) =>

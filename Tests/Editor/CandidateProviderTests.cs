@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Diagnostics;
@@ -7,8 +8,10 @@ using Genix.Placement;
 using Genix.Placement.Providers;
 using Genix.Profiling;
 using Genix.Sampling;
+using Genix.Semantics;
 using Genix.Tests.Framework;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace Genix.Tests
 {
@@ -107,6 +110,54 @@ namespace Genix.Tests
                 PlacementType.Ceiling,
                 PlacementType.InsideSpace
             }));
+        }
+
+        [Test]
+        public void AllMatchingFloorProviderReservesCandidatesForEveryCompatibleSupport()
+        {
+            AreaBuildSettings settings = new(
+                AreaDecompositionMode.Precise,
+                ~0,
+                surfaceDiscoveryMode: SurfaceDiscoveryMode.AllMatchingSurfacesInVolume);
+            using GenerationTestScene scene = new(settings);
+            TagCategory category = scene.Track(ScriptableObject.CreateInstance<TagCategory>());
+            category.name = "Support Type";
+            category.Initialize(true, TagCategoryUsage.Surface);
+            SemanticTag desktop = scene.Track(ScriptableObject.CreateInstance<SemanticTag>());
+            desktop.name = "Desktop";
+            desktop.Initialize(category);
+            AssetDefinition monitor = scene.CreateAsset("Monitor", PlacementType.Floor);
+            monitor.SetRequiredSupportTags(new[] { desktop });
+            BoxCollider first = CreateSupport(scene, "Desk A", new Vector3(-5f, 1f, 0f), desktop);
+            BoxCollider second = CreateSupport(scene, "Desk B", new Vector3(5f, 1f, 0f), desktop);
+            second.transform.SetParent(scene.GeneratedRoot.transform, true);
+            Physics.SyncTransforms();
+            GenerationContext context = scene.CreateContext(scene.CreateRequest(
+                count: 8,
+                targets: PlacementTarget.Floor,
+                algorithm: SamplingAlgorithm.Random,
+                areaSettings: settings));
+
+            List<CandidateSeed> seeds = new HorizontalSurfaceCandidateProvider(
+                    requestedCount: 8,
+                    minimumCandidateCount: 8,
+                    candidateCount: 8,
+                    assets: new[] { monitor })
+                .CreateCandidateSeeds(context);
+
+            Assert.That(seeds, Has.Some.Matches<CandidateSeed>(seed => seed.SurfaceCollider == first));
+            Assert.That(seeds, Has.Some.Matches<CandidateSeed>(seed => seed.SurfaceCollider == second));
+            Assert.That(seeds, Has.Some.Matches<CandidateSeed>(seed =>
+                seed.SurfaceCollider == first &&
+                Vector2.Distance(
+                    new Vector2(seed.Position.x, seed.Position.z),
+                    new Vector2(first.bounds.center.x, first.bounds.center.z)) < 0.001f));
+            Assert.That(seeds, Has.Some.Matches<CandidateSeed>(seed =>
+                seed.SurfaceCollider == second &&
+                Vector2.Distance(
+                    new Vector2(seed.Position.x, seed.Position.z),
+                    new Vector2(second.bounds.center.x, second.bounds.center.z)) < 0.001f));
+            Assert.That(seeds, Has.Count.LessThanOrEqualTo(8));
         }
 
         [Test]
@@ -249,6 +300,29 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void InsideSpaceProviderHonorsExplicitCandidateCountWithoutHiddenOversampling()
+        {
+            GenerationContext context = CreateContext(PlacementTarget.InsideSpace, SamplingAlgorithm.Random);
+            InsideSpaceCandidateProvider provider = new(candidateCount: 7);
+
+            List<CandidateSeed> seeds = provider.CreateCandidateSeeds(context, NullDiagnosticsSink.Instance);
+
+            Assert.That(seeds, Has.Count.EqualTo(7));
+            Assert.That(seeds, Has.All.Matches<CandidateSeed>(seed =>
+                seed.PlacementType == PlacementType.InsideSpace));
+        }
+
+        [Test]
+        public void CandidateSettingsBudgetUsesMultiplierMinimumAndOverflowClamp()
+        {
+            CandidateSettings settings = new(multiplier: 5, minimumCount: 20, shuffle: false);
+
+            Assert.That(settings.GetBudget(3), Is.EqualTo(20));
+            Assert.That(settings.GetBudget(10), Is.EqualTo(50));
+            Assert.That(settings.GetBudget(int.MaxValue), Is.EqualTo(int.MaxValue));
+        }
+
+        [Test]
         public void CandidateSeedFactoryTargetOverrideRestrictsGeneratedTypes()
         {
             GenerationContext context = CreateContext(PlacementTarget.All, SamplingAlgorithm.Grid);
@@ -314,6 +388,21 @@ namespace Genix.Tests
             }
 
             return _scene.CreateContext(request);
+        }
+
+        private static BoxCollider CreateSupport(
+            GenerationTestScene scene,
+            string name,
+            Vector3 position,
+            SemanticTag tag)
+        {
+            GameObject support = scene.CreateGameObject(name);
+            support.transform.position = position;
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            collider.size = new Vector3(3f, 0.2f, 3f);
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetSurfaceTags(new[] { tag });
+            return collider;
         }
     }
 }

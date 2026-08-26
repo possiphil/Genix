@@ -71,12 +71,14 @@ namespace Genix.Placement
             rejectionReason = RejectionReason.None;
             relatedObjectName = string.Empty;
             Bounds axisAlignedBounds = candidateBounds.ToAxisAlignedBounds();
+            OrientedBounds containmentBounds = RemoveSurfaceSink(candidateBounds, candidate, asset);
+            Bounds containmentAabb = containmentBounds.ToAxisAlignedBounds();
             bool isWallPlacement = candidate.PlacementType == PlacementType.Wall;
             bool isInsideSpacePlacement = candidate.PlacementType == PlacementType.InsideSpace;
             PlacementType placementType = candidate.PlacementType;
 
             long stepStart = StartValidationStep(profiler);
-            if (!FitsTargetHeight(axisAlignedBounds, context.TargetBounds))
+            if (!FitsTargetHeight(containmentAabb, context.TargetBounds))
             {
                 RecordValidationStep(profiler, placementType, ValidationProfileStep.Height, stepStart);
                 rejectionReason = RejectionReason.ExceedsTargetHeight;
@@ -85,7 +87,7 @@ namespace Genix.Placement
             RecordValidationStep(profiler, placementType, ValidationProfileStep.Height, stepStart);
 
             stepStart = StartValidationStep(profiler);
-            if (TryFindExclusionRegion(candidateBounds, placementType, context, out relatedObjectName))
+            if (TryFindExclusionRegion(candidateBounds, placementType, context, asset, out relatedObjectName))
             {
                 RecordValidationStep(profiler, placementType, ValidationProfileStep.Exclusion, stepStart);
                 rejectionReason = RejectionReason.InsideExclusionRegion;
@@ -118,7 +120,7 @@ namespace Genix.Placement
             RecordValidationStep(profiler, placementType, ValidationProfileStep.PlannedSpacing, stepStart);
 
             stepStart = StartValidationStep(profiler);
-            if (!context.Area.ContainsPlacementVolume(candidateBounds))
+            if (!context.Area.ContainsPlacementVolume(containmentBounds))
             {
                 RecordValidationStep(profiler, placementType, ValidationProfileStep.Volume, stepStart);
                 rejectionReason = RejectionReason.OutsideTargetVolume;
@@ -126,14 +128,50 @@ namespace Genix.Placement
             }
             RecordValidationStep(profiler, placementType, ValidationProfileStep.Volume, stepStart);
 
+            if (asset && asset.ReserveClearance)
+            {
+                stepStart = StartValidationStep(profiler);
+                OrientedBounds clearanceBounds = asset.CreateClearanceBounds(candidate);
+
+                if (!context.Area.ContainsClearanceVolume(clearanceBounds))
+                {
+                    RecordValidationStep(profiler, placementType, ValidationProfileStep.Clearance, stepStart);
+                    rejectionReason = RejectionReason.ClearanceOutsideTargetVolume;
+                    return false;
+                }
+
+                RecordValidationStep(profiler, placementType, ValidationProfileStep.Clearance, stepStart);
+            }
+
             stepStart = StartValidationStep(profiler);
-            if (!RelativeAnchorProvider.IsCandidateInRange(candidate, context, out relatedObjectName))
+            if (!RelativeAnchorProvider.TryValidateCandidate(
+                    candidate,
+                    candidateBounds,
+                    asset,
+                    context,
+                    out rejectionReason,
+                    out relatedObjectName))
             {
                 RecordValidationStep(profiler, placementType, ValidationProfileStep.Relative, stepStart);
-                rejectionReason = RejectionReason.OutsideRelativeRadius;
                 return false;
             }
             RecordValidationStep(profiler, placementType, ValidationProfileStep.Relative, stepStart);
+            string matchedRelativeAnchorName = relatedObjectName;
+
+            stepStart = StartValidationStep(profiler);
+            if (!PathPlacementSource.TryValidate(
+                    context,
+                    asset,
+                    candidate.Position,
+                    out rejectionReason,
+                    out relatedObjectName))
+            {
+                RecordValidationStep(profiler, placementType, ValidationProfileStep.Relative, stepStart);
+                return false;
+            }
+            RecordValidationStep(profiler, placementType, ValidationProfileStep.Relative, stepStart);
+            if (string.IsNullOrEmpty(relatedObjectName))
+                relatedObjectName = matchedRelativeAnchorName;
 
             stepStart = StartValidationStep(profiler);
             if (TryFindOverlappingGeneratedObject(candidate, candidateBounds, context, out relatedObjectName))
@@ -157,6 +195,21 @@ namespace Genix.Placement
                 return false;
             }
             RecordValidationStep(profiler, placementType, ValidationProfileStep.GeneratedSceneSpacing, stepStart);
+
+            stepStart = StartValidationStep(profiler);
+            if (TryFindAssetSpacingViolation(
+                    axisAlignedBounds,
+                    placementType,
+                    candidate.SurfaceCollider,
+                    asset,
+                    context,
+                    out relatedObjectName))
+            {
+                RecordValidationStep(profiler, placementType, ValidationProfileStep.AssetSpacing, stepStart);
+                rejectionReason = RejectionReason.AssetSpacingViolation;
+                return false;
+            }
+            RecordValidationStep(profiler, placementType, ValidationProfileStep.AssetSpacing, stepStart);
 
             bool requiresAssetSurfaceValidation =
                 !isInsideSpacePlacement &&
@@ -190,6 +243,20 @@ namespace Genix.Placement
             }
 
             stepStart = StartValidationStep(profiler);
+            if (TryFindClearanceViolation(
+                    candidate,
+                    candidateBounds,
+                    asset,
+                    context,
+                    out relatedObjectName))
+            {
+                RecordValidationStep(profiler, placementType, ValidationProfileStep.Clearance, stepStart);
+                rejectionReason = RejectionReason.ClearanceBlocked;
+                return false;
+            }
+            RecordValidationStep(profiler, placementType, ValidationProfileStep.Clearance, stepStart);
+
+            stepStart = StartValidationStep(profiler);
             if (TryFindOverlappingFixedObject(candidate, candidateBounds, context, out relatedObjectName))
             {
                 RecordValidationStep(profiler, placementType, ValidationProfileStep.FixedOverlap, stepStart);
@@ -207,7 +274,27 @@ namespace Genix.Placement
             }
             RecordValidationStep(profiler, placementType, ValidationProfileStep.FixedSpacing, stepStart);
 
+            relatedObjectName = matchedRelativeAnchorName;
             return true;
+        }
+
+        private static OrientedBounds RemoveSurfaceSink(
+            OrientedBounds visualBounds,
+            PlacementCandidate candidate,
+            AssetDefinition asset)
+        {
+            if (!asset || asset.SurfaceSinkOffset <= 0f || candidate.PlacementType == PlacementType.InsideSpace)
+                return visualBounds;
+
+            Vector3 normal = candidate.SurfaceNormal.sqrMagnitude > 0.001f
+                ? candidate.SurfaceNormal.normalized
+                : candidate.PlacementType == PlacementType.Wall
+                    ? candidate.Rotation * Vector3.forward
+                    : candidate.Rotation * Vector3.up;
+            return new OrientedBounds(
+                visualBounds.Center + normal * asset.SurfaceSinkOffset,
+                visualBounds.Size,
+                visualBounds.Rotation);
         }
 
         internal static bool TryRejectByPlannedSpacing(
@@ -514,7 +601,8 @@ namespace Genix.Placement
             if (minDistance <= 0f)
                 return false;
 
-            IEnumerable<PlannedObject> nearbyObjects = placementType == PlacementType.Wall
+            bool includeHeight = UsesThreeDimensionalSpacing(placementType);
+            IEnumerable<PlannedObject> nearbyObjects = includeHeight
                 ? context.Plan.QuerySpatialSpacing(candidateBounds, minDistance)
                 : context.Plan.QueryHorizontalSpacing(candidateBounds, minDistance);
 
@@ -524,7 +612,7 @@ namespace Genix.Placement
                         candidateBounds.center,
                         plannedObject.Bounds.Center,
                         minDistance,
-                        placementType == PlacementType.Wall))
+                        includeHeight))
                 {
                     continue;
                 }
@@ -560,7 +648,9 @@ namespace Genix.Placement
 
             Bounds queryBounds;
 
-            if (placementType == PlacementType.Wall)
+            bool includeHeight = UsesThreeDimensionalSpacing(placementType);
+
+            if (includeHeight)
             {
                 queryBounds = candidateBounds;
                 queryBounds.Expand(minDistance * 2f);
@@ -585,7 +675,7 @@ namespace Genix.Placement
                         candidateBounds.center,
                         sceneObject.Bounds.center,
                         minDistance,
-                        placementType == PlacementType.Wall))
+                        includeHeight))
                     continue;
 
                 relatedObjectName = sceneObject.ObjectName;
@@ -595,10 +685,262 @@ namespace Genix.Placement
             return false;
         }
 
+        private static bool TryFindAssetSpacingViolation(
+            Bounds candidateBounds,
+            PlacementType placementType,
+            Collider surfaceCollider,
+            AssetDefinition asset,
+            GenerationContext context,
+            out string relatedObjectName)
+        {
+            relatedObjectName = string.Empty;
+
+            if (!asset)
+                return false;
+
+            SceneObjectIndex generatedSceneObjects = context.GeneratedSceneObjects;
+            float searchRadius = Mathf.Max(
+                asset.MaxSpacingDistance,
+                context.Plan.MaxAssetSpacingDistance,
+                generatedSceneObjects?.MaxAssetSpacingDistance ?? 0f);
+
+            if (searchRadius <= 0f)
+                return false;
+
+            bool includeHeight = UsesThreeDimensionalSpacing(placementType);
+            IEnumerable<PlannedObject> plannedObjects = includeHeight
+                ? context.Plan.QuerySpatialSpacing(candidateBounds, searchRadius)
+                : context.Plan.QueryHorizontalSpacing(candidateBounds, searchRadius);
+
+            foreach (PlannedObject plannedObject in plannedObjects)
+            {
+                float requiredDistance = GetRequiredAssetSpacing(asset, plannedObject.Asset);
+
+                if (requiredDistance <= 0f ||
+                    !IsCloserThanMinDistance(
+                        candidateBounds.center,
+                        plannedObject.Bounds.Center,
+                        requiredDistance,
+                        includeHeight))
+                {
+                    continue;
+                }
+
+                relatedObjectName = plannedObject.ObjectName;
+                return true;
+            }
+
+            if (generatedSceneObjects == null || generatedSceneObjects.Count == 0)
+                return false;
+
+            Bounds queryBounds = includeHeight
+                ? ExpandBounds(candidateBounds, searchRadius)
+                : CreateHorizontalSpacingQueryBounds(
+                    candidateBounds,
+                    searchRadius,
+                    generatedSceneObjects.HasBounds ? generatedSceneObjects.Bounds : context.TargetBounds);
+
+            foreach (SceneObjectIndex.Entry sceneObject in generatedSceneObjects.Query(queryBounds))
+            {
+                if (!sceneObject.AssetDefinition || IsSupportingGeneratedObject(sceneObject, surfaceCollider))
+                    continue;
+
+                float requiredDistance = GetRequiredAssetSpacing(asset, sceneObject.AssetDefinition);
+
+                if (requiredDistance <= 0f ||
+                    !IsCloserThanMinDistance(
+                        candidateBounds.center,
+                        sceneObject.Bounds.center,
+                        requiredDistance,
+                        includeHeight))
+                {
+                    continue;
+                }
+
+                relatedObjectName = sceneObject.ObjectName;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static float GetRequiredAssetSpacing(AssetDefinition first, AssetDefinition second) =>
+            first && second
+                ? Mathf.Max(first.GetMinimumSpacingTo(second), second.GetMinimumSpacingTo(first))
+                : 0f;
+
+        private static bool TryFindClearanceViolation(
+            PlacementCandidate candidate,
+            OrientedBounds candidateBounds,
+            AssetDefinition asset,
+            GenerationContext context,
+            out string relatedObjectName)
+        {
+            relatedObjectName = string.Empty;
+            bool hasCandidateClearance = asset && asset.ReserveClearance;
+            bool hasExistingClearance = context.Plan.HasClearanceBounds ||
+                                        context.GeneratedSceneObjects?.HasClearanceBounds == true;
+
+            if (!hasCandidateClearance && !hasExistingClearance)
+                return false;
+
+            OrientedBounds candidateClearance = hasCandidateClearance
+                ? asset.CreateClearanceBounds(candidate)
+                : default;
+            Bounds candidateVisualAabb = candidateBounds.ToAxisAlignedBounds();
+
+            if (hasCandidateClearance)
+            {
+                if (TryFindExclusionRegion(
+                        candidateClearance,
+                        candidate.PlacementType,
+                        context,
+                        asset,
+                        out relatedObjectName))
+                {
+                    return true;
+                }
+
+                Bounds clearanceAabb = candidateClearance.ToAxisAlignedBounds();
+
+                foreach (PlannedObject plannedObject in context.Plan.Query(clearanceAabb))
+                {
+                    if (!candidateClearance.Intersects(plannedObject.Bounds))
+                        continue;
+
+                    relatedObjectName = plannedObject.ObjectName;
+                    return true;
+                }
+
+                foreach (PlannedObject plannedObject in context.Plan.QueryClearance(clearanceAabb))
+                {
+                    OrientedBounds existingClearance = plannedObject.Asset.CreateClearanceBounds(
+                        plannedObject.Candidate);
+
+                    if (!candidateClearance.Intersects(existingClearance))
+                        continue;
+
+                    relatedObjectName = plannedObject.ObjectName;
+                    return true;
+                }
+
+                SceneObjectIndex generatedSceneObjects = context.GeneratedSceneObjects;
+
+                if (generatedSceneObjects != null)
+                {
+                    foreach (SceneObjectIndex.Entry sceneObject in generatedSceneObjects.Query(clearanceAabb))
+                    {
+                        if (IsSupportingGeneratedObject(sceneObject, candidate.SurfaceCollider) ||
+                            !candidateClearance.Intersects(sceneObject.Bounds))
+                        {
+                            continue;
+                        }
+
+                        relatedObjectName = sceneObject.ObjectName;
+                        return true;
+                    }
+
+                    foreach (SceneObjectIndex.Entry sceneObject in generatedSceneObjects.QueryClearance(clearanceAabb))
+                    {
+                        if (!sceneObject.AssetDefinition || !sceneObject.Root ||
+                            IsSupportingGeneratedObject(sceneObject, candidate.SurfaceCollider))
+                        {
+                            continue;
+                        }
+
+                        OrientedBounds existingClearance = sceneObject.AssetDefinition.CreateClearanceBounds(
+                            sceneObject.Root.position,
+                            sceneObject.Root.rotation);
+
+                        if (!candidateClearance.Intersects(existingClearance))
+                            continue;
+
+                        relatedObjectName = sceneObject.ObjectName;
+                        return true;
+                    }
+                }
+
+                if (TryFindFixedClearanceBlocker(candidate, candidateClearance, context, out relatedObjectName))
+                    return true;
+            }
+
+            foreach (PlannedObject plannedObject in context.Plan.QueryClearance(candidateVisualAabb))
+            {
+                OrientedBounds existingClearance = plannedObject.Asset.CreateClearanceBounds(
+                    plannedObject.Candidate);
+
+                if (!existingClearance.Intersects(candidateBounds))
+                    continue;
+
+                relatedObjectName = plannedObject.ObjectName;
+                return true;
+            }
+
+            SceneObjectIndex existingSceneObjects = context.GeneratedSceneObjects;
+
+            if (existingSceneObjects == null)
+                return false;
+
+            foreach (SceneObjectIndex.Entry sceneObject in existingSceneObjects.QueryClearance(candidateVisualAabb))
+            {
+                if (!sceneObject.AssetDefinition || !sceneObject.Root ||
+                    IsSupportingGeneratedObject(sceneObject, candidate.SurfaceCollider))
+                {
+                    continue;
+                }
+
+                OrientedBounds existingClearance = sceneObject.AssetDefinition.CreateClearanceBounds(
+                    sceneObject.Root.position,
+                    sceneObject.Root.rotation);
+
+                if (!existingClearance.Intersects(candidateBounds))
+                    continue;
+
+                relatedObjectName = sceneObject.ObjectName;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryFindFixedClearanceBlocker(
+            PlacementCandidate candidate,
+            OrientedBounds clearanceBounds,
+            GenerationContext context,
+            out string relatedObjectName)
+        {
+            relatedObjectName = string.Empty;
+
+            if (!HasPotentialFixedObstacle(candidate, clearanceBounds, context))
+                return false;
+
+            int hitCount = OverlapBox(clearanceBounds, out Collider[] hits);
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider hit = hits[i];
+
+                if (ShouldIgnoreFixedCollider(hit, candidate, context))
+                    continue;
+
+                relatedObjectName = hit.name;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static Bounds ExpandBounds(Bounds bounds, float radius)
+        {
+            bounds.Expand(Mathf.Max(0f, radius) * 2f);
+            return bounds;
+        }
+
         private static bool TryFindExclusionRegion(
             OrientedBounds candidateBounds,
             PlacementType placementType,
             GenerationContext context,
+            AssetDefinition asset,
             out string relatedObjectName)
         {
             relatedObjectName = string.Empty;
@@ -608,7 +950,7 @@ namespace Genix.Placement
 
             foreach (PlacementExclusionRegion region in context.ExclusionRegions)
             {
-                if (!region || !region.Intersects(candidateBounds, placementType))
+                if (!region || !region.Intersects(candidateBounds, placementType, asset))
                     continue;
 
                 relatedObjectName = region.name;
@@ -668,6 +1010,9 @@ namespace Genix.Placement
 
             return dx * dx + dy * dy + dz * dz < minDistanceSquared;
         }
+
+        private static bool UsesThreeDimensionalSpacing(PlacementType placementType) =>
+            placementType is PlacementType.Wall or PlacementType.InsideSpace;
 
         private static bool BoundsOverlap(OrientedBounds a, Bounds b)
         {

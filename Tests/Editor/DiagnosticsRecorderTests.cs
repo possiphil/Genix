@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
@@ -120,6 +121,24 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void SummaryModeAggregatesSemanticSupportCoverageAndPrefilterSkips()
+        {
+            SemanticTag desktop = CreateSurfaceTag("Desktop");
+            CandidateSeed first = CreateSupportSeed("Desk A", desktop, Vector3.left);
+            CandidateSeed second = CreateSupportSeed("Desk B", desktop, Vector3.right);
+            DiagnosticsRecorder recorder = new(_context, DiagnosticsMode.Summary);
+
+            recorder.RecordCandidatePool(2, new[] { first, second });
+            recorder.RecordSupportPrefilterSkips(7);
+
+            SupportCandidateDiagnostic aggregate = recorder.Diagnostics.Sampler.SupportCandidates.Single();
+            Assert.That(aggregate.Label, Is.EqualTo("Desktop"));
+            Assert.That(aggregate.CandidateCount, Is.EqualTo(2));
+            Assert.That(aggregate.SurfaceCount, Is.EqualTo(2));
+            Assert.That(recorder.Diagnostics.Sampler.SupportPrefilterSkips, Is.EqualTo(7));
+        }
+
+        [Test]
         public void SummaryModeCountsRejectedCandidateWithoutRetainingGeometry()
         {
             DiagnosticsRecorder recorder = new(_context, DiagnosticsMode.Summary);
@@ -173,6 +192,22 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void SupportBudgetsAreCopiedIntoDiagnostics()
+        {
+            DiagnosticsRecorder recorder = new(_context, DiagnosticsMode.Summary);
+
+            recorder.RecordSupportBudgets(new[]
+            {
+                new SupportBudgetDiagnostic("Shelf", 2, 2),
+                new SupportBudgetDiagnostic("Default / Other Surfaces", 8, 6)
+            });
+
+            Assert.That(recorder.Diagnostics.SupportBudgets, Has.Count.EqualTo(2));
+            Assert.That(recorder.Diagnostics.SupportBudgets[0].Label, Is.EqualTo("Shelf"));
+            Assert.That(recorder.Diagnostics.SupportBudgets[1].PlacedCount, Is.EqualTo(6));
+        }
+
+        [Test]
         public void DetailedModeRecordsSamplingPreviewGeometry()
         {
             DiagnosticsRecorder recorder = new(_context, DiagnosticsMode.Detailed);
@@ -214,6 +249,33 @@ namespace Genix.Tests
             GameObject value = new(name);
             _objects.Add(value);
             return value;
+        }
+
+        private SemanticTag CreateSurfaceTag(string name)
+        {
+            TagCategory category = ScriptableObject.CreateInstance<TagCategory>();
+            category.name = name + " Category";
+            category.Initialize(true, TagCategoryUsage.Surface);
+            SemanticTag tag = ScriptableObject.CreateInstance<SemanticTag>();
+            tag.name = name;
+            tag.Initialize(category);
+            _objects.Add(category);
+            _objects.Add(tag);
+            return tag;
+        }
+
+        private CandidateSeed CreateSupportSeed(string name, SemanticTag tag, Vector3 position)
+        {
+            GameObject support = CreateGameObject(name);
+            BoxCollider collider = support.AddComponent<BoxCollider>();
+            PlacementSurfaceDescriptor descriptor = support.AddComponent<PlacementSurfaceDescriptor>();
+            descriptor.SetSurfaceTags(new[] { tag });
+            return new CandidateSeed(
+                position,
+                Quaternion.identity,
+                collider,
+                Vector3.up,
+                placementType: PlacementType.Floor);
         }
 
         private sealed class StubAreaSource : IAreaSource

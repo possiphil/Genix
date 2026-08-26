@@ -93,16 +93,31 @@ namespace Genix.Editor.Genix.Editor.Assets
             if (!prefab)
                 return false;
 
-            if (!BoundsUtility.TryGetRendererBounds(prefab.transform, out Bounds bounds, true, false) &&
-                !BoundsUtility.TryGetColliderBounds(prefab.transform, out bounds, true, false))
+            GameObject probe = UnityEngine.Object.Instantiate(prefab);
+            try
             {
-                return false;
+                probe.hideFlags = HideFlags.HideAndDontSave;
+                probe.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                Physics.SyncTransforms();
+
+                if (!BoundsUtility.TryGetRendererBounds(probe.transform, out Bounds bounds, true, false) &&
+                    !BoundsUtility.TryGetColliderBounds(probe.transform, out bounds, true, false))
+                {
+                    return false;
+                }
+
+                boundsSize = new Vector3(
+                    Mathf.Max(0.01f, bounds.size.x),
+                    Mathf.Max(0.01f, bounds.size.y),
+                    Mathf.Max(0.01f, bounds.size.z));
+                boundsCenterOffset = probe.transform.InverseTransformPoint(bounds.center);
+
+                return true;
             }
-
-            boundsSize = new Vector3(Mathf.Max(0.01f, bounds.size.x), Mathf.Max(0.01f, bounds.size.y), Mathf.Max(0.01f, bounds.size.z));
-            boundsCenterOffset = prefab.transform.InverseTransformPoint(bounds.center);
-
-            return true;
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(probe);
+            }
         }
 
         /// <summary>Determines whether prefab asset.</summary>

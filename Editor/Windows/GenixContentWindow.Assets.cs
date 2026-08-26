@@ -408,7 +408,7 @@ namespace Genix.Editor.Windows
                 createdAssets.Count == 1
                     ? $"Created asset definition '{createdAsset.AssetName}'."
                     : $"Created {createdAssets.Count} asset definitions.",
-                MessageType.Info);
+                MessageType.None);
 
             Repaint();
         }
@@ -425,6 +425,9 @@ namespace Genix.Editor.Windows
         private void DrawAssetCreationMessage()
         {
             if (string.IsNullOrWhiteSpace(_assetCreationMessage))
+                return;
+
+            if (_assetCreationMessageType is MessageType.Info or MessageType.None)
                 return;
 
             if (EditorApplication.timeSinceStartup > _assetCreationMessageUntil)
@@ -557,6 +560,9 @@ namespace Genix.Editor.Windows
             if (string.IsNullOrWhiteSpace(_staticPoolMessage))
                 return;
 
+            if (_staticPoolMessageType is MessageType.Info or MessageType.None)
+                return;
+
             if (EditorApplication.timeSinceStartup > _staticPoolMessageUntil)
                 return;
 
@@ -631,7 +637,7 @@ namespace Genix.Editor.Windows
 
                 if (assets.Count == 0)
                 {
-                    EditorGUILayout.HelpBox("No assets match the current filters.", MessageType.Info);
+                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
                 }
                 else
                 {

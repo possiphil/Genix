@@ -22,6 +22,8 @@ namespace Genix.Core
         private TargetDistributionMode targetDistributionMode;
         [SerializeField, Tooltip("Relative target weights used when distribution is Weighted.")]
         private TargetDistributionWeights targetDistributionWeights;
+        [SerializeField, Tooltip("Optional accepted-placement distribution across explicitly tagged support surfaces and all remaining surfaces.")]
+        private SupportDistributionSettings supportDistribution;
         [SerializeField, Tooltip("Method used to convert SFS voxel layers into placement regions.")]
         private AreaDecompositionMode areaDecompositionMode;
         [SerializeField, Tooltip("Source from which floor, wall, and ceiling surfaces are discovered.")]
@@ -69,7 +71,8 @@ namespace Genix.Core
             ~0,
             false,
             12345,
-            true);
+            true,
+            SupportDistributionSettings.Disabled);
 
         /// <summary>Gets the asset pool.</summary>
         public readonly AssetPool AssetPool => assetPool;
@@ -83,6 +86,9 @@ namespace Genix.Core
         public readonly TargetDistributionMode TargetDistributionMode => targetDistributionMode;
         /// <summary>Gets the target-distribution weights.</summary>
         public readonly TargetDistributionWeights TargetDistributionWeights => targetDistributionWeights;
+        /// <summary>Gets semantic support-surface distribution.</summary>
+        public readonly SupportDistributionSettings SupportDistribution =>
+            supportDistribution?.Copy() ?? SupportDistributionSettings.Disabled;
         /// <summary>Gets the area-decomposition mode.</summary>
         public readonly AreaDecompositionMode AreaDecompositionMode => areaDecompositionMode;
         /// <summary>Gets the surface-discovery mode.</summary>
@@ -130,7 +136,8 @@ namespace Genix.Core
             LayerMask relativeSceneLayers,
             bool useFixedSeed,
             int randomSeed,
-            bool bestEffort)
+            bool bestEffort,
+            SupportDistributionSettings supportDistribution = null)
         {
             this.assetPool = assetPool;
             this.stylePreset = stylePreset;
@@ -142,6 +149,7 @@ namespace Genix.Core
                 targetDistributionWeights.Wall,
                 targetDistributionWeights.Ceiling,
                 targetDistributionWeights.InsideSpace);
+            this.supportDistribution = supportDistribution?.Copy() ?? SupportDistributionSettings.Disabled;
             this.areaDecompositionMode = NormalizeEnum(areaDecompositionMode, AreaDecompositionMode.Fast);
             this.surfaceDiscoveryMode = NormalizeEnum(
                 surfaceDiscoveryMode,
@@ -179,7 +187,8 @@ namespace Genix.Core
             relativeSceneLayers,
             useFixedSeed,
             randomSeed,
-            bestEffort);
+            bestEffort,
+            supportDistribution);
 
         /// <inheritdoc />
         public readonly bool Equals(GenerationPresetSettings other)
@@ -193,6 +202,7 @@ namespace Genix.Core
                    TargetDistributionWeights.Wall == other.TargetDistributionWeights.Wall &&
                    TargetDistributionWeights.Ceiling == other.TargetDistributionWeights.Ceiling &&
                    TargetDistributionWeights.InsideSpace == other.TargetDistributionWeights.InsideSpace &&
+                   SupportDistributionEquals(SupportDistribution, other.SupportDistribution) &&
                    AreaDecompositionMode == other.AreaDecompositionMode &&
                    SurfaceDiscoveryMode == other.SurfaceDiscoveryMode &&
                    FloorSurfaceLayers.value == other.FloorSurfaceLayers.value &&
@@ -229,6 +239,31 @@ namespace Genix.Core
 
         private static T NormalizeEnum<T>(T value, T fallback) where T : struct, Enum =>
             Enum.IsDefined(typeof(T), value) ? value : fallback;
+
+        private static bool SupportDistributionEquals(
+            SupportDistributionSettings left,
+            SupportDistributionSettings right)
+        {
+            if (left.IsEnabled != right.IsEnabled || left.DefaultWeight != right.DefaultWeight ||
+                left.Rules.Count != right.Rules.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < left.Rules.Count; i++)
+            {
+                SupportDistributionRule leftRule = left.Rules[i];
+                SupportDistributionRule rightRule = right.Rules[i];
+                if (leftRule.SupportTag != rightRule.SupportTag ||
+                    leftRule.Mode != rightRule.Mode ||
+                    leftRule.Value != rightRule.Value)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
     }
 
     /// <summary>

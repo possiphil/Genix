@@ -108,7 +108,7 @@ namespace Genix.Editor.Drawers
             return DrawSettingsGroup(ref _showCandidateSettings, EditorGui.ChangedLabel("Candidate Settings", state.HasCandidateSettingsChanged()),
                 () => {
                     state.EditingSettings.candidates.multiplier = ValidatedField.DrawIntField(Explain(EditorGui.ChangedLabel("Candidate Multiplier", state.HasCandidateMultiplierChanged()),
-                            "Candidate budget per requested object. Higher values improve the chance of filling constrained areas but increase work."),
+                            "Hard candidate-position budget per requested object. Higher values improve the chance of filling constrained areas but increase worst-case work. Lazy generation still stops as soon as the requested count is reached."),
                         state.EditingSettings.candidates.multiplier, state.SavedSettings.candidates.multiplier, "Candidate Multiplier",
                         value => value > 0, GreaterThanZero, onInvalid);
 
@@ -181,7 +181,7 @@ namespace Genix.Editor.Drawers
             return DrawSettingsGroup(ref _showPoissonSettings, EditorGui.ChangedLabel("Poisson Settings", state.HasPoissonSettingsChanged()),
                 () => {
                     state.EditingSettings.poisson.minDistance = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Min Distance", state.HasPoissonMinDistanceChanged()),
-                            "Minimum horizontal distance between Poisson sample positions."),
+                            "Minimum distance between generated objects. Floor and ceiling placement use horizontal distance; wall and inside-space placement use full 3D distance. Use Random instead when related assets must deliberately form a tighter composition, such as a monitor, keyboard, and mouse on one desk."),
                         state.EditingSettings.poisson.minDistance, state.SavedSettings.poisson.minDistance, "Min Distance",
                         value => value > 0f, GreaterThanZero, onInvalid);
 

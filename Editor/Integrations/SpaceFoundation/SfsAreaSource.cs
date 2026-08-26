@@ -11,9 +11,11 @@ using SfsSpace = SpaceFoundationSystem.Space;
 namespace Genix.SpaceFoundation.Editor
 {
     /// <summary>Adapts a Space Foundation System space to the Genix spatial-area contract.</summary>
-    public sealed class SfsAreaSource : IAreaSource, IAreaCacheControl
+    public sealed class SfsAreaSource : IAreaSource, IAreaCacheControl, IAreaSourceEvaluationStatus
     {
         private readonly SfsSpace _space;
+        private bool _usedAuthoritativeSpatialData;
+        private string _spatialDataStatusMessage = "The SFS area has not been built yet.";
 
         private SfsAnchor Anchor => _space ? _space.anchor : null;
 
@@ -25,6 +27,12 @@ namespace Genix.SpaceFoundation.Editor
 
         /// <summary>Gets parent transform.</summary>
         public Transform ParentTransform => _space ? _space.transform : null;
+
+        /// <inheritdoc />
+        public bool UsedAuthoritativeSpatialData => _usedAuthoritativeSpatialData;
+
+        /// <inheritdoc />
+        public string SpatialDataStatusMessage => _spatialDataStatusMessage;
 
         /// <summary>Gets clear cache label.</summary>
         public string ClearCacheLabel => "Clear SFS Cache";
@@ -79,6 +87,7 @@ namespace Genix.SpaceFoundation.Editor
                 settings.profile?.AddStepTime(
                     AreaBuildProfileStep.AreaCacheLookup,
                     collectTiming ? (float)memoryCacheLookupStopwatch.Elapsed.TotalMilliseconds : 0f);
+                SetAuthoritativeStatus("SFS memory cache");
                 error = string.Empty;
                 return true;
             }
@@ -106,6 +115,7 @@ namespace Genix.SpaceFoundation.Editor
 
             if (subspace != null && subspace.Count > 0)
             {
+                SetAuthoritativeStatus(FormatSource(subspaceInfo.Source));
                 Stopwatch cacheLookupStopwatch = collectTiming ? Stopwatch.StartNew() : null;
 
                 if (SfsAreaCache.TryGet(
@@ -152,6 +162,9 @@ namespace Genix.SpaceFoundation.Editor
                            area);
             }
 
+            _usedAuthoritativeSpatialData = false;
+            _spatialDataStatusMessage =
+                $"SFS subspace unavailable ({FormatSource(subspaceInfo.Source)}); bounds fallback used.";
             return BoundsAreaFallback.TryBuild(
                 _space.gameObject,
                 SourceInfo,
@@ -159,6 +172,12 @@ namespace Genix.SpaceFoundation.Editor
                 IsSourceCollider,
                 out area,
                 out error);
+        }
+
+        private void SetAuthoritativeStatus(string source)
+        {
+            _usedAuthoritativeSpatialData = true;
+            _spatialDataStatusMessage = $"Authoritative SFS spatial data used ({source}).";
         }
 
         /// <summary>Clears persistent subspace cache.</summary>
