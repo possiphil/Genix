@@ -1,0 +1,29 @@
+{
+    "name": "Genix.Tests.Editor",
+    "rootNamespace": "Genix.Tests",
+    "references": [
+        "Genix.Runtime",
+        "Genix.Editor",
+        "Genix.DevTools.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "FsCheck.dll",
+        "FSharp.Core.dll",
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "noEngineReferences": false
+}

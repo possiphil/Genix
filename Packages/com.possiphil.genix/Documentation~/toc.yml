@@ -1,0 +1,26 @@
+- name: Overview
+  href: index.md
+- name: Getting started
+  href: getting-started.md
+- name: SFS authoring
+  href: sfs-authoring.md
+- name: Concepts
+  items:
+  - name: Generation pipeline
+    href: concepts/generation-pipeline.md
+  - name: Codebase map
+    href: concepts/codebase-map.md
+- name: Reference
+  items:
+  - name: Settings
+    href: reference/settings.md
+  - name: Public API overview
+    href: reference/public-api.md
+  - name: Generated API reference
+    href: api/toc.yml
+  - name: Diagnostics
+    href: reference/diagnostics.md
+- name: Troubleshooting
+  href: troubleshooting.md
+- name: Documentation development
+  href: documentation-development.md

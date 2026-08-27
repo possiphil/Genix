@@ -1,0 +1,14 @@
+{
+  "name": "com.possiphil.genix.devtools",
+  "version": "0.1.0",
+  "displayName": "Genix DevTools",
+  "description": "Optional tests, profiling, benchmarking, and evaluation workflows for Genix development.",
+  "unity": "6000.0",
+  "dependencies": {
+    "com.possiphil.genix": "0.1.0",
+    "com.unity.test-framework": "1.7.0"
+  },
+  "author": {
+    "name": "possiphil"
+  }
+}

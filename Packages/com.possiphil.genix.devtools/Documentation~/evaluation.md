@@ -1,0 +1,7 @@
+# Evaluation campaigns
+
+Open **Tools > Genix Developer > Evaluation** to run the configured isolated and real-world scenarios individually or as one campaign. Evaluation suites store scenes, target areas, presets, seeds, repetitions, automatic criteria, and visual-review state as versioned Unity assets.
+
+Automatic checks establish measurable facts such as completion, requested relation cardinalities, placement counts, semantic mismatches, and missing evidence. They do not establish perceptual quality. Apply the retained layouts and review orientation, support contact, clearance, composition, and scene plausibility before marking visual evidence valid.
+
+Campaign exports retain raw runs and aggregate results. Keep the generated layouts required for visual evidence until the review is complete; old exploratory layouts can be removed separately.

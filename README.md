@@ -1,23 +1,25 @@
-# Genix
+# Genix packages
 
-Genix is a designer-facing procedural placement package for Unity. It combines Space Foundation System (SFS) volumes, semantic asset filtering, configurable sampling styles, placement validation, previews, diagnostics, and profiling.
+This repository contains two Unity Package Manager packages:
 
-## Documentation
+- `Packages/com.possiphil.genix` is the designer-facing Genix package. It includes
+  generation, asset authoring, scene setup, Space Foundation authoring, diagnostics,
+  layouts, and presets.
+- `Packages/com.possiphil.genix.devtools` is optional. It adds tests, profiling,
+  benchmarks, evaluation tooling, and the thesis evaluation content.
 
-Start with the [package documentation](Documentation~/index.md). It contains:
+Install the designer package by selecting its `package.json` in Unity Package Manager.
+The project must already contain the Space Foundation System package
+(`dev.dyrda.space-foundation-system`), which is Genix's spatial backend. Contributors can
+install the DevTools package in the same way after installing Genix.
 
-- a guided setup and first-generation workflow;
-- explanations of the generation pipeline, areas, sampling, and placement;
-- a complete settings reference with recommended use cases;
-- diagnostics, profiling, and troubleshooting guides.
+The corresponding Git URLs are:
 
-In Unity, select Genix in **Window > Package Manager** and choose **View documentation** to open the same documentation locally.
+```text
+https://github.com/possiphil/Genix.git?path=/Packages/com.possiphil.genix
+https://github.com/possiphil/Genix.git?path=/Packages/com.possiphil.genix.devtools
+```
 
-## Compatibility
-
-- Unity 6000.0 or newer
-- Space Foundation System integration for SFS target areas
-
-## Status
-
-Genix is currently a `0.1.0` research prototype. Public APIs and serialized data may change before `1.0.0`.
+Both packages live on the same source branch. Their UPM manifests and one-way assembly dependency
+provide the product boundary, so fixes do not need to be duplicated or merged between a designer
+branch and a development branch.

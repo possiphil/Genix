@@ -1,0 +1,20 @@
+{
+    "name": "Genix.DevTools.Editor",
+    "rootNamespace": "Genix.Editor",
+    "references": [
+        "Genix.Runtime",
+        "Genix.Editor",
+        "Genix.Editor.Common"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
