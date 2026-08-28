@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Genix.Editor.Utilities;
 using Genix.Assets;
-using Genix.Editor.Genix.Editor.Assets;
+using Genix.Editor.Assets;
 using Genix.Editor.UI;
 using Genix.Extensions;
 using Genix.Semantics;
@@ -247,7 +247,7 @@ namespace Genix.Editor.Inspectors
             menu.AddItem(new GUIContent("None"), !selected, () => SetAnchorGroupTag(groupIndex, member, null));
             menu.AddSeparator(string.Empty);
             List<SemanticTag> tags = AssetCatalogService.GetOrCreate().Tags
-                .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
+                .Where(tag => tag && tag.SupportsAssets)
                 .OrderBy(tag => tag.Category.DisplayName)
                 .ThenBy(tag => tag.DisplayName)
                 .ToList();
@@ -371,7 +371,7 @@ namespace Genix.Editor.Inspectors
             menu.AddSeparator(string.Empty);
             AssetCatalog catalog = AssetCatalogService.GetOrCreate();
             List<SemanticTag> tags = catalog.Tags
-                .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
+                .Where(tag => tag && tag.SupportsAssets)
                 .OrderBy(tag => tag.Category.DisplayName)
                 .ThenBy(tag => tag.DisplayName)
                 .ToList();

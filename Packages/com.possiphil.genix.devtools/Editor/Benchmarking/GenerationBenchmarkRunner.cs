@@ -4,7 +4,8 @@ using System.Linq;
 using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
-using Genix.Editor.Genix.Editor.Assets;
+using Genix.Editor.Assets;
+using Genix.Editor.Common;
 using Genix.Editor.Profiling;
 using Genix.Editor.TargetAreas;
 using Genix.Placement;
@@ -58,18 +59,11 @@ namespace Genix.Editor.Benchmarking
         private static int _workIndex;
         private static int _settleFramesRemaining;
         private static string _loadedScenarioPath = string.Empty;
-        private static string _resolvedTargetId = string.Empty;
-        private static string _originalScenePath = string.Empty;
-        private static SceneSetup[] _originalSceneSetup = Array.Empty<SceneSetup>();
         private static string _currentBlockKey = string.Empty;
-        private static IAreaSource _areaSource;
-        private static IBenchmarkAreaResolver _areaResolver;
-        private static bool _scenePrepared;
+        private static readonly EditorCampaignAreaContext AreaContext = new();
         private static GameObject _generatedParent;
         private static bool _cancelRequested;
-        private static bool _profilingWasEnabled;
-        private static bool _assembliesLocked;
-        private static double _startedAt;
+        private static EditorCampaignSession _session;
         private static string _status = "Ready";
         private static string _lastError = string.Empty;
         private static string _lastOutputDirectory = string.Empty;
@@ -78,9 +72,8 @@ namespace Genix.Editor.Benchmarking
         {
             EditorApplication.update += Update;
 
-            if (SessionState.GetBool(InterruptedSessionKey, false))
+            if (EditorCampaignSession.ConsumeInterruptedMarker(InterruptedSessionKey))
             {
-                SessionState.SetBool(InterruptedSessionKey, false);
                 _status = "The previous benchmark was interrupted by a domain reload or editor restart.";
             }
         }
@@ -94,7 +87,7 @@ namespace Genix.Editor.Benchmarking
         public static string LastError => _lastError;
         public static string LastOutputDirectory => _lastOutputDirectory;
         public static IReadOnlyList<GenerationBenchmarkRunRecord> RunRecords => Records;
-        public static double ElapsedSeconds => IsRunning ? EditorApplication.timeSinceStartup - _startedAt : 0d;
+        public static double ElapsedSeconds => IsRunning ? _session?.ElapsedSeconds ?? 0d : 0d;
         public static double EstimatedRemainingSeconds => Records.Count == 0
             ? 0d
             : Math.Max(0d, ElapsedSeconds / Records.Count * (WorkItems.Count - Records.Count));
@@ -123,26 +116,22 @@ namespace Genix.Editor.Benchmarking
 
             AssetDatabase.SaveAssets();
 
-            _profilingWasEnabled = GenerationProfilerService.ProfilingEnabled;
-
             try
             {
                 _suite = suite;
                 _catalog = AssetCatalogService.GetOrCreate();
-                _originalScenePath = SceneManager.GetActiveScene().path;
-                _originalSceneSetup = EditorSceneManager.GetSceneManagerSetup();
                 BuildWorkItems(suite, selectedScenario);
                 Records.Clear();
                 PrimaryHashes.Clear();
                 _campaign = CreateCampaign(suite);
-                GenerationProfilerService.SetProfilingEnabled(false);
-                EditorApplication.LockReloadAssemblies();
-                _assembliesLocked = true;
+                _session = EditorCampaignSession.Begin(InterruptedSessionKey);
             }
             catch (Exception exception)
             {
-                GenerationProfilerService.SetProfilingEnabled(_profilingWasEnabled);
+                Exception cleanupError = DisposeSession();
                 _lastError = exception.ToString();
+                if (cleanupError != null)
+                    _lastError += $"\n\nCleanup failed: {cleanupError}";
                 _status = "Benchmark could not start.";
                 Changed?.Invoke();
                 return false;
@@ -154,10 +143,8 @@ namespace Genix.Editor.Benchmarking
             _cancelRequested = false;
             _lastError = string.Empty;
             _lastOutputDirectory = string.Empty;
-            _startedAt = EditorApplication.timeSinceStartup;
             _state = RunnerState.LoadScene;
             _status = $"Starting {WorkItems.Count:N0} measured runs";
-            SessionState.SetBool(InterruptedSessionKey, true);
             Changed?.Invoke();
             return true;
         }
@@ -300,9 +287,7 @@ namespace Genix.Editor.Benchmarking
             _loadedScenarioPath = scenePath;
             _settleFramesRemaining = _suite.SettleFrames;
             _currentBlockKey = string.Empty;
-            _areaSource = null;
-            _areaResolver = null;
-            _scenePrepared = false;
+            AreaContext.BeginScene();
             _status = $"Loading {item.Scenario.DisplayName}";
             _state = RunnerState.SettleScene;
         }
@@ -317,34 +302,12 @@ namespace Genix.Editor.Benchmarking
 
             GenerationBenchmarkScenario scenario = WorkItems[_workIndex].Scenario;
             Scene scene = SceneManager.GetActiveScene();
-            _areaResolver = BenchmarkAreaResolverRegistry.CreateResolvers()
-                .FirstOrDefault(resolver => resolver.ProviderId == scenario.AreaProviderId);
-
-            if (!_scenePrepared && _areaResolver is IBenchmarkAreaPreparer preparer)
-            {
-                _status = $"Preparing authoritative spatial data for {scenario.DisplayName}";
-                if (!preparer.Prepare(scene, out string preparationError))
-                    throw new InvalidOperationException(preparationError);
-
-                _scenePrepared = true;
-            }
-
-            IReadOnlyList<BenchmarkAreaTarget> targets = _areaResolver?.FindTargets(scene) ?? Array.Empty<BenchmarkAreaTarget>();
-
-            if (targets.Count == 0)
-                throw new InvalidOperationException($"Scene '{scene.name}' has no targets for provider '{scenario.AreaProviderId}'.");
-
-            _resolvedTargetId = string.IsNullOrWhiteSpace(scenario.TargetId) && targets.Count == 1
-                ? targets[0].Id
-                : scenario.TargetId;
-            _areaSource = _areaResolver.Resolve(scene, _resolvedTargetId);
-
-            if (_areaSource == null)
-            {
-                string available = string.Join(", ", targets.Select(target => $"{target.DisplayName} [{target.Id}]"));
-                throw new InvalidOperationException(
-                    $"Target '{scenario.TargetId}' could not be resolved in scene '{scene.name}'. Available targets: {available}.");
-            }
+            AreaContext.Resolve(
+                scene,
+                scenario.AreaProviderId,
+                scenario.TargetId,
+                scenario.DisplayName,
+                status => _status = status);
 
             _generatedParent = new GameObject("__GenixBenchmarkGenerated")
             {
@@ -392,7 +355,7 @@ namespace Genix.Editor.Benchmarking
                 item,
                 execution,
                 _loadedScenarioPath,
-                _resolvedTargetId,
+                AreaContext.TargetId,
                 before,
                 after);
 
@@ -462,7 +425,7 @@ namespace Genix.Editor.Benchmarking
 
         private static void ClearAllCaches()
         {
-            if (_areaSource is IAreaCacheControl cacheControl)
+            if (AreaContext.AreaSource is IAreaCacheControl cacheControl)
                 cacheControl.ClearCache();
 
             PlacementSolver.ClearCandidateCache();
@@ -473,7 +436,7 @@ namespace Genix.Editor.Benchmarking
         {
             GenerationBenchmarkScenario scenario = item.Scenario;
             return new GenerationRequest(
-                _areaSource,
+                AreaContext.AreaSource,
                 scenario.AssetPool,
                 item.ObjectCount,
                 scenario.PlacementTargets,
@@ -586,7 +549,6 @@ namespace Genix.Editor.Benchmarking
                     _status = "No measured runs were completed.";
                 }
 
-                RestoreOriginalScenes();
             }
             catch (Exception exception)
             {
@@ -595,41 +557,40 @@ namespace Genix.Editor.Benchmarking
             }
             finally
             {
-                GenerationProfilerService.SetProfilingEnabled(_profilingWasEnabled);
-                SessionState.SetBool(InterruptedSessionKey, false);
+                Exception cleanupError = DisposeSession();
+                if (cleanupError != null)
+                {
+                    _lastError = string.IsNullOrWhiteSpace(_lastError)
+                        ? cleanupError.ToString()
+                        : $"{_lastError}\n\n{cleanupError}";
+                    _status = "Benchmark cleanup or result export failed.";
+                }
+
                 _state = RunnerState.Idle;
                 _suite = null;
                 _catalog = null;
-                _areaSource = null;
-                _areaResolver = null;
-                _scenePrepared = false;
+                AreaContext.BeginScene();
                 _campaign = null;
                 _currentBlockKey = string.Empty;
-                _originalSceneSetup = Array.Empty<SceneSetup>();
-
-                if (_assembliesLocked)
-                {
-                    _assembliesLocked = false;
-                    EditorApplication.UnlockReloadAssemblies();
-                }
             }
 
             Changed?.Invoke();
         }
 
-        private static void RestoreOriginalScenes()
+        private static Exception DisposeSession()
         {
-            if (_originalSceneSetup.Length > 0 &&
-                _originalSceneSetup.Any(setup => !string.IsNullOrWhiteSpace(setup.path)))
+            try
             {
-                EditorSceneManager.RestoreSceneManagerSetup(_originalSceneSetup);
-                return;
+                _session?.Dispose();
+                return null;
             }
-
-            if (!string.IsNullOrWhiteSpace(_originalScenePath) &&
-                !string.Equals(SceneManager.GetActiveScene().path, _originalScenePath, StringComparison.Ordinal))
+            catch (Exception exception)
             {
-                EditorSceneManager.OpenScene(_originalScenePath, OpenSceneMode.Single);
+                return exception;
+            }
+            finally
+            {
+                _session = null;
             }
         }
 

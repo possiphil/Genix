@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Core;
-using Genix.Editor.Genix.Editor.Assets;
+using Genix.Editor.Assets;
 using Genix.Editor.UI;
 using Genix.Semantics;
 using UnityEditor;
@@ -270,7 +270,7 @@ namespace Genix.Editor.Windows
         private static SemanticTag DrawSupportRuleTag(SemanticTag selected)
         {
             List<SemanticTag> tags = AssetCatalogService.GetOrCreate().Tags
-                .Where(tag => tag && tag.Category && tag.Category.SupportsSurfaces)
+                .Where(tag => tag && tag.SupportsSurfaces)
                 .OrderBy(tag => tag.Category.DisplayName)
                 .ThenBy(tag => tag.DisplayName)
                 .ToList();
@@ -289,7 +289,7 @@ namespace Genix.Editor.Windows
                 .Select(rule => rule.SupportTag)
                 .ToHashSet();
             return AssetCatalogService.GetOrCreate().Tags
-                .Where(tag => tag && tag.Category && tag.Category.SupportsSurfaces && !used.Contains(tag))
+                .Where(tag => tag && tag.SupportsSurfaces && !used.Contains(tag))
                 .OrderBy(tag => tag.Category.DisplayName)
                 .ThenBy(tag => tag.DisplayName)
                 .FirstOrDefault();

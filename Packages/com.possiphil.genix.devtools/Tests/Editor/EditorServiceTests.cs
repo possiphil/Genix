@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Genix.Assets;
 using Genix.Editor.Generation;
-using Genix.Editor.Genix.Editor.Assets;
+using Genix.Editor.Assets;
 using Genix.Editor.Infrastructure;
 using Genix.Editor.State;
 using Genix.Editor.Validation;

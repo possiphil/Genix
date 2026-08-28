@@ -3,7 +3,7 @@ using Genix.Assets;
 using UnityEditor;
 using UnityEngine;
 
-namespace Genix.Editor.Genix.Editor.Assets
+namespace Genix.Editor.Assets
 {
     /// <summary>Provides Unity asset-menu commands for creating Genix asset definitions from prefabs.</summary>
     public static class AssetCreationMenu

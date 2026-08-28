@@ -154,7 +154,7 @@ namespace Genix.Editor.Benchmarking
         {
             public string suiteAssetPath = "Assets/Genix/Benchmarks/ThesisPerformanceSuite.asset";
             public int scenarioIndex = -1;
-            public bool validateOnly;
+            public bool validateOnly = false;
             public bool prepareEnvironment;
         }
 

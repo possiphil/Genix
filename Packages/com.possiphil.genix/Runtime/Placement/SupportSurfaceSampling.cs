@@ -146,7 +146,7 @@ namespace Genix.Placement
 
             foreach (SemanticTag tag in asset.RequiredSupportTags)
             {
-                if (tag && tag.Category && tag.Category.SupportsSurfaces)
+                if (tag && tag.SupportsSurfaces)
                     return true;
             }
 

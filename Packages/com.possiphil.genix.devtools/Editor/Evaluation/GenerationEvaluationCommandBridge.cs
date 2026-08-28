@@ -156,9 +156,9 @@ namespace Genix.Editor.Evaluation
         {
             public string suiteAssetPath = ThesisEvaluationSuiteFactory.SuitePath;
             public int scenarioIndex = -1;
-            public bool refreshThesisSuite;
-            public bool prepareOutdoor;
-            public bool validateOnly;
+            public bool refreshThesisSuite = false;
+            public bool prepareOutdoor = false;
+            public bool validateOnly = false;
         }
 
         [Serializable]

@@ -1,7 +1,7 @@
 using System;
 using System.Globalization;
 using Genix.Diagnostics;
-using Genix.Editor.Genix.Editor.Diagnostics;
+using Genix.Editor.Diagnostics;
 using Genix.Editor.Infrastructure;
 using UnityEditor;
 using UnityEngine;

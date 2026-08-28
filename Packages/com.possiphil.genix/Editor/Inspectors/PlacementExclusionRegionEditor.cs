@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Core;
-using Genix.Editor.Genix.Editor.Assets;
+using Genix.Editor.Assets;
 using Genix.Editor.UI;
 using Genix.Placement;
 using Genix.Semantics;
@@ -131,7 +131,7 @@ namespace Genix.Editor.Inspectors
             menu.AddItem(new GUIContent("None"), selected.Count == 0, () => SetTags(Array.Empty<SemanticTag>()));
             menu.AddSeparator(string.Empty);
             List<SemanticTag> available = AssetCatalogService.GetOrCreate().Tags
-                .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
+                .Where(tag => tag && tag.SupportsAssets)
                 .OrderBy(tag => tag.Category.DisplayName)
                 .ThenBy(tag => tag.DisplayName)
                 .ToList();

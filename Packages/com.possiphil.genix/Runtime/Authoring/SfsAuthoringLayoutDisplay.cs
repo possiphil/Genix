@@ -9,7 +9,7 @@ namespace Genix.Authoring
     public sealed class SfsAuthoringLayoutDisplay : MonoBehaviour
     {
         [SerializeField, Tooltip("Keep the authored free-space volumes visible when this layout is not selected.")]
-        private bool alwaysShowFreeSpace;
+        private bool alwaysShowFreeSpace = false;
 
         [SerializeField, HideInInspector] private List<Bounds> localVolumes = new();
 

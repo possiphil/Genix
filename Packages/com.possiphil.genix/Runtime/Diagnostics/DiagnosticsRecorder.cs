@@ -99,7 +99,7 @@ namespace Genix.Diagnostics
         private static string GetSupportLabel(PlacementSurfaceDescriptor descriptor)
         {
             string[] tags = descriptor.SurfaceTags
-                .Where(tag => tag && tag.Category && tag.Category.SupportsSurfaces)
+                .Where(tag => tag && tag.SupportsSurfaces)
                 .Select(tag => tag.DisplayName)
                 .Distinct()
                 .OrderBy(name => name)

@@ -1,7 +1,7 @@
 using System;
 using UnityEditor;
 
-namespace Genix.Editor.Genix.Editor.Common
+namespace Genix.Editor.Common
 {
     /// <summary>Groups a compound editor mutation into one user-visible Unity Undo operation.</summary>
     public static class UndoStep

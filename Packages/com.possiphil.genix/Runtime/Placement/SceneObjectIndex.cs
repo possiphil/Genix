@@ -228,7 +228,7 @@ namespace Genix.Placement
 
                 foreach (SemanticTag tag in entry.AssetDefinition.SemanticTags)
                 {
-                    if (tag && tag.Category && tag.Category.SupportsAssets)
+                    if (tag && tag.SupportsAssets)
                     {
                         _assetTags.Add(tag);
                         IncrementCount(_assetTagCounts, tag);
@@ -254,7 +254,7 @@ namespace Genix.Placement
 
                     foreach (SemanticTag tag in entry.AssetDefinition.SemanticTags)
                     {
-                        if (tag && tag.Category && tag.Category.SupportsAssets)
+                        if (tag && tag.SupportsAssets)
                             IncrementNestedCount(_supportTagCounts, entry.SupportSurface, tag);
                     }
                 }

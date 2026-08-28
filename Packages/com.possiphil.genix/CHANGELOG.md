@@ -25,6 +25,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- Runtime planning, projection, validation, relation lookup, and editor presentation are split by responsibility while preserving serialized fields and public behavior.
+- Benchmark and evaluation campaigns share one editor-state and target-area lifecycle, including scene restoration, profiler isolation, reload locking, and interruption recovery.
 - Surface discovery is represented by one three-value setting instead of a mode plus a legacy boolean.
 - Boundary decomposition is shown only when it can affect floor or ceiling boundary regions.
 - Asset pruning is conservative and only skips all remaining assets for asset-independent spacing failures.

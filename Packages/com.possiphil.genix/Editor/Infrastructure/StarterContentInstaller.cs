@@ -3,7 +3,7 @@ using System.Reflection;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Editor.Generation;
-using Genix.Editor.Genix.Editor.Assets;
+using Genix.Editor.Assets;
 using Genix.Styles;
 using UnityEditor;
 using UnityEngine;

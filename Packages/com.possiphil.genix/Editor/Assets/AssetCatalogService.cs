@@ -8,7 +8,7 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace Genix.Editor.Genix.Editor.Assets
+namespace Genix.Editor.Assets
 {
     /// <summary>Provides project-level asset catalog operations.</summary>
     public static class AssetCatalogService

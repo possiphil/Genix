@@ -98,7 +98,7 @@ namespace Genix.Semantics
             });
 
         private static bool IsAssetTag(SemanticTag tag) =>
-            tag && tag.Category && tag.Category.SupportsAssets;
+            tag && tag.SupportsAssets;
     }
 
     /// <summary>
@@ -186,7 +186,7 @@ namespace Genix.Semantics
         public void SetSurfaceTags(IEnumerable<SemanticTag> tags)
         {
             surfaceTags = tags?
-                .Where(tag => tag && tag.Category && tag.Category.SupportsSurfaces)
+                .Where(tag => tag && tag.SupportsSurfaces)
                 .Distinct()
                 .ToList() ?? new List<SemanticTag>();
             noneTagCategories.RemoveAll(category =>
@@ -277,7 +277,7 @@ namespace Genix.Semantics
             tags?.Where(IsAssetTag).Distinct().ToList() ?? new List<SemanticTag>();
 
         private static bool IsAssetTag(SemanticTag tag) =>
-            tag && tag.Category && tag.Category.SupportsAssets;
+            tag && tag.SupportsAssets;
 
         private void NormalizeCapacityRules()
         {

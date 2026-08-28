@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Genix.Areas;
 using Genix.Editor.Generation;
-using Genix.Editor.Genix.Editor.Common;
+using Genix.Editor.Common;
 using Genix.Editor.Utilities;
 using Genix.Layouts;
 using UnityEditor;

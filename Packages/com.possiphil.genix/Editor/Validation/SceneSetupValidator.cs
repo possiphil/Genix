@@ -4,7 +4,7 @@ using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Editor.Generation;
-using Genix.Editor.Genix.Editor.Assets;
+using Genix.Editor.Assets;
 using Genix.Extensions;
 using Genix.Placement;
 using UnityEngine;

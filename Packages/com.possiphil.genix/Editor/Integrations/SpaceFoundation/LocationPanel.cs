@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Assets;
-using Genix.Editor.Genix.Editor.Common;
+using Genix.Editor.Common;
 using Genix.Editor.TargetAreas;
 using Genix.Semantics;
 using UnityEditor;
@@ -449,7 +449,7 @@ namespace Genix.SpaceFoundation.Editor
             }
 
             List<string> labels = tagSet.SemanticTags
-                .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
+                .Where(tag => tag && tag.SupportsAssets)
                 .Select(GetTagDisplayLabel)
                 .ToList();
 
@@ -511,7 +511,7 @@ namespace Genix.SpaceFoundation.Editor
             IEnumerable<SemanticTag> tags,
             IEnumerable<TagCategory> anyCategories)
         {
-            int count = tags.Count(tag => tag && tag.Category && tag.Category.SupportsAssets);
+            int count = tags.Count(tag => tag && tag.SupportsAssets);
 
             if (catalog == null)
                 return count;

@@ -20,7 +20,7 @@ namespace Genix.Placement
         [SerializeField] private bool useCustomBounds;
         [SerializeField] private Vector3 boundsCenter;
         [SerializeField] private Vector3 boundsSize = Vector3.one;
-        [SerializeField] private bool alwaysShowAnchor;
+        [SerializeField] private bool alwaysShowAnchor = false;
 
         /// <summary>Gets the concrete asset identity represented by this scene object, when available.</summary>
         public AssetDefinition RepresentedAsset => representedAsset;
@@ -156,7 +156,7 @@ namespace Genix.Placement
 
         private static List<SemanticTag> NormalizeTags(IEnumerable<SemanticTag> tags) =>
             tags?
-                .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
+                .Where(tag => tag && tag.SupportsAssets)
                 .Distinct()
                 .ToList() ?? new List<SemanticTag>();
 

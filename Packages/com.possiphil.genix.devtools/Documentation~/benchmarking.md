@@ -16,6 +16,8 @@ Primary and Diagnostic plans are hashed outside the timed section. The export re
 
 Scene loading and a configurable number of settle frames happen before measurements. Unity must use **Release** code optimization and the Unity Profiler must be disabled for a campaign.
 
+The runner owns these temporary editor changes through one campaign session. Completion, cancellation, exceptions, and failed cleanup all follow the same restoration path for the original scene setup, profiling state, assembly-reload lock, and interruption marker. Target-area preparation is shared with evaluation campaigns and occurs at most once per loaded scene.
+
 ## Running a campaign
 
 1. Create or select a Benchmark Suite.

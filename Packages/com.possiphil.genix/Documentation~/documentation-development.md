@@ -42,6 +42,15 @@ Use XML comments for contracts that a caller needs while writing code:
 
 Internal types and methods need comments only when an invariant, algorithm, cache lifetime, or ownership rule is not clear from the code. Inline comments should explain why a non-obvious step exists, not narrate individual statements.
 
+## Structural conventions
+
+- Keep independent policies, providers, and result values in separate types. Do not place unrelated provider classes in one source file.
+- Use responsibility-named partial files for a Unity window, inspector, or hot-path orchestrator only when all parts must share the same lifecycle and state. This avoids presenter indirection in IMGUI and virtual dispatch inside generation loops.
+- Keep orchestration entry points short enough to expose their phases. Put geometry, deterministic ordering, persistence, rendering, and export mechanics behind narrowly named internal methods or collaborators.
+- Preserve serialized field names and public contracts during structural refactors. Unity asset compatibility takes precedence over cosmetic renaming.
+- Benchmark and evaluation runners must acquire editor-global state through the shared campaign session. New campaign code must not independently toggle profiling, lock assembly reloads, or restore scenes.
+- Do not add interfaces to inner candidate or validation loops merely to reduce file length. Add an abstraction only when it establishes an ownership boundary or allows a genuinely replaceable policy.
+
 ## Coverage check
 
 The compiler can reject missing or malformed XML comments on publicly visible members. Run the following commands from the Unity project directory; `%3B` is the MSBuild-escaped semicolon:

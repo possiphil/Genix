@@ -127,7 +127,7 @@ namespace Genix.Core
         public SupportDistributionRule Copy() => new(supportTag, mode, value);
 
         private static bool IsSurfaceTag(SemanticTag tag) =>
-            tag && tag.Category && tag.Category.SupportsSurfaces;
+            tag && tag.SupportsSurfaces;
     }
 
     /// <summary>

@@ -6,7 +6,7 @@ using Genix.Geometry;
 using UnityEditor;
 using UnityEngine;
 
-namespace Genix.Editor.Genix.Editor.Assets
+namespace Genix.Editor.Assets
 {
     /// <summary>Creates asset definition instances.</summary>
     public static class AssetDefinitionFactory

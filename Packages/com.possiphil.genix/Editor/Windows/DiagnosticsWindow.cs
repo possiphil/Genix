@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Genix.Editor.Diagnostics;
 using Genix.Diagnostics;
-using Genix.Editor.Genix.Editor.Diagnostics;
 using Genix.Extensions;
 using UnityEditor;
 using UnityEngine;

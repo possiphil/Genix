@@ -1,4 +1,4 @@
-using Genix.Editor.Genix.Editor.Assets;
+using Genix.Editor.Assets;
 using Genix.Semantics;
 using UnityEditor;
 using UnityEngine;

@@ -33,7 +33,7 @@ namespace Genix.Editor.Benchmarking
     [Serializable]
     public sealed class BenchmarkRelativePlacement
     {
-        [SerializeField] private RelativePlacementSource source;
+        [SerializeField] private RelativePlacementSource source = RelativePlacementSource.None;
         [SerializeField, Min(0.01f)] private float radius = 2f;
         [SerializeField] private LayerMask sceneLayers = ~0;
 
@@ -49,9 +49,9 @@ namespace Genix.Editor.Benchmarking
         [SerializeField] private string displayName = "Benchmark Scenario";
         [SerializeField] private SceneAsset scene;
         [SerializeField] private string areaProviderId = "space-foundation";
-        [SerializeField] private string targetId;
-        [SerializeField] private AssetPool assetPool;
-        [SerializeField] private StylePreset stylePreset;
+        [SerializeField] private string targetId = string.Empty;
+        [SerializeField] private AssetPool assetPool = null;
+        [SerializeField] private StylePreset stylePreset = null;
         [SerializeField] private PlacementTarget placementTargets = PlacementTarget.InsideSpace;
         [SerializeField] private TargetDistributionMode targetDistributionMode = TargetDistributionMode.Random;
         [SerializeField] private TargetDistributionWeights targetDistributionWeights = new(1, 1, 1, 1);

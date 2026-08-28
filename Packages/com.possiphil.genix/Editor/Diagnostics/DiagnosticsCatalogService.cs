@@ -6,7 +6,7 @@ using Genix.Editor.Infrastructure;
 using UnityEditor;
 using UnityEngine;
 
-namespace Genix.Editor.Genix.Editor.Diagnostics
+namespace Genix.Editor.Diagnostics
 {
     /// <summary>Provides project-level diagnostics catalog operations.</summary>
     public static class DiagnosticsCatalogService

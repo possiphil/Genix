@@ -265,6 +265,6 @@ namespace Genix.Placement
         }
 
         private static bool IsSurfaceTag(SemanticTag tag) =>
-            tag && tag.Category && tag.Category.SupportsSurfaces;
+            tag && tag.SupportsSurfaces;
     }
 }

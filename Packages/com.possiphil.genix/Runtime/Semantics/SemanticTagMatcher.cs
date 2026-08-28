@@ -22,7 +22,7 @@ namespace Genix.Semantics
                 return true;
 
             foreach (IGrouping<TagCategory, SemanticTag> group in requiredTags
-                         .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
+                         .Where(tag => tag && tag.SupportsAssets)
                          .GroupBy(tag => tag.Category))
             {
                 if (anyCategories.Contains(group.Key))

@@ -12,18 +12,26 @@
 
 ## Editor
 
-- `Editor/Generation` orchestrates asset filtering, target distribution, preview ownership, and scene application.
-- `Editor/Windows`, `Editor/Inspectors`, and `Editor/Drawers` provide designer workflows and contextual explanations.
+- `Editor/Generation` orchestrates asset filtering, target distribution, preview ownership, and scene application. `GenerationEngine` keeps random and quota-based planning as separate strategies, while relation-local candidate creation is split into wall sampling, position sampling, deterministic ordering, and geometry helpers.
+- `Editor/Windows`, `Editor/Inspectors`, and `Editor/Drawers` provide designer workflows and contextual explanations. Stateful IMGUI types use responsibility-named partial files when several views share one serialized selection and Undo context; for example, the asset inspector separates support rules, fit and bounds, relational constraints, and semantic tags.
 - `Editor/Integrations` adapts external spatial systems. The SFS integration is the current production area source.
 - `Editor/Diagnostics` visualizes and persists designer-facing run explanations.
 - `Editor/Layouts` captures, restores, and manages reusable layouts.
+- `Editor/Infrastructure` owns idempotent project-content construction. Starter Content separates taxonomy, persistent assets, and prefab geometry while retaining one transactional entry point.
 
 ## Optional DevTools package
 
 - `Packages/com.possiphil.genix.devtools/Editor/Profiling` owns opt-in run instrumentation and profile reports.
 - `Packages/com.possiphil.genix.devtools/Editor/Benchmarking` and `Editor/Evaluation` own unattended research campaigns.
+- `Editor/Common/EditorCampaignSession` owns temporary editor-global state for both campaign types. `EditorCampaignAreaContext` prepares and resolves target areas once per loaded scene. Runners therefore share scene restoration, profiling isolation, assembly-reload locking, interruption detection, and target lifecycle semantics.
 - `Packages/com.possiphil.genix.devtools/Tests` contains the Unity test assemblies and dashboard.
 - `Packages/com.possiphil.genix.devtools/Evaluation` contains thesis scenes and assets rather than production designer content.
+
+## Internal module boundaries
+
+Large stateful or performance-sensitive types are divided with partial classes only when the parts share one lifecycle or a hot-path call graph. This keeps Unity serialization and direct calls intact while making ownership explicit. Independent providers and value types use separate classes and files instead: target routing, floor sampling, and ceiling sampling are distinct candidate providers, and `GenerationOutcome` is independent from the planning engine.
+
+Partial-file suffixes name responsibilities rather than implementation chronology, such as `.Geometry`, `.Ordering`, `.Relations`, or `.Rendering`. A new behavior belongs in the narrowest matching part. If it requires no shared state, prefer a separate collaborator instead of extending a partial type.
 
 ## Dependency direction
 

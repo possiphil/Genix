@@ -34,7 +34,7 @@ namespace Genix.Placement
         [SerializeField, Min(0f)] private float radius = 0.5f;
         [SerializeField] private PlacementTarget affectedTargets = PlacementTarget.All;
         [SerializeField] private List<SemanticTag> exemptAssetTags = new();
-        [SerializeField] private bool alwaysShowRegion;
+        [SerializeField] private bool alwaysShowRegion = false;
 
         /// <summary>Gets the configured geometry source.</summary>
         public ExclusionRegionShape Shape => shape;
@@ -273,7 +273,7 @@ namespace Genix.Placement
 
             foreach (SemanticTag tag in tags)
             {
-                if (tag && tag.Category && tag.Category.SupportsAssets && !normalized.Contains(tag))
+                if (tag && tag.SupportsAssets && !normalized.Contains(tag))
                     normalized.Add(tag);
             }
 

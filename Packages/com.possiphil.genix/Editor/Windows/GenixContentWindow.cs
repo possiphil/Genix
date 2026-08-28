@@ -5,7 +5,7 @@ using Genix.Editor.Drawers;
 using Genix.Editor.Layouts;
 using Genix.Editor.Utilities;
 using Genix.Assets;
-using Genix.Editor.Genix.Editor.Assets;
+using Genix.Editor.Assets;
 using Genix.Extensions;
 using Genix.Layouts;
 using Genix.Orientation;

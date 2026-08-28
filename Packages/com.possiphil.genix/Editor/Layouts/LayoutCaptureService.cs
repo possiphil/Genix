@@ -5,7 +5,7 @@ using Genix.Areas;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Editor.Generation;
-using Genix.Editor.Genix.Editor.Assets;
+using Genix.Editor.Assets;
 using Genix.Editor.Infrastructure;
 using Genix.Geometry;
 using Genix.Layouts;

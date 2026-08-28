@@ -91,7 +91,7 @@ namespace Genix.Core
 
                 foreach (SemanticTag tag in asset.SemanticTags)
                 {
-                    if (tag && tag.Category && tag.Category.SupportsAssets)
+                    if (tag && tag.SupportsAssets)
                         IncrementNestedCount(_supportTagCounts, support, tag);
                 }
             }

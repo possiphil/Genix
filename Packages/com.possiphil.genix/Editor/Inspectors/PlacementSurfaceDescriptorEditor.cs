@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Assets;
-using Genix.Editor.Genix.Editor.Assets;
-using Genix.Editor.Genix.Editor.Common;
+using Genix.Editor.Assets;
+using Genix.Editor.Common;
 using Genix.Editor.SceneConfiguration;
 using Genix.Editor.UI;
 using Genix.Editor.Windows;
@@ -171,7 +171,7 @@ namespace Genix.Editor.Inspectors
             menu.AddSeparator(string.Empty);
             AssetCatalog catalog = AssetCatalogService.GetOrCreate();
             List<SemanticTag> tags = catalog.Tags
-                .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
+                .Where(tag => tag && tag.SupportsAssets)
                 .OrderBy(tag => tag.Category.DisplayName)
                 .ThenBy(tag => tag.DisplayName)
                 .ToList();
@@ -211,7 +211,7 @@ namespace Genix.Editor.Inspectors
             property.ClearArray();
             int index = 0;
 
-            foreach (SemanticTag tag in tags.Where(tag => tag && tag.Category && tag.Category.SupportsAssets).Distinct())
+            foreach (SemanticTag tag in tags.Where(tag => tag && tag.SupportsAssets).Distinct())
             {
                 property.InsertArrayElementAtIndex(index);
                 property.GetArrayElementAtIndex(index).objectReferenceValue = tag;
@@ -350,7 +350,7 @@ namespace Genix.Editor.Inspectors
             menu.AddSeparator(string.Empty);
             AssetCatalog catalog = AssetCatalogService.GetOrCreate();
             List<SemanticTag> tags = catalog.Tags
-                .Where(tag => tag && tag.Category && tag.Category.SupportsAssets)
+                .Where(tag => tag && tag.SupportsAssets)
                 .OrderBy(tag => tag.Category.DisplayName)
                 .ThenBy(tag => tag.DisplayName)
                 .ToList();

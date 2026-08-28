@@ -5,7 +5,7 @@ using Genix.Semantics;
 using UnityEditor;
 using UnityEngine;
 
-namespace Genix.Editor.Genix.Editor.Common
+namespace Genix.Editor.Common
 {
     /// <summary>Draws category-aware semantic tag fields with single- and multi-select behavior.</summary>
     public static class TagSelectionField

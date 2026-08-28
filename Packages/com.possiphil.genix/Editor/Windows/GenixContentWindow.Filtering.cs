@@ -85,7 +85,7 @@ namespace Genix.Editor.Windows
         private static int GetAssetSemanticTagCount(AssetCatalog catalog, AssetDefinition asset)
         {
             int count = asset.SemanticTags.Count(tag =>
-                tag && tag.Category && tag.Category.SupportsAssets);
+                tag && tag.SupportsAssets);
 
             if (!catalog)
                 return count;

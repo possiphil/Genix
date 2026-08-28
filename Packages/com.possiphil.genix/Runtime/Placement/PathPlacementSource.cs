@@ -21,7 +21,7 @@ namespace Genix.Placement
 
         [SerializeField] private List<SemanticTag> pathTags = new();
         [SerializeField] private List<Vector3> localPoints = new();
-        [SerializeField] private bool alwaysShowPath;
+        [SerializeField] private bool alwaysShowPath = false;
 
         /// <summary>Gets asset-compatible semantic tags exposed by this path.</summary>
         public IReadOnlyList<SemanticTag> PathTags => pathTags;
@@ -450,7 +450,7 @@ namespace Genix.Placement
             tags?.Where(IsAssetTag).Distinct().ToList() ?? new List<SemanticTag>();
 
         private static bool IsAssetTag(SemanticTag tag) =>
-            tag && tag.Category && tag.Category.SupportsAssets;
+            tag && tag.SupportsAssets;
     }
 
     /// <summary>Nearest center, tangent, and right vector resolved from a semantic path.</summary>
