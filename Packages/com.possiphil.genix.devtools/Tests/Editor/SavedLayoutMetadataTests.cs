@@ -140,7 +140,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void GeneratedObjectMetadataRetainsSourceAssetForSurfaceCapacityRules()
+        public void ObjectMetadataKeepsSourceAssetForSupportCapacityRules()
         {
             _root = new GameObject("Generated Object With Asset");
             AssetDefinition asset = ScriptableObject.CreateInstance<AssetDefinition>();

@@ -2,6 +2,7 @@ using Genix.Areas;
 using Genix.Editor.Diagnostics;
 using Genix.Extensions;
 using Genix.Placement;
+using Genix.Tests.Dashboard;
 using Genix.Tests.Framework;
 using NUnit.Framework;
 
@@ -79,9 +80,22 @@ namespace Genix.Tests
         [TestCase(FormattingExample.TRAILING_, "Trailing")]
         [TestCase(FormattingExample.A__B, "A B")]
         [TestCase(FormattingExample.XMLParser, "Xml Parser")]
-        public void SeparatorAndAcronymEdgeCasesRemainReadable(System.Enum value, string expected)
+        public void DisplayNamesHandleSeparatorsAcronymsAndTestNames(System.Enum value, string expected)
         {
             Assert.That(value.ToDisplayName(), Is.EqualTo(expected));
+
+            Assert.That(
+                GenixTestDisplayName.Format("EqualSeedsAlwaysProduceEqualMixedSequences"),
+                Is.EqualTo("Equal seeds always produce equal mixed sequences"));
+            Assert.That(
+                GenixTestDisplayName.Format("ValidatorRejectsInsideSpaceCandidateWithin3DPoissonDistance"),
+                Is.EqualTo("Validator rejects inside space candidate within 3D Poisson distance"));
+            Assert.That(
+                GenixTestDisplayName.Format("TenThousandRandomObbPairsRemainSymmetric"),
+                Is.EqualTo("Ten thousand random oriented bounds pairs remain symmetric"));
+                Assert.That(
+                    GenixTestDisplayName.Format("ContainsXZHonorsRegionEdges(0.0,1.0)"),
+                    Is.EqualTo("Contains XZ honors region edges (0.0,1.0)"));
         }
     }
 }

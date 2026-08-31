@@ -105,7 +105,7 @@ namespace Genix.Tests.Integration
         }
 
         [Test]
-        public void SupportDistributionRequiresWeightForObjectsRemainingAfterExactRules()
+        public void RemainingObjectsRequireWeightAfterExactSupportRules()
         {
             SupportDistributionSettings distribution = new(
                 true,

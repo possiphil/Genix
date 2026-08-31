@@ -112,7 +112,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void PlanningUnattributedSubtractsCandidateGenerationFromIteration()
+        public void UnattributedPlanningExcludesCandidateGenerationTime()
         {
             GenerationProfile profile = new();
             profile.AddPhaseTime(GenerationProfilePhase.CandidateGeneration, 20f);

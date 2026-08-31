@@ -67,7 +67,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void RegularContextStillCollectsAreaTimingAfterBenchmarkPathWasAdded()
+        public void RegularContextStillCollectsAreaTimingAfterBenchmarking()
         {
             using GenerationTestScene scene = new();
             scene.CreateAsset("Floor Asset");

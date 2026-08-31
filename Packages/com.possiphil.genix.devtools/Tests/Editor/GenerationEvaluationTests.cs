@@ -161,7 +161,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void LayoutCleanupKeepsLatestFullCampaignAndLatestNewerRerunPerScenario()
+        public void CleanupKeepsLatestCampaignAndNewerScenarioReruns()
         {
             GenerationEvaluationReport oldFull = CreateReport(
                 "Thesis",
@@ -294,7 +294,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void LayoutCleanupDiscoversPersistedReportsWithoutTypeIndexEntries()
+        public void CleanupFindsPersistedReportsWithoutTypeIndex()
         {
             GenerationEvaluationSuite suite = AssetDatabase.LoadAssetAtPath<GenerationEvaluationSuite>(
                 ThesisEvaluationSuiteFactory.SuitePath);

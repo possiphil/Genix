@@ -312,7 +312,7 @@ namespace Genix.Tests.Dashboard
             bool firstCategory = true;
             foreach (IGrouping<string, GenixTestResultRecord> group in filteredResults
                          .OrderBy(result => result.Area, StringComparer.Ordinal)
-                         .ThenBy(result => result.Name, StringComparer.Ordinal)
+                         .ThenBy(result => result.DisplayName, StringComparer.Ordinal)
                          .GroupBy(result => result.Area))
             {
                 if (!firstCategory)
@@ -422,7 +422,7 @@ namespace Genix.Tests.Dashboard
             };
             EditorGUI.LabelField(
                 nameRect,
-                new GUIContent(result.Name, result.FullName),
+                new GUIContent(result.DisplayName, result.FullName),
                 _testNameStyle);
             EditorGUI.LabelField(
                 typeRect,
@@ -522,6 +522,7 @@ namespace Genix.Tests.Dashboard
                  _statusFilter == ResultStatusFilter.Skipped && result.Skipped) &&
                 (_areaFilter == "All" || result.Area == _areaFilter) &&
                 (string.IsNullOrWhiteSpace(_search) ||
+                 result.DisplayName.IndexOf(_search, StringComparison.OrdinalIgnoreCase) >= 0 ||
                  result.Name.IndexOf(_search, StringComparison.OrdinalIgnoreCase) >= 0 ||
                  result.FullName.IndexOf(_search, StringComparison.OrdinalIgnoreCase) >= 0));
         }

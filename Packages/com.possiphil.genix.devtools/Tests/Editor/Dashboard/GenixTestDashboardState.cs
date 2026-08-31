@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Genix.Tests.Framework;
 using NUnit.Framework.Interfaces;
 using UnityEditor;
@@ -24,8 +25,10 @@ namespace Genix.Tests.Dashboard
         [SerializeField] private bool property;
         [SerializeField] private int propertyCasesExecuted;
         [SerializeField] private int propertyCasesExpected;
+        [NonSerialized] private string cachedDisplayName;
 
         public string Name => name;
+        public string DisplayName => cachedDisplayName ??= GenixTestDisplayName.Format(name);
         public string FullName => fullName;
         public string Area => area;
         public string ResultState => resultState;
@@ -65,6 +68,72 @@ namespace Genix.Tests.Dashboard
             const string prefix = "Genix.Area.";
             string category = categories?.FirstOrDefault(value => value.StartsWith(prefix, StringComparison.Ordinal));
             return string.IsNullOrWhiteSpace(category) ? "Other" : category.Substring(prefix.Length);
+        }
+    }
+
+    internal static class GenixTestDisplayName
+    {
+        private static readonly Regex WordBoundary = new(
+            @"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[A-Za-z])(?=[0-9])|(?<=[0-9])(?=[A-Za-z])|_+",
+            RegexOptions.Compiled);
+
+        private static readonly Dictionary<string, string> PreferredTerms = new(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["api"] = "API",
+            ["fscheck"] = "FsCheck",
+            ["genix"] = "Genix",
+            ["id"] = "ID",
+            ["json"] = "JSON",
+            ["nunit"] = "NUnit",
+            ["obb"] = "oriented bounds",
+            ["pcg"] = "PCG",
+            ["poisson"] = "Poisson",
+            ["sfs"] = "SFS",
+            ["ui"] = "UI",
+            ["unity"] = "Unity",
+            ["xz"] = "XZ"
+        };
+
+        public static string Format(string testName)
+        {
+            if (string.IsNullOrWhiteSpace(testName))
+                return string.Empty;
+
+            int argumentsStart = testName.IndexOf('(');
+            string identifier = argumentsStart >= 0 ? testName.Substring(0, argumentsStart) : testName;
+            string arguments = argumentsStart >= 0 ? testName.Substring(argumentsStart) : string.Empty;
+            string[] words = WordBoundary
+                .Split(identifier)
+                .Where(word => !string.IsNullOrWhiteSpace(word))
+                .ToArray();
+
+            List<string> displayWords = new(words.Length);
+            for (int index = 0; index < words.Length; index++)
+            {
+                if (index + 1 < words.Length && words[index] == "3" && words[index + 1] == "D")
+                {
+                    displayWords.Add("3D");
+                    index++;
+                    continue;
+                }
+
+                if (index + 1 < words.Length && words[index] == "N" && words[index + 1] == "Unit")
+                {
+                    displayWords.Add("NUnit");
+                    index++;
+                    continue;
+                }
+
+                string word = words[index];
+                if (PreferredTerms.TryGetValue(word, out string preferred))
+                    displayWords.Add(preferred);
+                else
+                    displayWords.Add(index == 0 ? word : word.ToLowerInvariant());
+            }
+
+            return string.Join(" ", displayWords) +
+                   (string.IsNullOrEmpty(arguments) ? string.Empty : " " + arguments);
         }
     }
 

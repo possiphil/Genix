@@ -383,7 +383,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void BudgetPlannerUsesIndependentAssetsInsteadOfStartingIncompleteComposition()
+        public void BudgetPlannerAvoidsIncompleteCompositions()
         {
             AssetDefinition monitor = _scene.CreateAsset("Reserved Monitor", size: Vector3.one * 0.2f);
             AssetDefinition keyboard = _scene.CreateAsset("Reserved Keyboard", size: Vector3.one * 0.2f);
@@ -519,7 +519,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void ExactDesktopCompositionUsesLocalFallbackForTightRequiredRelations()
+        public void DesktopCompositionUsesLocalFallbackForTightRelations()
         {
             _scene.Dispose();
             AreaBuildSettings settings = new(
@@ -587,7 +587,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void RequiredFloorRelationDoesNotClipFallbackToDifferentAnchorSupport()
+        public void RequiredFloorRelationKeepsFallbackOnAnchorSupport()
         {
             _scene.Dispose();
             AreaBuildSettings settings = new(
@@ -679,7 +679,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void RequiredFloorRelationTargetsCenterOfCompatibleSemanticSupport()
+        public void RequiredFloorRelationCentersOnCompatibleSupport()
         {
             _scene.Dispose();
             AreaBuildSettings settings = new(
@@ -740,7 +740,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void RequiredInsideSpaceRelationUsesCenteredLocalFallbackAboveAnchor()
+        public void RequiredInsideSpaceRelationCentersFallbackAboveAnchor()
         {
             AssetDefinition desk = _scene.CreateAsset(
                 "Floating Relation Desk",

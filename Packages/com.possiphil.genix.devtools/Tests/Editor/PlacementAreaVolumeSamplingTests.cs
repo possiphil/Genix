@@ -81,7 +81,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void VoxelOccupancyVolumePointFallsBackWithoutMaskAndRejectsMissingCells()
+        public void VolumePointFallsBackWithoutMaskAndRejectsMissingCells()
         {
             VoxelOccupancy unbounded = new(null, null, null, 1f);
             VoxelOccupancy bounded = new(null, null, new[] { new Vector3Int(2, 3, 4) }, 1f);

@@ -145,7 +145,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void SceneSetupDiscoveryIncludesConfiguredColliderAndExclusionRegion()
+        public void SceneDiscoveryIncludesColliderAndExclusionRegion()
         {
             GameObject surface = CreateSceneObject("Configured Surface");
             surface.layer = 30;
@@ -173,7 +173,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void SceneSetupDiscoveryIncludesAssetRelationAnchorWithoutCollider()
+        public void SceneDiscoveryIncludesRelationAnchorWithoutCollider()
         {
             AssetRelationAnchor anchor = CreateSceneObject("Fixed Desk Anchor")
                 .AddComponent<AssetRelationAnchor>();
@@ -249,7 +249,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void SupportSurfaceAuthoringCreatesExplicitRegionWithInheritedDescriptor()
+        public void SupportAuthoringCreatesRegionWithInheritedDescriptor()
         {
             GameObject shelf = CreateSceneObject("Shelf");
             shelf.layer = 30;

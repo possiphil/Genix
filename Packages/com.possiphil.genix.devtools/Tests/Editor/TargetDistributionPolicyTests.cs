@@ -176,7 +176,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void SupportDistributionAllocatesExactRulesThenWeightedRemainderAndDefault()
+        public void SupportDistributionAppliesExactThenWeightedAndDefaultRules()
         {
             SemanticTag shelf = CreateSurfaceTag("Shelf");
             SemanticTag desktop = CreateSurfaceTag("Desktop");
@@ -204,7 +204,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void SupportDistributionUsesFirstExplicitMatchAndDefaultsUnlistedSurfaces()
+        public void SupportDistributionUsesFirstMatchAndDefaultsUnlistedSurfaces()
         {
             SemanticTag shelf = CreateSurfaceTag("Shelf");
             SemanticTag desktop = CreateSurfaceTag("Desktop");

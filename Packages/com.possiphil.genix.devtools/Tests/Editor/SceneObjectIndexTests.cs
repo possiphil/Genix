@@ -64,7 +64,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void GeneratedIndexUsesAssetPlacementBoundsInsteadOfRendererBounds()
+        public void GeneratedIndexUsesPlacementBoundsInsteadOfRendererBounds()
         {
             GameObject parent = CreateGameObject("Generated");
             GameObject child = CreatePrimitive("Placed", new Vector3(3f, 0f, 0f));

@@ -92,7 +92,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void CandidateFactoryOffsetsWallByDepthHalfHeightAndPlacementHeight()
+        public void WallCandidateOffsetsByDepthHeightAndPlacementHeight()
         {
             AssetDefinition asset = CreateAsset("Wall", PlacementType.Wall, new Vector3(2f, 3f, 4f));
             SetSerialized(asset, "placementHeight", 1.5f);
@@ -283,7 +283,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void CandidateFactoryFixedWallHeightUsesAssetBottomAboveTargetMinimum()
+        public void FixedWallHeightUsesAssetBottomAboveTargetMinimum()
         {
             AssetDefinition asset = CreateAsset("Fixed Wall", PlacementType.Wall, new Vector3(2f, 2f, 0.5f));
             SetSerialized(asset, "wallVerticalPlacementMode", WallVerticalPlacementMode.FixedHeight);
@@ -309,7 +309,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void CandidateFactoryWallHeightRangeIsBoundedAndStableAcrossRotationAttempts()
+        public void WallHeightRangeStaysBoundedAcrossRotations()
         {
             AssetDefinition asset = CreateAsset("Ranged Wall", PlacementType.Wall, new Vector3(2f, 1f, 0.5f));
             SetSerialized(asset, "wallVerticalPlacementMode", WallVerticalPlacementMode.HeightRange);
@@ -592,7 +592,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void ValidatorRejectsWallCandidateWithinThreeDimensionalPoissonDistance()
+        public void ValidatorRejectsWallCandidateWithin3DPoissonDistance()
         {
             AssetDefinition asset = CreateAsset("Wall", PlacementType.Wall, Vector3.one);
             GenerationContext context = CreateContext(
@@ -639,7 +639,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void ValidatorRejectsInsideSpaceCandidateWithinThreeDimensionalPoissonDistance()
+        public void ValidatorRejectsInsideSpaceCandidateWithin3DPoissonDistance()
         {
             AssetDefinition asset = CreateAsset("Volume", PlacementType.InsideSpace, Vector3.one);
             GenerationContext context = CreateContext(
@@ -663,7 +663,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void GeneratedSceneSpacingUsesThreeDimensionalDistanceForInsideSpace()
+        public void InsideSpaceSpacingUses3DDistance()
         {
             GameObject generated = GameObject.CreatePrimitive(PrimitiveType.Cube);
             generated.name = "Previous Volume Object";
@@ -829,7 +829,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void RelativePlacementUsesThreeDimensionalDistanceToSelectedAnchor()
+        public void RelativePlacementUses3DDistanceToSelectedAnchor()
         {
             GameObject selectedAnchor = CreateGameObject("Selected Anchor");
             selectedAnchor.transform.position = new Vector3(1f, 100f, 0f);
@@ -879,7 +879,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AssetRelativePlacementMatchesGeneratedAssetWithinLocalFrontSector()
+        public void RelativePlacementMatchesAssetInLocalFrontSector()
         {
             AssetDefinition desk = CreateAsset("Desk", PlacementType.Floor, Vector3.one);
             AssetDefinition chair = CreateAsset("Chair", PlacementType.Floor, Vector3.one);
@@ -915,7 +915,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AssetRelativePlacementReportsWrongSideForRotatedGeneratedAnchor()
+        public void RelativePlacementReportsWrongSideForRotatedAnchor()
         {
             AssetDefinition desk = CreateAsset("Side Desk", PlacementType.Floor, Vector3.one);
             AssetDefinition chair = CreateAsset("Side Chair", PlacementType.Floor, Vector3.one);
@@ -1077,7 +1077,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AssetRelativePlacementLimitsDependentsPerNearestGeneratedAnchor()
+        public void RelativePlacementLimitsDependentsPerNearestAnchor()
         {
             AssetDefinition desk = CreateAsset("Capacity Desk", PlacementType.Floor, Vector3.one);
             AssetDefinition bin = CreateAsset("Capacity Bin", PlacementType.Floor, Vector3.one);
@@ -1429,7 +1429,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AssetRelativePlacementDistinguishesMissingAndOutOfRangeAnchors()
+        public void RelativePlacementDistinguishesMissingAndDistantAnchors()
         {
             AssetDefinition desk = CreateAsset("Distance Desk", PlacementType.Floor, Vector3.one);
             AssetDefinition chair = CreateAsset("Distance Chair", PlacementType.Floor, Vector3.one);
@@ -1466,7 +1466,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AssetRelativeValidationAndAnchorResolutionUseTheSameBoundsDistance()
+        public void RelativeValidationAndAnchorLookupUseSameBoundsDistance()
         {
             AssetDefinition desk = CreateAsset("Bounds Distance Desk", PlacementType.Floor, new Vector3(4f, 1f, 2f));
             AssetDefinition chair = CreateAsset("Bounds Distance Chair", PlacementType.Floor, new Vector3(0.4f, 1f, 2f));
@@ -1583,7 +1583,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AssetRelativeFacingVariationStaysWithinConfiguredAngleAndIsDeterministic()
+        public void RelativeFacingVariationIsBoundedAndDeterministic()
         {
             AssetDefinition desk = CreateAsset("Varied Facing Desk", PlacementType.Floor, Vector3.one);
             AssetDefinition chair = CreateAsset("Varied Facing Chair", PlacementType.Floor, Vector3.one);
@@ -1678,7 +1678,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AssetRelativeFacingRebindsAfterAdaptiveFitChangesCandidateHeight()
+        public void RelativeFacingUpdatesAfterAdaptiveHeightFit()
         {
             AssetDefinition marker = CreateAsset(
                 "Adaptive Direction Marker",
@@ -1730,7 +1730,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AssetRelativeFacingPrefersNearestCenterWhenBoundsDistancesAreEffectivelyTied()
+        public void RelativeFacingUsesNearestCenterWhenBoundsDistancesTie()
         {
             AssetDefinition desk = CreateAsset("Ambiguous Desk", PlacementType.Floor, Vector3.one);
             AssetDefinition chair = CreateAsset("Ambiguous Chair", PlacementType.Floor, Vector3.one);
@@ -1769,7 +1769,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void RequiredRelationSeedBelongsToNearestMatchingAnchorWhenRangesOverlap()
+        public void OverlappingRelationRangesUseNearestMatchingAnchor()
         {
             AssetDefinition desk = CreateAsset("Overlapping Desk", PlacementType.Floor, Vector3.one);
             AssetDefinition chair = CreateAsset("Overlapping Chair", PlacementType.Floor, Vector3.one);
@@ -1829,7 +1829,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AssetRelativePlacementUsesExplicitSceneAnchorIdentityAndBounds()
+        public void RelativePlacementUsesExplicitSceneAnchorIdentityAndBounds()
         {
             SemanticTag workstation = CreateAssetTag("Scene Workstation");
             GameObject supportObject = CreateGameObject("Scene Desktop");
@@ -2261,7 +2261,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AnchorGroupMaximumCountsPersistedRelationAssignmentsAcrossRuns()
+        public void AnchorGroupMaximumIncludesPersistedAssignmentsAcrossRuns()
         {
             SemanticTag display = CreateAssetTag("Persistent Per Desk Display");
             AssetDefinition desk = CreateAsset("Persistent Quota Desk", PlacementType.Floor, Vector3.one);
@@ -2520,7 +2520,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void SupportAssetCapacityCountsExistingGeneratedMetadataAcrossRuns()
+        public void SupportCapacityCountsGeneratedMetadataAcrossRuns()
         {
             AssetDefinition monitor = CreateAsset("Persistent Monitor", PlacementType.Floor, Vector3.one);
             GameObject support = CreateGameObject("Persistent Desktop");
@@ -2833,7 +2833,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void MatchSupportForwardFallsBackToLocalRightWhenForwardIsSurfaceNormal()
+        public void SupportFacingUsesLocalRightWhenForwardMatchesNormal()
         {
             AssetDefinition asset = CreateAsset("Support Facing Axis Fallback", PlacementType.Floor, Vector3.one);
             SetSerialized(asset, "orientationMode", Genix.Orientation.OrientationMode.MatchSupportForward);
@@ -2918,7 +2918,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void ChildColliderExclusionUsesExactHierarchyAndAllowsTaggedAssets()
+        public void ChildColliderExclusionUsesHierarchyAndAllowsTaggedAssets()
         {
             SemanticTag pathFurniture = CreateAssetTag("Path Furniture");
             GameObject regionObject = CreateGameObject("Curved Path");
@@ -3045,7 +3045,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void ValidatorRejectsCandidatePenetratingFixedSurfaceBeyondTolerance()
+        public void ValidatorRejectsFixedSurfacePenetrationBeyondTolerance()
         {
             GameObject fixedSurface = CreateGameObject("Fixed Floor");
             fixedSurface.transform.position = new Vector3(0f, -0.045f, 0f);

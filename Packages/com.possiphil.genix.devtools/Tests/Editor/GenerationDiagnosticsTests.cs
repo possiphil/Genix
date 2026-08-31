@@ -274,7 +274,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void DiagnosticsCatalogKeepsDistinctReportsAndRemovesDestroyedEntries()
+        public void DiagnosticsCatalogKeepsDistinctReportsAndRemovesDestroyed()
         {
             DiagnosticsCatalog catalog = ScriptableObject.CreateInstance<DiagnosticsCatalog>();
             DiagnosticsReport first = ScriptableObject.CreateInstance<DiagnosticsReport>();

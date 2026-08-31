@@ -282,7 +282,7 @@ namespace Genix.Tests.SpaceFoundation
         }
 
         [Test]
-        public void SubspaceCacheAssetRoundTripsCompressedCellsAndHonorsMinimumCount()
+        public void SubspaceCacheRoundTripsCellsAndHonorsMinimumCount()
         {
             SfsSubspaceCacheAsset cache = ScriptableObject.CreateInstance<SfsSubspaceCacheAsset>();
             _objects.Add(cache);
@@ -563,7 +563,7 @@ namespace Genix.Tests.SpaceFoundation
         }
 
         [Test]
-        public void AreaBuilderAllMatchingModeUsesVolumeWithoutVoxelSurfaceRegions()
+        public void AllMatchingAreaBuilderUsesVolumeWithoutSurfaceRegions()
         {
             SfsSpace space = CreateSpace(2f);
             AreaBuildSettings settings = new(

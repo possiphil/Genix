@@ -288,7 +288,7 @@ namespace Genix.Tests.SpaceFoundation
         }
 
         [Test]
-        public void GeneratedColliderOccupiesPlannedCellCentersWithoutTouchingAdjacentCenters()
+        public void GeneratedColliderCoversOnlyPlannedCellCenters()
         {
             SpaceFoundationSystem.SpaceFoundation foundation = CreateFoundation(2f);
             SfsAuthoringRequest request = CreateRequest(SfsAuthoringLayoutType.BoundedLocation);
@@ -310,7 +310,7 @@ namespace Genix.Tests.SpaceFoundation
         }
 
         [Test]
-        public void QuickAddBoxDelimiterSnapsToVoxelGridAndOccupiesOnlyRequestedCells()
+        public void QuickAddDelimiterSnapsToGridAndCoversRequestedCells()
         {
             SpaceFoundationSystem.SpaceFoundation foundation = CreateFoundation(2f);
             Delimiter delimiter = SfsAuthoringSceneBuilder.CreateGridAlignedBoxDelimiter(

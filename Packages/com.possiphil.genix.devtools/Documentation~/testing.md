@@ -26,6 +26,12 @@ Results are grouped by subsystem. Green means every completed test in the group 
 
 The dashboard delegates execution to Unity's `TestRunnerApi`; the built-in Test Runner remains the source of truth. Runs started in either interface are collected by the dashboard.
 
+### Test names
+
+Test method names identify the operation under test, the relevant scenario, and the expected behavior. This follows Microsoft's [.NET unit-testing guidance](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-best-practices#follow-test-naming-standards) and makes a failure useful as executable documentation. Avoid generic names such as `Works`, redundant `Test` prefixes, and implementation details that are not part of the asserted contract.
+
+The dashboard turns the stable PascalCase NUnit identifier into a concise sentence-case label. Established domain terms such as SFS, NUnit, JSON, XZ, 3D, and Poisson retain their conventional spelling; OBB is displayed as the plainer "oriented bounds." This applies Apple's guidance to use [concise wording](https://developer.apple.com/design/human-interface-guidelines/design-principles) and [plain, consistent language](https://developer.apple.com/design/human-interface-guidelines/writing) without weakening developer diagnostics. The exact NUnit name remains available in the row tooltip and continues to drive search, targeted runs, source navigation, and exported evidence.
+
 ### Open-editor command runner
 
 Contributors and coding tools can launch the same presets in an already-open Unity editor from the DevTools package root:

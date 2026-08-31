@@ -121,7 +121,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void SummaryModeAggregatesSemanticSupportCoverageAndPrefilterSkips()
+        public void SummaryAggregatesSupportCoverageAndPrefilterSkips()
         {
             SemanticTag desktop = CreateSurfaceTag("Desktop");
             CandidateSeed first = CreateSupportSeed("Desk A", desktop, Vector3.left);

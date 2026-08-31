@@ -94,7 +94,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void PruneRemainingRemovesRemainingAssetsWhenSeedIsTooCloseToGenerated()
+        public void PruneRemainingDropsAssetsWhenSeedIsTooClose()
         {
             AssetDefinition small = CreateAsset("Small", new Vector3(1f, 1f, 1f), SurfaceFitMode.Strict);
             AssetDefinition adaptive = CreateAsset("Adaptive", new Vector3(4f, 1f, 4f), SurfaceFitMode.Adaptive);
@@ -113,7 +113,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void CatalogHandlesMissingInputsAndClearsReusableOrderForMissingType()
+        public void CatalogHandlesMissingInputsAndClearsOrderForMissingType()
         {
             AssetDefinition floor = CreateAsset("Floor", Vector3.one, SurfaceFitMode.Strict);
             AssetAttemptPlanner.Catalog catalog = AssetAttemptPlanner.CreateCatalog(null);
@@ -130,7 +130,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void PruneRemainingIgnoresMissingListsAndRemovesInvalidEntriesFromStartIndex()
+        public void PruneRemainingHandlesMissingListsAndRemovesInvalidTail()
         {
             AssetDefinition first = CreateAsset("First", Vector3.one, SurfaceFitMode.Strict);
             AssetDefinition last = CreateAsset("Last", Vector3.one, SurfaceFitMode.Strict);

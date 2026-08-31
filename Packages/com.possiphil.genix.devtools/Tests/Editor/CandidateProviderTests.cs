@@ -113,7 +113,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AllMatchingFloorProviderReservesCandidatesForEveryCompatibleSupport()
+        public void FloorProviderReservesCandidatesForAllCompatibleSupports()
         {
             AreaBuildSettings settings = new(
                 AreaDecompositionMode.Precise,
@@ -300,7 +300,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void InsideSpaceProviderHonorsExplicitCandidateCountWithoutHiddenOversampling()
+        public void InsideSpaceProviderHonorsCandidateCountWithoutOversampling()
         {
             GenerationContext context = CreateContext(PlacementTarget.InsideSpace, SamplingAlgorithm.Random);
             InsideSpaceCandidateProvider provider = new(candidateCount: 7);

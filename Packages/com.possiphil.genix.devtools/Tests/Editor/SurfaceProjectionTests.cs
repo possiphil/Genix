@@ -96,7 +96,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void GeneratedColliderWithSurfaceDescriptorRemainsProjectableInLaterRun()
+        public void GeneratedSurfaceColliderRemainsProjectableAcrossRuns()
         {
             GameObject generatedRoot = CreateObject("Generated Support Root");
             generatedRoot.AddComponent<GeneratedObjectMetadata>().Initialize(PlacementType.Floor);
@@ -489,7 +489,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void TerrainSurfaceFitUsesDirectHeightSamplingWithoutPhysicsRaycasts()
+        public void TerrainFitSamplesHeightWithoutPhysicsRaycasts()
         {
             TerrainCollider terrain = CreateFlatTerrain("Projection Terrain", 2f);
             GenerationProfilerRecorder profiler = new();

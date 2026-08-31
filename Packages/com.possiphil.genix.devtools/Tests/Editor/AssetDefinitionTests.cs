@@ -175,7 +175,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void AssetRelativePlacementNormalizesDistancesAndRequiresAssetCompatibleTags()
+        public void RelativePlacementNormalizesDistancesAndRequiresMatchingTags()
         {
             AssetDefinition desk = ScriptableObject.CreateInstance<AssetDefinition>();
             TagCategory surfaceCategory = ScriptableObject.CreateInstance<TagCategory>();
@@ -539,7 +539,7 @@ namespace Genix.Tests
         }
 
         [Test]
-        public void CatalogCleanupRemovesDestroyedReferencesFromNestedAssetsAndPools()
+        public void CatalogCleanupRemovesDestroyedNestedReferences()
         {
             AssetCatalog catalog = ScriptableObject.CreateInstance<AssetCatalog>();
             AssetPool pool = ScriptableObject.CreateInstance<AssetPool>();
