@@ -44,9 +44,8 @@ namespace Genix.Editor.Utilities
             Rect row = EditorGUILayout.GetControlRect(
                 true,
                 EditorGUIUtility.singleLineHeight,
-                EllipsizedPopupStyle,
                 options);
-            Rect field = EditorGUI.PrefixLabel(row, label);
+            Rect field = DrawIndentedPrefixLabel(row, label);
             return EditorGUI.Popup(field, selectedIndex, displayedOptions, EllipsizedPopupStyle);
         }
 
@@ -60,9 +59,8 @@ namespace Genix.Editor.Utilities
             Rect row = EditorGUILayout.GetControlRect(
                 true,
                 EditorGUIUtility.singleLineHeight,
-                EllipsizedPopupStyle,
                 options);
-            Rect field = EditorGUI.PrefixLabel(row, label);
+            Rect field = DrawIndentedPrefixLabel(row, label);
             return EditorGUI.Popup(field, selectedIndex, displayedOptions, EllipsizedPopupStyle);
         }
 
@@ -75,9 +73,28 @@ namespace Genix.Editor.Utilities
             Rect field = EditorGUILayout.GetControlRect(
                 false,
                 EditorGUIUtility.singleLineHeight,
-                EllipsizedPopupStyle,
                 options);
             return EditorGUI.Popup(field, selectedIndex, displayedOptions, EllipsizedPopupStyle);
+        }
+
+        private static Rect DrawIndentedPrefixLabel(Rect row, GUIContent label)
+        {
+            Rect indentedRow = EditorGUI.IndentedRect(row);
+            float indentWidth = indentedRow.x - row.x;
+            float previousLabelWidth = EditorGUIUtility.labelWidth;
+            int previousIndentLevel = EditorGUI.indentLevel;
+            EditorGUIUtility.labelWidth = Mathf.Max(0f, previousLabelWidth - 2f * indentWidth);
+            EditorGUI.indentLevel = 0;
+
+            try
+            {
+                return EditorGUI.PrefixLabel(indentedRow, label);
+            }
+            finally
+            {
+                EditorGUIUtility.labelWidth = previousLabelWidth;
+                EditorGUI.indentLevel = previousIndentLevel;
+            }
         }
 
         /// <summary>Draws a shortcut that selects the supplied asset for editing.</summary>

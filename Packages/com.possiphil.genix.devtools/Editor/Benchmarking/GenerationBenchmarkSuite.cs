@@ -56,8 +56,8 @@ namespace Genix.Editor.Benchmarking
         [SerializeField] private TargetDistributionMode targetDistributionMode = TargetDistributionMode.Random;
         [SerializeField] private TargetDistributionWeights targetDistributionWeights = new(1, 1, 1, 1);
         [SerializeField] private AreaBuildSettings areaBuildSettings = new(
-            AreaDecompositionMode.Precise,
-            ~0,
+            AreaDecompositionMode.Fast,
+            0,
             surfaceDiscoveryMode: SurfaceDiscoveryMode.AllMatchingSurfacesInVolume);
         [SerializeField] private BenchmarkRelativePlacement relativePlacement = new();
         [SerializeField] private bool bestEffort = true;
@@ -100,12 +100,33 @@ namespace Genix.Editor.Benchmarking
                 displayName = string.IsNullOrWhiteSpace(name) ? "Benchmark Scenario" : name.Trim(),
                 scene = sceneAsset,
                 targetDistributionWeights = TargetDistributionWeights.Default,
-                areaBuildSettings = new AreaBuildSettings(
-                    AreaDecompositionMode.Precise,
-                    ~0,
-                    surfaceDiscoveryMode: SurfaceDiscoveryMode.AllMatchingSurfacesInVolume)
+                areaBuildSettings = CreateDefaultAreaBuildSettings()
             };
             return scenario;
+        }
+
+        internal void EnsureSurfaceLayerDefaults()
+        {
+            int combinedLayers = areaBuildSettings.floorSurfaceLayers.value |
+                                 areaBuildSettings.wallSurfaceLayers.value |
+                                 areaBuildSettings.ceilingSurfaceLayers.value;
+            if (combinedLayers != 0)
+                return;
+
+            areaBuildSettings = CreateDefaultAreaBuildSettings();
+        }
+
+        private static AreaBuildSettings CreateDefaultAreaBuildSettings()
+        {
+            int placementSurfaceLayer = LayerMask.NameToLayer("Placement Surface");
+            LayerMask surfaceLayers = placementSurfaceLayer >= 0 ? 1 << placementSurfaceLayer : 0;
+            return new AreaBuildSettings(
+                AreaDecompositionMode.Fast,
+                surfaceLayers,
+                floorSurfaceLayers: surfaceLayers,
+                wallSurfaceLayers: surfaceLayers,
+                ceilingSurfaceLayers: surfaceLayers,
+                surfaceDiscoveryMode: SurfaceDiscoveryMode.AllMatchingSurfacesInVolume);
         }
     }
 
@@ -158,6 +179,9 @@ namespace Genix.Editor.Benchmarking
         private void OnEnable()
         {
             EnsureSeeds();
+
+            foreach (GenerationBenchmarkScenario scenario in scenarios)
+                scenario?.EnsureSurfaceLayerDefaults();
         }
 
         private void OnValidate()
