@@ -65,33 +65,26 @@ namespace Genix.Editor.Evaluation
 
             try
             {
-                if (request.prepareOutdoor)
-                {
-                    WriteResponse(new EvaluationCommandResponse
-                    {
-                        status = OutdoorEvaluationSetupUtility.PrepareRequested()
-                    });
-                    return;
-                }
+                if (string.IsNullOrWhiteSpace(request.suiteAssetPath))
+                    throw new InvalidOperationException("A suiteAssetPath is required.");
 
-                GenerationEvaluationSuite suite = request.refreshThesisSuite
-                    ? ThesisEvaluationSuiteFactory.CreateOrRefresh(out _)
-                    : AssetDatabase.LoadAssetAtPath<GenerationEvaluationSuite>(request.suiteAssetPath);
+                GenerationEvaluationSuite suite = AssetDatabase.LoadAssetAtPath<GenerationEvaluationSuite>(
+                    request.suiteAssetPath);
                 if (!suite)
                     throw new InvalidOperationException($"Evaluation suite was not found at '{request.suiteAssetPath}'.");
 
                 if (request.validateOnly)
                 {
                     List<string> errors = GenerationEvaluationRunner.Validate(suite);
-                    int readyScenarios = suite.Scenarios.Count(scenario =>
-                        scenario is { Enabled: true, Ready: true });
+                    int enabledScenarios = suite.Scenarios.Count(scenario =>
+                        scenario is { Enabled: true });
                     WriteResponse(new EvaluationCommandResponse
                     {
                         status = errors.Count == 0
-                            ? $"Validated {readyScenarios} scenarios and {readyScenarios * suite.RunsPerScenario} runs."
+                            ? $"Validated {enabledScenarios} scenarios and {enabledScenarios * suite.RunsPerScenario} runs."
                             : "Evaluation suite validation failed.",
                         error = string.Join("\n", errors),
-                        expectedRuns = readyScenarios * suite.RunsPerScenario
+                        expectedRuns = enabledScenarios * suite.RunsPerScenario
                     });
                     return;
                 }
@@ -154,10 +147,8 @@ namespace Genix.Editor.Evaluation
         [Serializable]
         private sealed class EvaluationCommandRequest
         {
-            public string suiteAssetPath = ThesisEvaluationSuiteFactory.SuitePath;
+            public string suiteAssetPath = string.Empty;
             public int scenarioIndex = -1;
-            public bool refreshThesisSuite = false;
-            public bool prepareOutdoor = false;
             public bool validateOnly = false;
         }
 

@@ -2,12 +2,12 @@
 
 Open **Tools > Genix Developer > Benchmarks** to configure and run unattended, scene-based benchmark campaigns. Benchmark suites are project assets, so the exact scenes, target areas, generation settings, object counts, cache conditions, and deterministic seeds can be reviewed and versioned.
 
-## Measurement variants
+## Measurement modes
 
-- **Primary** measures the production generation core with one external high-resolution timer. Internal timing probes, preview rendering, hierarchy application, logging, result hashing, scene loading, warm-up, cache clearing, memory snapshots, and file output are outside this boundary.
-- **Diagnostic** repeats the same case with Genix phase instrumentation enabled. Use its component values to explain Primary results, not as the authoritative total runtime.
+- **Runtime** measures the production generation core with one external high-resolution timer. Internal timing probes, preview rendering, hierarchy application, logging, result hashing, scene loading, warm-up, cache clearing, memory snapshots, and file output are outside this boundary.
+- **Phase breakdown** repeats the same case with Genix phase instrumentation enabled. Use its component values to explain Runtime results, not as the authoritative total runtime.
 
-Primary and Diagnostic plans are hashed outside the timed section. The export reports mismatches, making profiler-induced semantic changes visible.
+Runtime and phase-breakdown plans are hashed outside the timed section. The export reports mismatches, making instrumentation-induced semantic changes visible. Serialized suite and export values retain the internal names `Primary` and `Diagnostic` for compatibility.
 
 ## Cache conditions
 
@@ -23,7 +23,7 @@ The runner owns these temporary editor changes through one campaign session. Com
 1. Create or select a Benchmark Suite.
 2. Use **Add Evaluation Scenes** to import scenes under `Packages/com.possiphil.genix.devtools/Evaluation/Scenes/Performance` and `Packages/com.possiphil.genix.devtools/Evaluation/Scenes/RealWorld`, or add scenarios manually.
 3. Assign a target area, asset pool, style preset, placement settings, and object-count series to every enabled scenario.
-4. Select Primary, Diagnostic, Cold, and/or Warm measurements and validate the suite.
+4. Select the cache states and whether the campaign should include a phase breakdown, then validate the suite.
 5. Run the complete suite. Stop requests take effect after the current synchronous generation.
 
 Results are written after measurement to `BenchmarkResults/<timestamp>_<suite>` outside the Unity `Assets` directory:
@@ -33,4 +33,4 @@ Results are written after measurement to `BenchmarkResults/<timestamp>_<suite>` 
 - `runs.csv` contains one row per measured seed and repetition.
 - `summary.csv` groups samples by scenario, cache condition, measurement kind, and object count and reports total and valid sample counts, median, quartiles, IQR, P95, mean, sample standard deviation, completion rate, and semantic consistency. Failed and incomplete samples remain in the raw export but are excluded from runtime aggregates.
 
-For thesis figures, use Primary medians with IQR or confidence intervals as the main runtime result. Diagnostic component timings should be shown separately and clearly labeled as instrumented measurements.
+For publication-quality figures, use Runtime medians with IQR or confidence intervals as the main result. Phase-breakdown component timings should be shown separately and clearly labeled as instrumented measurements.

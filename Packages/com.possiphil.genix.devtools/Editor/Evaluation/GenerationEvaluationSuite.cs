@@ -57,7 +57,6 @@ namespace Genix.Editor.Evaluation
     public sealed class GenerationEvaluationScenario
     {
         [SerializeField] private bool enabled = true;
-        [SerializeField] private bool ready = true;
         [SerializeField] private string displayName = "Evaluation Scenario";
         [SerializeField] private EvaluationScenarioKind kind;
         [SerializeField] private SceneAsset scene;
@@ -69,10 +68,8 @@ namespace Genix.Editor.Evaluation
         [SerializeField, Range(0f, 1f)] private float maximumCompletionRatio = 1f;
         [SerializeField] private bool saveLayouts = true;
 
-        /// <summary>Indicates whether Run All includes this scenario.</summary>
+        /// <summary>Indicates whether the full suite includes this scenario.</summary>
         public bool Enabled => enabled;
-        /// <summary>Indicates whether scene authoring is complete enough for final evaluation.</summary>
-        public bool Ready => ready;
         /// <summary>Gets the designer-facing scenario name.</summary>
         public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? "Unnamed Scenario" : displayName.Trim();
         /// <summary>Gets the methodological scenario category.</summary>
@@ -94,14 +91,13 @@ namespace Genix.Editor.Evaluation
         /// <summary>Indicates whether every run is captured as a Saved Layout.</summary>
         public bool SaveLayouts => saveLayouts;
 
-        /// <summary>Creates a scenario with thesis-oriented defaults.</summary>
+        /// <summary>Creates a scenario with evaluation-oriented defaults.</summary>
         public static GenerationEvaluationScenario Create(
             string name,
             EvaluationScenarioKind scenarioKind,
             SceneAsset sceneAsset,
             GenerationPreset preset,
             string targetIdentifier = "",
-            bool isReady = true,
             EvaluationCheckSet enabledChecks = EvaluationCheckSet.AllStructural,
             float completionRatio = 1f,
             float maximumCompletion = 1f,
@@ -114,7 +110,6 @@ namespace Genix.Editor.Evaluation
                 scene = sceneAsset,
                 generationPreset = preset,
                 targetId = targetIdentifier ?? string.Empty,
-                ready = isReady,
                 checks = enabledChecks,
                 saveLayouts = persistLayouts,
                 minimumCompletionRatio = Mathf.Clamp01(completionRatio),
@@ -148,7 +143,6 @@ namespace Genix.Editor.Evaluation
             SceneAsset scene,
             GenerationPreset preset,
             string targetId = "",
-            bool ready = true,
             EvaluationCheckSet checks = EvaluationCheckSet.AllStructural,
             float minimumCompletionRatio = 1f,
             float maximumCompletionRatio = 1f,
@@ -160,7 +154,6 @@ namespace Genix.Editor.Evaluation
                 scene,
                 preset,
                 targetId,
-                ready,
                 checks,
                 minimumCompletionRatio,
                 maximumCompletionRatio,

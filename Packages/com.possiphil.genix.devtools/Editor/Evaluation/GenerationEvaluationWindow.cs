@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Genix.Areas;
+using Genix.Core;
+using Genix.Editor.Drawers;
+using Genix.Editor.Infrastructure;
 using Genix.Editor.Layouts;
 using Genix.Editor.DevTools;
 using Genix.Editor.TargetAreas;
@@ -15,11 +18,35 @@ using UnityEngine.SceneManagement;
 
 namespace Genix.Editor.Evaluation
 {
-    /// <summary>Runs thesis quality campaigns and supports systematic visual review of every saved result.</summary>
+    /// <summary>Runs quality-evaluation campaigns and supports systematic visual review of saved results.</summary>
     public sealed class GenerationEvaluationWindow : EditorWindow
     {
         private const string SelectedSuiteKey = "Genix.Evaluations.SelectedSuite";
         private const string SelectedReportKey = "Genix.Evaluations.SelectedReport";
+        private const float ScenarioConfigurationMinHeight = 255f;
+        private const float ScenarioControlsHeight = 20f;
+        private const float PaneSpacing = 6f;
+        private const float ReportPaneHeight = 300f;
+        private const float SectionHorizontalPadding = 5f;
+
+        private enum AutomaticResultFilter
+        {
+            All,
+            Passed,
+            Failed,
+            Incomplete
+        }
+
+        private enum VisualReviewFilter
+        {
+            All,
+            NeedsReview,
+            Reviewed,
+            Pass,
+            Acceptable,
+            Fail,
+            NoLayout
+        }
 
         private GenerationEvaluationSuite _suite;
         private SerializedObject _serializedSuite;
@@ -30,11 +57,42 @@ namespace Genix.Editor.Evaluation
         private Vector2 _detailsScroll;
         private Vector2 _runScroll;
         private Vector2 _reportDetailsScroll;
+        private float _reportPaneTop;
+        private readonly Dictionary<string, ScenarioCoverageSnapshot> _coverageByScenario =
+            new(StringComparer.Ordinal);
         private bool _showSuiteSettings;
+        private bool _showEvaluationCriteria;
+        private bool _showVisualEvidence;
         private bool _showPlacedAssets = true;
         private bool _showScenarioCoverage = true;
         private EvaluationScenarioKind? _kindFilter;
+        private AutomaticResultFilter _resultFilter;
+        private VisualReviewFilter _reviewFilter;
         private string _validationMessage = string.Empty;
+
+        private GenerationEvaluationSuite[] _evaluationSuites = Array.Empty<GenerationEvaluationSuite>();
+        private string[] _evaluationSuiteOptions = Array.Empty<string>();
+        private GenerationEvaluationReport[] _evaluationReports = Array.Empty<GenerationEvaluationReport>();
+        private string[] _evaluationReportOptions = Array.Empty<string>();
+        private GenerationPreset[] _generationPresets = Array.Empty<GenerationPreset>();
+        private string[] _generationPresetOptions = Array.Empty<string>();
+
+        private sealed class ScenarioCoverageSnapshot
+        {
+            public int RunCount { get; }
+            public IReadOnlyList<GenerationEvaluationCoverageRecord> Assets { get; }
+            public IReadOnlyList<GenerationEvaluationCoverageRecord> Supports { get; }
+
+            public ScenarioCoverageSnapshot(
+                int runCount,
+                IReadOnlyList<GenerationEvaluationCoverageRecord> assets,
+                IReadOnlyList<GenerationEvaluationCoverageRecord> supports)
+            {
+                RunCount = runCount;
+                Assets = assets;
+                Supports = supports;
+            }
+        }
 
         [MenuItem("Tools/Genix Developer/Evaluation", false, 30)]
         public static void Open()
@@ -46,11 +104,20 @@ namespace Genix.Editor.Evaluation
         private void OnEnable()
         {
             GenerationEvaluationRunner.Changed += HandleRunnerChanged;
-            SetSuite(LoadRemembered<GenerationEvaluationSuite>(SelectedSuiteKey));
-            SetReport(LoadRemembered<GenerationEvaluationReport>(SelectedReportKey));
+            EditorApplication.projectChanged += HandleProjectChanged;
+            RefreshSelectableAssets();
+
+            GenerationEvaluationSuite rememberedSuite = LoadRemembered<GenerationEvaluationSuite>(SelectedSuiteKey);
+            GenerationEvaluationReport rememberedReport = LoadRemembered<GenerationEvaluationReport>(SelectedReportKey);
+            SetSuite(rememberedSuite ? rememberedSuite : _evaluationSuites.FirstOrDefault());
+            SetReport(rememberedReport ? rememberedReport : _evaluationReports.FirstOrDefault());
         }
 
-        private void OnDisable() => GenerationEvaluationRunner.Changed -= HandleRunnerChanged;
+        private void OnDisable()
+        {
+            GenerationEvaluationRunner.Changed -= HandleRunnerChanged;
+            EditorApplication.projectChanged -= HandleProjectChanged;
+        }
 
         private void OnGUI()
         {
@@ -64,12 +131,7 @@ namespace Genix.Editor.Evaluation
             DrawRunPanel();
             EditorGUILayout.Space(5f);
 
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                DrawScenarioList();
-                GUILayout.Space(6f);
-                DrawScenarioDetails();
-            }
+            DrawScenarioSection();
 
             DrawReport();
             _serializedSuite.ApplyModifiedProperties();
@@ -79,79 +141,103 @@ namespace Genix.Editor.Evaluation
         {
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
-                EditorGUI.BeginChangeCheck();
-                GenerationEvaluationSuite selected = (GenerationEvaluationSuite)EditorGUILayout.ObjectField(
-                    _suite,
-                    typeof(GenerationEvaluationSuite),
-                    false,
-                    GUILayout.MinWidth(210f));
-                if (EditorGUI.EndChangeCheck())
-                    SetSuite(selected);
+                DrawSuiteDropdown();
 
                 using (new EditorGUI.DisabledScope(GenerationEvaluationRunner.IsRunning))
                 {
                     if (GUILayout.Button(
-                            new GUIContent("Actions", "Create, refresh, or clean up evaluation content."),
-                            EditorStyles.toolbarDropDown,
-                            GUILayout.Width(72f)))
-                        ShowSuiteActionsMenu();
+                            new GUIContent("Create", "Create and select a new evaluation suite."),
+                            EditorStyles.toolbarButton,
+                            GUILayout.Width(56f)))
+                        CreateSuite();
+
+                    using (new EditorGUI.DisabledScope(!_suite))
+                    {
+                        if (GUILayout.Button(
+                                new GUIContent("Clean Up", "Delete superseded evaluation layouts while retaining layouts referenced by current reports."),
+                                EditorStyles.toolbarButton,
+                                GUILayout.Width(66f)))
+                            CleanUpEvaluationLayouts();
+                    }
                 }
 
                 GUILayout.FlexibleSpace();
 
-                EditorGUI.BeginChangeCheck();
-                GenerationEvaluationReport report = (GenerationEvaluationReport)EditorGUILayout.ObjectField(
-                    _report,
-                    typeof(GenerationEvaluationReport),
-                    false,
-                    GUILayout.Width(190f));
-                if (EditorGUI.EndChangeCheck())
-                    SetReport(report);
+                DrawReportDropdown();
 
                 using (new EditorGUI.DisabledScope(!_report))
                 {
-                    if (GUILayout.Button(new GUIContent("Export", "Writes JSON plus run, check, and aggregate CSV files including current visual ratings."), EditorStyles.toolbarButton, GUILayout.Width(54f)))
+                    if (GUILayout.Button(new GUIContent("Export", "Export the selected report as JSON plus run, check, and aggregate CSV files including current visual ratings."), EditorStyles.toolbarButton, GUILayout.Width(54f)))
                         ExportReport();
-                }
-
-                using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(GenerationEvaluationRunner.LastOutputDirectory)))
-                {
-                    if (GUILayout.Button("Files", EditorStyles.toolbarButton, GUILayout.Width(45f)))
-                        EditorUtility.RevealInFinder(GenerationEvaluationRunner.LastOutputDirectory);
                 }
             }
         }
 
-        private void ShowSuiteActionsMenu()
+        private void DrawSuiteDropdown()
         {
-            GenericMenu menu = new();
-            menu.AddItem(
-                new GUIContent("Create / Refresh Thesis Suite"),
-                false,
-                RefreshThesisSuite);
-
-            if (_suite && !GenerationEvaluationRunner.IsRunning)
+            if (_evaluationSuites.Length == 0)
             {
-                menu.AddItem(
-                    new GUIContent("Clean Up Evaluation Layouts…"),
-                    false,
-                    CleanUpEvaluationLayouts);
-            }
-            else
-            {
-                menu.AddDisabledItem(new GUIContent("Clean Up Evaluation Layouts…"));
+                DrawEmptyToolbarDropdown("No Evaluation Suites", 180f, 280f);
+                return;
             }
 
-            menu.ShowAsContext();
+            int selectedIndex = Array.IndexOf(_evaluationSuites, _suite);
+            if (selectedIndex < 0)
+                selectedIndex = 0;
+
+            EditorGUI.BeginChangeCheck();
+            selectedIndex = EditorGUILayout.Popup(
+                selectedIndex,
+                _evaluationSuiteOptions,
+                EditorStyles.toolbarPopup,
+                GUILayout.MinWidth(180f),
+                GUILayout.MaxWidth(280f));
+            if (EditorGUI.EndChangeCheck())
+                SetSuite(_evaluationSuites[Mathf.Clamp(selectedIndex, 0, _evaluationSuites.Length - 1)]);
+        }
+
+        private void DrawReportDropdown()
+        {
+            if (_evaluationReports.Length == 0)
+            {
+                DrawEmptyToolbarDropdown("No Evaluation Reports", 170f, 300f);
+                return;
+            }
+
+            int selectedIndex = Array.IndexOf(_evaluationReports, _report);
+            if (selectedIndex < 0)
+                selectedIndex = 0;
+
+            EditorGUI.BeginChangeCheck();
+            selectedIndex = EditorGUILayout.Popup(
+                selectedIndex,
+                _evaluationReportOptions,
+                EditorStyles.toolbarPopup,
+                GUILayout.MinWidth(170f),
+                GUILayout.MaxWidth(300f));
+            if (EditorGUI.EndChangeCheck())
+                SetReport(_evaluationReports[Mathf.Clamp(selectedIndex, 0, _evaluationReports.Length - 1)]);
+        }
+
+        private static void DrawEmptyToolbarDropdown(string label, float minimumWidth, float maximumWidth)
+        {
+            using (new EditorGUI.DisabledScope(true))
+            {
+                EditorGUILayout.Popup(
+                    0,
+                    new[] { label },
+                    EditorStyles.toolbarPopup,
+                    GUILayout.MinWidth(minimumWidth),
+                    GUILayout.MaxWidth(maximumWidth));
+            }
         }
 
         private void DrawRunPanel()
         {
-            int ready = _suite.Scenarios.Count(item => item is { Enabled: true, Ready: true });
-            int pending = _suite.Scenarios.Count(item => item is { Ready: false });
-            int totalRuns = ready * _suite.RunsPerScenario;
+            int included = _suite.Scenarios.Count(item => item is { Enabled: true });
+            int totalRuns = included * _suite.RunsPerScenario;
             int savedLayouts = _suite.Scenarios.Count(item =>
-                                   item is { Enabled: true, Ready: true, SaveLayouts: true }) *
+                                   item is { Enabled: true, SaveLayouts: true }) *
                                _suite.RunsPerScenario;
 
             if (DeveloperWindowUi.SectionHeader(
@@ -171,8 +257,8 @@ namespace Genix.Editor.Evaluation
                     {
                         if (DeveloperWindowUi.CommandButton(
                                 new GUIContent(
-                                    "Run All",
-                                    $"Runs all {ready} enabled and ready scenarios with {_suite.RunsPerScenario} deterministic seeds each ({totalRuns} runs total)."),
+                                    "Run Full Suite",
+                                    $"Runs all {included} included scenarios with {_suite.RunsPerScenario} deterministic seeds each ({totalRuns} runs total)."),
                                 0,
                                 2))
                             StartEvaluation(false);
@@ -188,7 +274,7 @@ namespace Genix.Editor.Evaluation
 
                     GUILayout.FlexibleSpace();
                     GUILayout.Label(
-                        $"Ready {ready}  |  Runs {totalRuns}  |  Layouts {savedLayouts}  |  Pending {pending}",
+                        $"Scenarios {included}  |  Runs {totalRuns}  |  Layouts {savedLayouts}",
                         EditorStyles.miniLabel);
                 }
 
@@ -212,7 +298,7 @@ namespace Genix.Editor.Evaluation
                     {
                         EditorGUILayout.PropertyField(
                             _serializedSuite.FindProperty("runsPerScenario"),
-                            new GUIContent("Runs Per Scenario", "Independent fixed-seed observations per target scenario. The thesis suite uses 20."));
+                            new GUIContent("Runs Per Scenario", "Independent fixed-seed observations per target scenario."));
                         EditorGUILayout.PropertyField(
                             _serializedSuite.FindProperty("settleFrames"),
                             new GUIContent("Scene Settle Frames", "Editor frames allowed after opening a scene before generation begins."));
@@ -225,115 +311,294 @@ namespace Genix.Editor.Evaluation
             }
         }
 
-        private void DrawScenarioList()
+        private void DrawScenarioSection()
         {
             SerializedProperty scenarios = _serializedSuite.FindProperty("scenarios");
-            float listWidth = DeveloperWindowUi.ResponsiveListWidth(position.width);
-            using (new EditorGUILayout.VerticalScope(GUILayout.Width(listWidth)))
+            float contentWidth = Mathf.Max(1f, position.width - SectionHorizontalPadding * 2f);
+            float listWidth = DeveloperWindowUi.ResponsiveListWidth(contentWidth, 240f, 500f);
+
+            using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("Scenarios", EditorStyles.boldLabel);
-                _scenarioScroll = EditorGUILayout.BeginScrollView(_scenarioScroll, EditorStyles.helpBox);
+                GUILayout.Space(SectionHorizontalPadding);
+                EditorGUILayout.LabelField("Scenarios", EditorStyles.boldLabel, GUILayout.Width(listWidth));
+                GUILayout.Space(PaneSpacing);
+                EditorGUILayout.LabelField("Configuration", EditorStyles.boldLabel, GUILayout.ExpandWidth(true));
+                GUILayout.Space(SectionHorizontalPadding);
+            }
 
-                for (int i = 0; i < scenarios.arraySize; i++)
-                {
-                    SerializedProperty scenario = scenarios.GetArrayElementAtIndex(i);
-                    string name = scenario.FindPropertyRelative("displayName").stringValue;
-                    bool enabled = scenario.FindPropertyRelative("enabled").boolValue;
-                    bool ready = scenario.FindPropertyRelative("ready").boolValue;
-                    string marker = !ready ? "[!]" : enabled ? "[x]" : "[ ]";
-                    GUIContent label = new($"{marker} {name}", name);
-                    if (DeveloperWindowUi.SelectableRow(i == _selectedScenario, label, 24f, listWidth - 20f))
-                        _selectedScenario = i;
-                }
-
-                EditorGUILayout.EndScrollView();
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(SectionHorizontalPadding);
+                DrawScenarioList(scenarios, listWidth);
+                GUILayout.Space(PaneSpacing);
+                DrawScenarioDetails(scenarios, contentWidth, listWidth);
+                GUILayout.Space(SectionHorizontalPadding);
             }
         }
 
-        private void DrawScenarioDetails()
+        private void DrawScenarioList(SerializedProperty scenarios, float listWidth)
         {
-            SerializedProperty scenarios = _serializedSuite.FindProperty("scenarios");
-            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true)))
+            float bodyHeight = ScenarioConfigurationMinHeight + ScenarioControlsHeight +
+                               EditorGUIUtility.standardVerticalSpacing;
+            using (new EditorGUILayout.VerticalScope(
+                       GUILayout.Width(listWidth),
+                       GUILayout.Height(bodyHeight)))
             {
-                EditorGUILayout.LabelField("Configuration", EditorStyles.boldLabel);
-                _detailsScroll = EditorGUILayout.BeginScrollView(_detailsScroll, EditorStyles.helpBox);
-
-                if (scenarios.arraySize > 0)
+                using (DeveloperWindowUi.VerticalScrollViewScope scrollView =
+                       DeveloperWindowUi.VerticalScrollView(
+                           _scenarioScroll,
+                           DeveloperWindowUi.PaneStyle,
+                           GUILayout.Height(ScenarioConfigurationMinHeight)))
                 {
-                    _selectedScenario = Mathf.Clamp(_selectedScenario, 0, scenarios.arraySize - 1);
-                    SerializedProperty scenario = scenarios.GetArrayElementAtIndex(_selectedScenario);
-                    using (new EditorGUI.DisabledScope(GenerationEvaluationRunner.IsRunning))
+                    _scenarioScroll = scrollView.ScrollPosition;
+                    for (int i = 0; i < scenarios.arraySize; i++)
                     {
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("enabled"));
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("ready"), new GUIContent("Ready", "Only fully authored scenes should contribute final evaluation observations."));
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("displayName"), new GUIContent("Name"));
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("kind"));
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("scene"));
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("areaProviderId"), new GUIContent("Area Provider"));
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("targetId"), new GUIContent("Target ID"));
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("generationPreset"));
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("checks"));
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("minimumCompletionRatio"));
-                        EditorGUILayout.PropertyField(
-                            scenario.FindPropertyRelative("maximumCompletionRatio"),
-                            new GUIContent("Maximum Completion Ratio", "Use a value below 100% only when the scenario intentionally verifies graceful best-effort behavior under insufficient capacity."));
-                        EditorGUILayout.PropertyField(scenario.FindPropertyRelative("saveLayouts"), new GUIContent("Save Every Layout", "Persists each seed result for later visual review. Disabled for performance smoke scenes."));
-                        DrawOutdoorSetupAction(scenario);
+                        SerializedProperty scenario = scenarios.GetArrayElementAtIndex(i);
+                        string name = scenario.FindPropertyRelative("displayName").stringValue;
+                        bool enabled = scenario.FindPropertyRelative("enabled").boolValue;
+                        string status = !enabled ? "Excluded" : string.Empty;
+                        string labelText = string.IsNullOrWhiteSpace(status) ? name : $"{name} ({status})";
+                        string tooltip = enabled
+                            ? "Included in the full evaluation suite."
+                            : "Excluded from the full evaluation suite.";
+                        GUIContent label = new(labelText, tooltip);
+                        if (DeveloperWindowUi.SelectableRow(i == _selectedScenario, label, 24f, listWidth - 26f))
+                            _selectedScenario = i;
                     }
                 }
 
-                EditorGUILayout.EndScrollView();
+                using (new EditorGUILayout.HorizontalScope())
+                using (new EditorGUI.DisabledScope(GenerationEvaluationRunner.IsRunning))
+                {
+                    GUILayout.Space(1f);
+                    if (GUILayout.Button("+", GUILayout.Height(ScenarioControlsHeight)))
+                    {
+                        _serializedSuite.ApplyModifiedProperties();
+                        Undo.RecordObject(_suite, "Added Evaluation Scenario");
+                        _suite.AddScenario(
+                            "Evaluation Scenario",
+                            EvaluationScenarioKind.Isolated,
+                            null,
+                            _generationPresets.FirstOrDefault());
+                        EditorUtility.SetDirty(_suite);
+                        _selectedScenario = _suite.Scenarios.Count - 1;
+                        EnsureSerializedSuite(force: true);
+                    }
+
+                    using (new EditorGUI.DisabledScope(scenarios.arraySize == 0))
+                    {
+                        if (GUILayout.Button("-", GUILayout.Height(ScenarioControlsHeight)))
+                        {
+                            _serializedSuite.ApplyModifiedProperties();
+                            Undo.RecordObject(_suite, "Removed Evaluation Scenario");
+                            _suite.RemoveScenarioAt(_selectedScenario);
+                            EditorUtility.SetDirty(_suite);
+                            _selectedScenario = Mathf.Clamp(
+                                _selectedScenario,
+                                0,
+                                Mathf.Max(0, _suite.Scenarios.Count - 1));
+                            EnsureSerializedSuite(force: true);
+                        }
+                    }
+                }
             }
         }
 
-        private void DrawOutdoorSetupAction(SerializedProperty scenario)
+        private void DrawScenarioDetails(
+            SerializedProperty scenarios,
+            float contentWidth,
+            float listWidth)
+        {
+            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true)))
+            {
+                using (DeveloperWindowUi.VerticalScrollViewScope scrollView =
+                       DeveloperWindowUi.VerticalScrollView(
+                           _detailsScroll,
+                           DeveloperWindowUi.PaneStyle,
+                           GUILayout.Height(
+                               ScenarioConfigurationMinHeight +
+                               ScenarioControlsHeight +
+                               EditorGUIUtility.standardVerticalSpacing)))
+                {
+                    _detailsScroll = scrollView.ScrollPosition;
+                    if (scenarios.arraySize == 0)
+                        return;
+
+                    _selectedScenario = Mathf.Clamp(_selectedScenario, 0, scenarios.arraySize - 1);
+                    SerializedProperty scenario = scenarios.GetArrayElementAtIndex(_selectedScenario);
+
+                    float previousLabelWidth = EditorGUIUtility.labelWidth;
+                    float detailsWidth = Mathf.Max(
+                        390f,
+                        contentWidth - listWidth - 30f);
+                    EditorGUIUtility.labelWidth = Mathf.Clamp(detailsWidth * 0.38f, 170f, 220f);
+
+                    try
+                    {
+                        using (new EditorGUI.DisabledScope(GenerationEvaluationRunner.IsRunning))
+                            DrawScenarioConfiguration(scenario);
+                    }
+                    finally
+                    {
+                        EditorGUIUtility.labelWidth = previousLabelWidth;
+                    }
+                }
+            }
+        }
+
+        private void DrawScenarioConfiguration(SerializedProperty scenario)
+        {
+            EditorGUILayout.PropertyField(
+                scenario.FindPropertyRelative("enabled"),
+                new GUIContent("Include in Suite", "Run this scenario as part of the full evaluation suite."));
+            EditorGUILayout.PropertyField(scenario.FindPropertyRelative("displayName"), new GUIContent("Name"));
+            EditorGUILayout.PropertyField(
+                scenario.FindPropertyRelative("kind"),
+                new GUIContent("Scenario Type", "Classify the methodological role of this evaluation scenario."));
+            EditorGUILayout.PropertyField(scenario.FindPropertyRelative("scene"), new GUIContent("Scene"));
+            DrawTargetFields(scenario);
+
+            EditorGUILayout.Space(7f);
+            EditorGUILayout.LabelField("Generation", EditorStyles.boldLabel);
+            DrawGenerationPreset(scenario.FindPropertyRelative("generationPreset"));
+
+            EditorGUILayout.Space(10f);
+            EditorGUILayout.LabelField("Advanced Settings", EditorStyles.boldLabel);
+            DrawEvaluationCriteria(scenario);
+            DrawVisualEvidenceSettings(scenario);
+        }
+
+        private void DrawGenerationPreset(SerializedProperty presetProperty)
+        {
+            GenerationPreset selectedPreset = presetProperty.objectReferenceValue as GenerationPreset;
+            GenerationPreset newPreset = AssetDropdown.DrawGenerationPresetDropdownWithEditButton(
+                new GUIContent(
+                    "Generation Preset",
+                    "Choose the complete generator configuration used for every seed in this scenario."),
+                _generationPresets,
+                _generationPresetOptions,
+                selectedPreset);
+            if (newPreset != selectedPreset)
+                presetProperty.objectReferenceValue = newPreset;
+        }
+
+        private void DrawEvaluationCriteria(SerializedProperty scenario)
+        {
+            _showEvaluationCriteria = EditorGUILayout.BeginFoldoutHeaderGroup(
+                _showEvaluationCriteria,
+                new GUIContent("Automatic Checks", "Configure the objective assertions applied to every generated result."));
+            if (_showEvaluationCriteria)
+            {
+                EditorGUI.indentLevel++;
+                SerializedProperty checks = scenario.FindPropertyRelative("checks");
+                EditorGUILayout.PropertyField(
+                    checks,
+                    new GUIContent("Checks", "Objective checks evaluated for every seed in this scenario."));
+
+                if (((EvaluationCheckSet)checks.intValue & EvaluationCheckSet.Completion) != 0)
+                {
+                    EditorGUILayout.PropertyField(
+                        scenario.FindPropertyRelative("minimumCompletionRatio"),
+                        new GUIContent("Minimum Completion", "Lowest accepted placed-to-requested object ratio."));
+                    EditorGUILayout.PropertyField(
+                        scenario.FindPropertyRelative("maximumCompletionRatio"),
+                        new GUIContent(
+                            "Maximum Completion",
+                            "Highest accepted placed-to-requested ratio. Reduce this only for intentionally capacity-limited scenarios."));
+                }
+
+                EditorGUI.indentLevel--;
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        private void DrawVisualEvidenceSettings(SerializedProperty scenario)
+        {
+            _showVisualEvidence = EditorGUILayout.BeginFoldoutHeaderGroup(
+                _showVisualEvidence,
+                new GUIContent("Visual Evidence", "Control whether generated results are retained for systematic visual review."));
+            if (_showVisualEvidence)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(
+                    scenario.FindPropertyRelative("saveLayouts"),
+                    new GUIContent(
+                        "Save Layouts for Review",
+                        "Save every seed result for later visual review. Disable this only for scenarios that do not require visual evidence."));
+                EditorGUI.indentLevel--;
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        private void DrawTargetFields(SerializedProperty scenario)
         {
             SerializedProperty sceneProperty = scenario.FindPropertyRelative("scene");
-            string scenePath = AssetDatabase.GetAssetPath(sceneProperty.objectReferenceValue);
-            if (!string.Equals(
-                    scenePath,
-                    OutdoorEvaluationSetupUtility.ScenePath,
-                    StringComparison.OrdinalIgnoreCase))
+            SerializedProperty providerProperty = scenario.FindPropertyRelative("areaProviderId");
+            SerializedProperty targetProperty = scenario.FindPropertyRelative("targetId");
+            IReadOnlyList<IBenchmarkAreaResolver> resolvers = BenchmarkAreaResolverRegistry.CreateResolvers();
+
+            if (resolvers.Count == 0)
             {
+                EditorGUILayout.HelpBox("No evaluation target provider is installed.", MessageType.Error);
                 return;
             }
 
-            EditorGUILayout.Space(5f);
-            if (!GUILayout.Button(new GUIContent(
-                    "Prepare / Reset Outdoor Setup",
-                    "Rebuilds the canonical Outdoor semantics, asset rules, pool, preset, and evaluation-suite entry. This is a maintenance action and is not required before normal runs."),
-                    GUILayout.Height(24f)))
+            int providerIndex = resolvers.ToList().FindIndex(resolver => resolver.ProviderId == providerProperty.stringValue);
+            if (providerIndex < 0)
+                providerIndex = 0;
+
+            if (resolvers.Count > 1)
             {
+                int newIndex = EditorGui.Popup(
+                    new GUIContent("Area Provider", "Spatial integration used to resolve the target after each scene switch."),
+                    providerIndex,
+                    resolvers.Select(resolver => resolver.DisplayName).ToArray());
+                providerIndex = Mathf.Clamp(newIndex, 0, resolvers.Count - 1);
+            }
+
+            providerProperty.stringValue = resolvers[providerIndex].ProviderId;
+
+            SceneAsset sceneAsset = sceneProperty.objectReferenceValue as SceneAsset;
+            string scenePath = sceneAsset ? AssetDatabase.GetAssetPath(sceneAsset) : string.Empty;
+            Scene activeScene = SceneManager.GetActiveScene();
+
+            if (sceneAsset && string.Equals(activeScene.path, scenePath, StringComparison.Ordinal))
+            {
+                IBenchmarkAreaResolver resolver = resolvers[providerIndex];
+                IReadOnlyList<BenchmarkAreaTarget> targets = resolver?.FindTargets(activeScene) ??
+                    Array.Empty<BenchmarkAreaTarget>();
+
+                if (targets.Count > 0)
+                {
+                    int targetIndex = targets.ToList().FindIndex(target => target.Id == targetProperty.stringValue);
+                    if (targetIndex < 0)
+                        targetIndex = 0;
+                    int newTargetIndex = EditorGui.Popup(
+                        new GUIContent("Target Area", "Area evaluated by every run of this scenario."),
+                        targetIndex,
+                        targets.Select(target => target.DisplayName).ToArray());
+                    targetProperty.stringValue = targets[Mathf.Clamp(newTargetIndex, 0, targets.Count - 1)].Id;
+                    return;
+                }
+
+                EditorGUILayout.HelpBox("No target areas were found in the selected scene.", MessageType.Warning);
                 return;
             }
 
-            bool confirmed = EditorUtility.DisplayDialog(
-                "Prepare Outdoor Evaluation",
-                "This rewrites the canonical Outdoor scene semantics, related asset definitions, " +
-                "asset pool, generation preset, and thesis-suite configuration. Continue?",
-                "Prepare / Reset",
-                "Cancel");
-            if (!confirmed || !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-                return;
-
-            try
+            string status = !sceneAsset
+                ? "Select a scene first"
+                : string.IsNullOrWhiteSpace(targetProperty.stringValue)
+                    ? "Open scene to select"
+                    : "Saved in scene";
+            using (new EditorGUI.DisabledScope(true))
             {
-                int selectedScenario = _selectedScenario;
-                string summary = OutdoorEvaluationSetupUtility.Prepare();
-                GenerationEvaluationSuite suite = AssetDatabase.LoadAssetAtPath<GenerationEvaluationSuite>(
-                    ThesisEvaluationSuiteFactory.SuitePath);
-                SetSuite(suite);
-                _selectedScenario = Mathf.Clamp(selectedScenario, 0, Mathf.Max(0, suite.Scenarios.Count - 1));
-                _validationMessage = string.Empty;
-                Debug.Log(summary);
+                EditorGUILayout.TextField(
+                    new GUIContent(
+                        "Target Area",
+                        "The saved target is resolved automatically after the evaluation opens this scene. " +
+                        "Open the scene to change the target."),
+                    status);
             }
-            catch (Exception exception)
-            {
-                _validationMessage = exception.Message;
-                Debug.LogException(exception);
-            }
-
-            GUIUtility.ExitGUI();
         }
 
         private void DrawReport()
@@ -347,85 +612,223 @@ namespace Genix.Editor.Evaluation
             EditorGUILayout.Space(5f);
             using (new EditorGUILayout.HorizontalScope())
             {
+                GUILayout.Space(SectionHorizontalPadding);
                 EditorGUILayout.LabelField("Evaluation Report", EditorStyles.boldLabel);
                 GUILayout.FlexibleSpace();
-                DrawKindFilter();
+                DrawReportFilters();
+                GUILayout.Space(SectionHorizontalPadding);
             }
 
             IReadOnlyList<(GenerationEvaluationRunRecord Run, int Index)> filtered = runs
                 .Select((run, index) => (run, index))
-                .Where(item => !_kindFilter.HasValue || item.run.scenarioKind == _kindFilter.Value.ToString())
+                .Where(item => MatchesReportFilters(item.run))
                 .ToArray();
-            int automaticFailures = runs.Count(run => run.AutomaticVerdict == EvaluationAutomaticVerdict.Failed);
-            int automaticIncomplete = runs.Count(run => run.AutomaticVerdict == EvaluationAutomaticVerdict.Incomplete);
-            int reviewable = runs.Count(run => run.HasLayoutReference);
-            int reviewed = runs.Count(run => run.VisualReviewCompleted);
-            EditorGUILayout.LabelField(
-                $"Runs {runs.Count:N0} | Automatic failures {automaticFailures:N0} | Incomplete evidence {automaticIncomplete:N0} | Saved layouts reviewed {reviewed:N0}/{reviewable:N0}",
-                EditorStyles.miniLabel);
-            if (_report)
+            if (filtered.Count > 0 && filtered.All(item => item.Index != _selectedRun))
             {
+                _selectedRun = filtered[0].Index;
+                _runScroll = Vector2.zero;
+            }
+            GenerationEvaluationRunRecord[] visibleRuns = filtered
+                .Select(item => item.Run)
+                .ToArray();
+            int automaticFailures = visibleRuns.Count(
+                run => run.AutomaticVerdict == EvaluationAutomaticVerdict.Failed);
+            int automaticIncomplete = visibleRuns.Count(
+                run => run.AutomaticVerdict == EvaluationAutomaticVerdict.Incomplete);
+            int reviewable = visibleRuns.Count(run => run.HasLayoutReference);
+            int reviewed = visibleRuns.Count(run => run.VisualReviewCompleted);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(SectionHorizontalPadding);
                 EditorGUILayout.LabelField(
-                    $"Campaign scope {_report.RunScope} | Completed runs {runs.Count:N0}/{_report.ExpectedRunCount:N0} | Cancelled {_report.CampaignCancelled}",
+                    $"Showing {visibleRuns.Length:N0}/{runs.Count:N0} runs | Automatic failures {automaticFailures:N0} | Incomplete evidence {automaticIncomplete:N0} | Saved layouts reviewed {reviewed:N0}/{reviewable:N0}",
                     EditorStyles.miniLabel);
-                if (!_report.CampaignCompleted || runs.Count != _report.ExpectedRunCount)
+                GUILayout.Space(SectionHorizontalPadding);
+            }
+            bool hasCampaignMetadata = _report && _report.ExpectedRunCount > 0;
+            if (hasCampaignMetadata &&
+                (!_report.CampaignCompleted || runs.Count != _report.ExpectedRunCount))
+            {
+                string reason = _report.CampaignCancelled
+                    ? "The campaign was stopped before completion."
+                    : "The campaign did not complete all expected runs.";
+                EditorGUILayout.HelpBox(
+                    $"Partial report: {runs.Count:N0} of {_report.ExpectedRunCount:N0} runs completed. {reason}",
+                    MessageType.Warning);
+            }
+
+            Rect paneStart = GUILayoutUtility.GetRect(0f, 0f, GUILayout.ExpandWidth(true));
+            if (Event.current.type == EventType.Repaint &&
+                Mathf.Abs(_reportPaneTop - paneStart.y) > 0.5f)
+            {
+                _reportPaneTop = paneStart.y;
+                Repaint();
+            }
+
+            float bottomChrome = EditorGUIUtility.standardVerticalSpacing * 3f;
+            float availableHeight = _reportPaneTop > 0f
+                ? position.height - _reportPaneTop - bottomChrome
+                : ReportPaneHeight;
+            float paneHeight = Mathf.Max(
+                ReportPaneHeight,
+                availableHeight);
+            using (new EditorGUILayout.HorizontalScope(GUILayout.Height(paneHeight)))
+            {
+                GUILayout.Space(SectionHorizontalPadding);
+                float contentWidth = Mathf.Max(1f, position.width - SectionHorizontalPadding * 2f);
+                float listWidth = DeveloperWindowUi.ResponsiveListWidth(contentWidth, 240f, 500f);
+                DrawRunList(filtered, paneHeight, listWidth);
+                GUILayout.Space(PaneSpacing);
+                if (filtered.Count > 0)
+                    DrawRunDetails(runs, paneHeight);
+                else
+                    DrawEmptyRunDetails(paneHeight);
+                GUILayout.Space(SectionHorizontalPadding);
+            }
+        }
+
+        private void DrawReportFilters()
+        {
+            EditorGUI.BeginChangeCheck();
+
+            string[] scenarioLabels = { "All scenarios", "Isolated", "Real World", "Performance" };
+            int selectedScenario = _kindFilter.HasValue ? (int)_kindFilter.Value + 1 : 0;
+            int changedScenario = EditorGui.Popup(
+                selectedScenario,
+                scenarioLabels,
+                GUILayout.Width(125f));
+            _kindFilter = changedScenario == 0
+                ? null
+                : (EvaluationScenarioKind?)(changedScenario - 1);
+
+            _resultFilter = (AutomaticResultFilter)EditorGui.Popup(
+                (int)_resultFilter,
+                new[] { "All results", "Passed", "Failed", "Incomplete" },
+                GUILayout.Width(115f));
+
+            _reviewFilter = (VisualReviewFilter)EditorGui.Popup(
+                (int)_reviewFilter,
+                new[]
                 {
-                    EditorGUILayout.HelpBox(
-                        "This report does not contain a complete campaign for its recorded invocation scope. Retain it as partial evidence and rerun before using it as a final campaign.",
-                        MessageType.Warning);
+                    "All review states",
+                    "Needs review",
+                    "Reviewed",
+                    "Rating: Pass",
+                    "Rating: Acceptable",
+                    "Rating: Fail",
+                    "No layout"
+                },
+                GUILayout.Width(145f));
+
+            if (EditorGUI.EndChangeCheck())
+                _runScroll = Vector2.zero;
+        }
+
+        private bool MatchesReportFilters(GenerationEvaluationRunRecord run)
+        {
+            if (_kindFilter.HasValue && run.scenarioKind != _kindFilter.Value.ToString())
+                return false;
+
+            bool resultMatches = _resultFilter switch
+            {
+                AutomaticResultFilter.Passed => run.AutomaticVerdict == EvaluationAutomaticVerdict.Passed,
+                AutomaticResultFilter.Failed => run.AutomaticVerdict == EvaluationAutomaticVerdict.Failed,
+                AutomaticResultFilter.Incomplete => run.AutomaticVerdict == EvaluationAutomaticVerdict.Incomplete,
+                _ => true
+            };
+            if (!resultMatches)
+                return false;
+
+            return _reviewFilter switch
+            {
+                VisualReviewFilter.NeedsReview =>
+                    run.HasLayoutReference && run.visualRating == EvaluationVisualRating.NotReviewed,
+                VisualReviewFilter.Reviewed => run.VisualReviewCompleted,
+                VisualReviewFilter.Pass =>
+                    run.HasLayoutReference && run.visualRating == EvaluationVisualRating.Pass,
+                VisualReviewFilter.Acceptable =>
+                    run.HasLayoutReference && run.visualRating == EvaluationVisualRating.Acceptable,
+                VisualReviewFilter.Fail =>
+                    run.HasLayoutReference && run.visualRating == EvaluationVisualRating.Fail,
+                VisualReviewFilter.NoLayout => !run.HasLayoutReference,
+                _ => true
+            };
+        }
+
+        private void DrawRunList(
+            IReadOnlyList<(GenerationEvaluationRunRecord Run, int Index)> filtered,
+            float paneHeight,
+            float listWidth)
+        {
+            int selectedIndex = -1;
+            for (int index = 0; index < filtered.Count; index++)
+            {
+                if (filtered[index].Index == _selectedRun)
+                {
+                    selectedIndex = index;
+                    break;
                 }
             }
 
-            using (new EditorGUILayout.HorizontalScope())
+            int activated = DeveloperWindowUi.VirtualizedSelectableList(
+                ref _runScroll,
+                filtered.Count,
+                selectedIndex,
+                index => CreateRunLabel(filtered[index].Run),
+                listWidth,
+                paneHeight,
+                background: DeveloperWindowUi.PaneStyle);
+            if (activated >= 0)
+                _selectedRun = filtered[activated].Index;
+        }
+
+        private static GUIContent CreateRunLabel(GenerationEvaluationRunRecord run)
+        {
+            string automatic = run.AutomaticVerdict switch
             {
-                DrawRunList(filtered);
-                GUILayout.Space(6f);
-                DrawRunDetails(runs);
+                EvaluationAutomaticVerdict.Passed => "Pass",
+                EvaluationAutomaticVerdict.Incomplete => "Incomplete",
+                _ => "Fail"
+            };
+            string review = !run.HasLayoutReference
+                ? "No layout"
+                : run.visualRating == EvaluationVisualRating.NotReviewed
+                    ? "-"
+                    : run.visualRating.ToString();
+            string label = $"{automatic} | {review} | {run.scenario} | {run.seed}";
+            return new GUIContent(label, label);
+        }
+
+        private static void DrawEmptyRunDetails(float paneHeight)
+        {
+            using (new EditorGUILayout.VerticalScope(
+                       DeveloperWindowUi.PaneStyle,
+                       GUILayout.ExpandWidth(true),
+                       GUILayout.Height(paneHeight)))
+            {
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.LabelField(
+                    "No runs match the selected filters.",
+                    EditorStyles.centeredGreyMiniLabel);
+                GUILayout.FlexibleSpace();
             }
         }
 
-        private void DrawKindFilter()
+        private void DrawRunDetails(IReadOnlyList<GenerationEvaluationRunRecord> runs, float paneHeight)
         {
-            string[] labels = { "All", "Isolated", "Integrated", "Performance" };
-            int selected = _kindFilter.HasValue ? (int)_kindFilter.Value + 1 : 0;
-            int changed = EditorGui.Popup(selected, labels, GUILayout.Width(110f));
-            _kindFilter = changed == 0 ? null : (EvaluationScenarioKind?)(changed - 1);
-        }
-
-        private void DrawRunList(IReadOnlyList<(GenerationEvaluationRunRecord Run, int Index)> filtered)
-        {
-            float listWidth = DeveloperWindowUi.ResponsiveListWidth(position.width, 300f, 500f, 0.38f, 430f);
-            _runScroll = EditorGUILayout.BeginScrollView(_runScroll, EditorStyles.helpBox, GUILayout.Width(listWidth), GUILayout.Height(220f));
-            foreach ((GenerationEvaluationRunRecord run, int index) in filtered)
-            {
-                string automatic = run.AutomaticVerdict switch
-                {
-                    EvaluationAutomaticVerdict.Passed => "PASS",
-                    EvaluationAutomaticVerdict.Incomplete => "INCOMPLETE",
-                    _ => "FAIL"
-                };
-                string review = !run.HasLayoutReference
-                    ? "NO LAYOUT"
-                    : run.visualRating == EvaluationVisualRating.NotReviewed
-                        ? "-"
-                        : run.visualRating.ToString();
-                string label = $"{automatic} | {review} | {run.scenario} | {run.seed}";
-                if (DeveloperWindowUi.SelectableRow(index == _selectedRun, new GUIContent(label, label), 23f, listWidth - 20f))
-                    _selectedRun = index;
-            }
-            EditorGUILayout.EndScrollView();
-        }
-
-        private void DrawRunDetails(IReadOnlyList<GenerationEvaluationRunRecord> runs)
-        {
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.ExpandWidth(true), GUILayout.Height(300f)))
+            using (new EditorGUILayout.VerticalScope(
+                       DeveloperWindowUi.PaneStyle,
+                       GUILayout.ExpandWidth(true),
+                       GUILayout.Height(paneHeight)))
             {
                 _selectedRun = Mathf.Clamp(_selectedRun, 0, runs.Count - 1);
                 GenerationEvaluationRunRecord run = runs[_selectedRun];
                 bool hasLayoutReference = run.HasLayoutReference;
                 bool missingLayoutAsset = run.HasMissingLayoutAsset;
                 EditorGUILayout.LabelField(run.scenario, EditorStyles.boldLabel);
-                EditorGUILayout.LabelField($"Seed {run.seed} | Placed {run.placedCount}/{run.requestedCount} | {run.scene}", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField(
+                    $"Seed {run.seed} | Placed {run.placedCount}/{run.requestedCount}",
+                    EditorStyles.miniLabel);
 
                 _reportDetailsScroll = EditorGUILayout.BeginScrollView(
                     _reportDetailsScroll,
@@ -436,9 +839,14 @@ namespace Genix.Editor.Evaluation
                 DrawAssetCounts(run.assetCounts);
                 EditorGUILayout.Space(2f);
                 foreach (GenerationEvaluationCheckRecord check in run.checks)
+                {
+                    string violationCount = check.status == EvaluationCheckStatus.Failed
+                        ? $" ({check.violations})"
+                        : string.Empty;
                     EditorGUILayout.LabelField(
-                        new GUIContent($"{check.status}: {check.name} ({check.violations})", check.message),
+                        new GUIContent($"{check.status}: {check.name}{violationCount}", check.message),
                         EditorStyles.miniLabel);
+                }
                 EditorGUILayout.EndScrollView();
 
                 if (_report && !hasLayoutReference)
@@ -459,7 +867,7 @@ namespace Genix.Editor.Evaluation
                 {
                     EditorGUI.BeginChangeCheck();
                     run.visualRating = (EvaluationVisualRating)EditorGUILayout.EnumPopup(
-                        new GUIContent("Visual Rating", "Pass = no evaluation-relevant visible defect under the frozen rubric; Acceptable = one or more minor visible defects, no major defect, and a valid tested configuration; Fail = at least one major visible defect that invalidates the tested condition."),
+                        new GUIContent("Visual Rating", "Pass = no evaluation-relevant visible defect; Acceptable = one or more minor visible defects without invalidating the tested configuration; Fail = at least one major visible defect that invalidates the tested condition."),
                         run.visualRating);
                     run.visualNotes = EditorGUILayout.TextField(
                         new GUIContent("Review Notes", "For Acceptable or Fail, name the rubric category, affected object(s), and observable defect."),
@@ -493,23 +901,32 @@ namespace Genix.Editor.Evaluation
 
         private void DrawScenarioCoverage(IReadOnlyList<GenerationEvaluationRunRecord> runs, string scenario)
         {
-            GenerationEvaluationRunRecord[] scenarioRuns = runs
-                .Where(run => string.Equals(run.scenario, scenario, StringComparison.Ordinal))
-                .ToArray();
+            if (!_coverageByScenario.TryGetValue(scenario, out ScenarioCoverageSnapshot coverage))
+            {
+                GenerationEvaluationRunRecord[] scenarioRuns = runs
+                    .Where(run => string.Equals(run.scenario, scenario, StringComparison.Ordinal))
+                    .ToArray();
+                coverage = new ScenarioCoverageSnapshot(
+                    scenarioRuns.Length,
+                    GenerationEvaluationCoverage.BuildAssetCoverage(scenarioRuns),
+                    GenerationEvaluationCoverage.BuildSupportCoverage(scenarioRuns));
+                _coverageByScenario[scenario] = coverage;
+            }
+
             _showScenarioCoverage = EditorGUILayout.Foldout(
                 _showScenarioCoverage,
-                $"Scenario Coverage ({scenarioRuns.Length:N0} runs)",
+                $"Scenario Coverage ({coverage.RunCount:N0} runs)",
                 true);
             if (!_showScenarioCoverage)
                 return;
 
             DrawCoverageGroup(
                 "Assets",
-                GenerationEvaluationCoverage.BuildAssetCoverage(scenarioRuns),
+                coverage.Assets,
                 "Occurrence across this scenario's seeds. Eligible assets with zero occurrences remain visible; this is evidence, not an automatic failure.");
             DrawCoverageGroup(
                 "Supports",
-                GenerationEvaluationCoverage.BuildSupportCoverage(scenarioRuns),
+                coverage.Supports,
                 "Semantic support kinds used across this scenario's seeds. Counts are tag occurrences and do not change the automatic verdict.");
         }
 
@@ -603,20 +1020,17 @@ namespace Genix.Editor.Evaluation
             _validationMessage = string.Join("\n", GenerationEvaluationRunner.Validate(_suite));
         }
 
-        private void RefreshThesisSuite()
+        private void CreateSuite()
         {
-            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-                return;
-
-            try
-            {
-                SetSuite(ThesisEvaluationSuiteFactory.CreateOrRefresh(out _));
-                _validationMessage = string.Empty;
-            }
-            catch (Exception exception)
-            {
-                _validationMessage = exception.Message;
-            }
+            AssetFileService.EnsureFolder(DevToolsContentPaths.EvaluationSuites);
+            string path = AssetDatabase.GenerateUniqueAssetPath(
+                $"{DevToolsContentPaths.EvaluationSuites}/GenerationEvaluationSuite.asset");
+            GenerationEvaluationSuite suite = CreateInstance<GenerationEvaluationSuite>();
+            AssetDatabase.CreateAsset(suite, path);
+            AssetDatabase.SaveAssets();
+            RefreshSelectableAssets();
+            SetSuite(suite);
+            Selection.activeObject = suite;
         }
 
         private void OpenRun(GenerationEvaluationRunRecord run)
@@ -671,7 +1085,7 @@ namespace Genix.Editor.Evaluation
             int reviewable = _report.Runs.Count(run => run.HasLayoutReference);
             int valid = _report.Runs.Count(run => run.VisualReviewEvidenceValid);
             _validationMessage = invalid > 0
-                ? $"Export retained {invalid:N0} run(s) with invalid visual-review evidence. See runs.csv and summary.csv before using the export as final evidence."
+                ? $"Export retained {invalid:N0} run(s) with invalid visual-review evidence. Review runs.csv and summary.csv before using the export."
                 : valid < reviewable
                     ? $"Export retained {reviewable - valid:N0} saved layout(s) without complete valid visual-review evidence."
                     : string.Empty;
@@ -692,7 +1106,7 @@ namespace Genix.Editor.Evaluation
             {
                 EditorUtility.DisplayDialog(
                     "Clean Up Evaluation Layouts",
-                    $"Cleanup was stopped because {plan.MissingProtectedLayouts:N0} layout(s) referenced by the retained reports are already missing. Restore them or select a valid final campaign before cleanup.",
+                    $"Cleanup was stopped because {plan.MissingProtectedLayouts:N0} layout(s) referenced by the retained reports are already missing. Restore them or select a valid completed full-suite report before cleanup.",
                     "OK");
                 return;
             }
@@ -735,8 +1149,12 @@ namespace Genix.Editor.Evaluation
 
         private void HandleRunnerChanged()
         {
+            _coverageByScenario.Clear();
             if (!GenerationEvaluationRunner.IsRunning && GenerationEvaluationRunner.LastReport)
+            {
+                RefreshSelectableAssets();
                 SetReport(GenerationEvaluationRunner.LastReport);
+            }
             Repaint();
         }
 
@@ -752,12 +1170,46 @@ namespace Genix.Editor.Evaluation
         {
             _report = report;
             _selectedRun = 0;
+            _coverageByScenario.Clear();
             Remember(SelectedReportKey, report);
         }
 
-        private void EnsureSerializedSuite()
+        private void RefreshSelectableAssets()
         {
-            if (_serializedSuite == null || _serializedSuite.targetObject != _suite)
+            _evaluationSuites = FindProjectAssets<GenerationEvaluationSuite>();
+            _evaluationSuiteOptions = EditorAssets.CreateAssetOptions(_evaluationSuites);
+            _evaluationReports = FindProjectAssets<GenerationEvaluationReport>();
+            _evaluationReportOptions = EditorAssets.CreateAssetOptions(_evaluationReports);
+            _generationPresets = EditorAssets.LoadAssetsFromFolder<GenerationPreset>(
+                ProjectContentPaths.GenerationPresets,
+                (a, b) => string.Compare(a.name, b.name, StringComparison.OrdinalIgnoreCase));
+            _generationPresetOptions = EditorAssets.CreateAssetOptions(_generationPresets);
+            Repaint();
+        }
+
+        private static T[] FindProjectAssets<T>() where T : UnityEngine.Object
+        {
+            return AssetDatabase.FindAssets($"t:{typeof(T).Name}")
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .Select(AssetDatabase.LoadAssetAtPath<T>)
+                .Where(asset => asset)
+                .OrderBy(asset => asset.name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        private void HandleProjectChanged()
+        {
+            RefreshSelectableAssets();
+
+            if (!_suite || !_evaluationSuites.Contains(_suite))
+                SetSuite(_evaluationSuites.FirstOrDefault());
+            if (!_report || !_evaluationReports.Contains(_report))
+                SetReport(_evaluationReports.FirstOrDefault());
+        }
+
+        private void EnsureSerializedSuite(bool force = false)
+        {
+            if (force || _serializedSuite == null || _serializedSuite.targetObject != _suite)
                 _serializedSuite = new SerializedObject(_suite);
             else
                 _serializedSuite.Update();

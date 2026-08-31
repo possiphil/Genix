@@ -4,7 +4,12 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 UNITY_PROJECT="${GENIX_UNITY_PROJECT:-$SCRIPT_DIR/../../../../space-foundation-system}"
-SUITE_PATH="${1:-Assets/Genix/Benchmarks/ThesisPerformanceSuite.asset}"
+if (( $# < 1 )) || [[ -z "$1" ]]; then
+    echo "Usage: $0 <suite-asset-path> [scenario-index] [prepare-environment]" >&2
+    exit 2
+fi
+
+SUITE_PATH="$1"
 SCENARIO_INDEX="${2:--1}"
 PREPARE_ENVIRONMENT="${3:-true}"
 TIMEOUT_SECONDS="${GENIX_BENCHMARK_TIMEOUT:-7200}"

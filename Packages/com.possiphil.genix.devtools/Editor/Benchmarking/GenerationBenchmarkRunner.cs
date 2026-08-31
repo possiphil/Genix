@@ -172,7 +172,7 @@ namespace Genix.Editor.Benchmarking
             if (CompilationPipeline.codeOptimization != CodeOptimization.Release)
                 errors.Add("Unity Code Optimization must be set to Release before performance measurement.");
             if (Profiler.enabled)
-                errors.Add("Disable the Unity Profiler before running Primary benchmarks.");
+                errors.Add("Disable the Unity Profiler before measuring runtime.");
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)
                 errors.Add("Wait until Unity has finished compiling and importing assets.");
             if ((suite.CacheConditions & (BenchmarkCacheCondition.Cold | BenchmarkCacheCondition.Warm)) == 0)
@@ -182,7 +182,7 @@ namespace Genix.Editor.Benchmarking
             if ((suite.Measurements & BenchmarkMeasurementKind.Diagnostic) != 0 &&
                 (suite.Measurements & BenchmarkMeasurementKind.Primary) == 0)
             {
-                errors.Add("Diagnostic measurement requires Primary so instrumented plans can be checked against the authoritative run.");
+                errors.Add("Phase breakdown requires Runtime so the instrumented plan can be checked against the authoritative run.");
             }
 
             IReadOnlyList<IBenchmarkAreaResolver> resolvers = BenchmarkAreaResolverRegistry.CreateResolvers();
@@ -199,18 +199,26 @@ namespace Genix.Editor.Benchmarking
 
                 if (!scenario.Scene)
                     errors.Add($"{label}: Scene is missing.");
-                if (!scenario.AssetPool)
-                    errors.Add($"{label}: Asset Pool is missing.");
-                if (!scenario.StylePreset)
-                    errors.Add($"{label}: Style Preset is missing.");
-                if (scenario.PlacementTargets == PlacementTarget.None)
-                    errors.Add($"{label}: Select at least one Placement Target.");
+                if (!scenario.GenerationPreset)
+                {
+                    errors.Add($"{label}: Generation Preset is missing.");
+                }
+                else
+                {
+                    GenerationPresetSettings settings = scenario.GenerationPreset.Settings;
+                    if (!settings.AssetPool)
+                        errors.Add($"{label}: Generation Preset has no Asset Pool.");
+                    if (!settings.StylePreset)
+                        errors.Add($"{label}: Generation Preset has no Generation Style.");
+                    if (settings.PlacementTargets == PlacementTarget.None)
+                        errors.Add($"{label}: Generation Preset has no Placement Target.");
+                    if (settings.RelativePlacementSource == RelativePlacementSource.SelectedObjects)
+                        errors.Add($"{label}: Selected Objects cannot be restored across automatic scene switches. Use scene-layer anchors instead.");
+                }
                 if (scenario.ObjectCounts == null || !scenario.ObjectCounts.Any(count => count > 0))
                     errors.Add($"{label}: Add at least one positive Object Count.");
                 if (!resolvers.Any(resolver => resolver.ProviderId == scenario.AreaProviderId))
                     errors.Add($"{label}: Target provider '{scenario.AreaProviderId}' is not installed.");
-                if (scenario.RelativePlacement.Source == RelativePlacementSource.SelectedObjects)
-                    errors.Add($"{label}: Selected Objects cannot be restored across automatic scene switches. Use scene-layer anchors instead.");
             }
 
             if (scenarioCount == 0)
@@ -374,7 +382,8 @@ namespace Genix.Editor.Benchmarking
             Records.Add(record);
             _campaign.runs.Add(record);
             _workIndex++;
-            _status = $"{Records.Count:N0}/{WorkItems.Count:N0} runs, {item.Scenario.DisplayName}, {item.CacheCondition}, {item.Measurement}";
+            _status = $"{Records.Count:N0}/{WorkItems.Count:N0} runs, {item.Scenario.DisplayName}, " +
+                      $"{item.CacheCondition}, {BenchmarkMeasurementDisplay.Name(item.Measurement)}";
 
             if (_workIndex >= WorkItems.Count)
                 _state = RunnerState.RestoreScene;
@@ -435,21 +444,41 @@ namespace Genix.Editor.Benchmarking
         private static GenerationRequest CreateRequest(GenerationBenchmarkWorkItem item)
         {
             GenerationBenchmarkScenario scenario = item.Scenario;
+            GenerationPresetSettings settings = scenario.GenerationPreset.Settings;
+            LayerMask combinedLayers = settings.FloorSurfaceLayers |
+                                       settings.WallSurfaceLayers |
+                                       settings.CeilingSurfaceLayers;
+            AreaBuildSettings areaSettings = new(
+                settings.AreaDecompositionMode,
+                combinedLayers,
+                settings.FloorSurfaceLayers,
+                settings.WallSurfaceLayers,
+                settings.CeilingSurfaceLayers,
+                floorNormalYThreshold: Mathf.Cos(settings.FloorSurfaceAngleDegrees * Mathf.Deg2Rad),
+                ceilingNormalYThreshold: -Mathf.Cos(settings.CeilingSurfaceAngleDegrees * Mathf.Deg2Rad),
+                surfaceDiscoveryMode: settings.SurfaceDiscoveryMode);
+            RelativePlacementSettings relative = new(
+                settings.RelativePlacementSource,
+                settings.RelativeRadius,
+                settings.RelativeSceneLayers,
+                Array.Empty<Transform>());
+
             return new GenerationRequest(
                 AreaContext.AreaSource,
-                scenario.AssetPool,
+                settings.AssetPool,
                 item.ObjectCount,
-                scenario.PlacementTargets,
-                scenario.TargetDistributionMode,
-                scenario.TargetDistributionWeights,
-                scenario.StylePreset.Settings,
-                scenario.AreaBuildSettings,
-                scenario.RelativePlacement,
-                scenario.StylePreset.name,
+                settings.PlacementTargets,
+                settings.TargetDistributionMode,
+                settings.TargetDistributionWeights,
+                settings.StylePreset.Settings,
+                areaSettings,
+                relative,
+                settings.StylePreset.name,
                 useFixedSeed: true,
                 randomSeed: item.Seed,
-                bestEffort: scenario.BestEffort,
-                detailedDiagnostics: false);
+                bestEffort: settings.BestEffort,
+                detailedDiagnostics: false,
+                supportDistribution: settings.SupportDistribution);
         }
 
         private static void BuildWorkItems(GenerationBenchmarkSuite suite, int selectedScenario)

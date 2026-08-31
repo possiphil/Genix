@@ -1,6 +1,6 @@
 # Genix DevTools
 
-Genix DevTools is the optional developer and research companion to the designer-facing Genix package. It adds instrumentation, automated verification, reproducible performance campaigns, and thesis evaluation workflows without adding controls to the designer Generator.
+Genix DevTools is the optional developer and research companion to the designer-facing Genix package. It adds instrumentation, automated verification, reproducible performance campaigns, and quality-evaluation workflows without adding controls to the designer Generator.
 
 ## Workflows
 

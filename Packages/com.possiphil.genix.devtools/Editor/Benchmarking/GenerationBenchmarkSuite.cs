@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Genix.Areas;
-using Genix.Assets;
 using Genix.Core;
-using Genix.Styles;
 using UnityEditor;
 using UnityEngine;
 
@@ -29,16 +26,19 @@ namespace Genix.Editor.Benchmarking
         Diagnostic = 2
     }
 
-    /// <summary>Serializable relative-placement subset supported by unattended scene benchmarks.</summary>
-    [Serializable]
-    public sealed class BenchmarkRelativePlacement
+    internal static class BenchmarkMeasurementDisplay
     {
-        [SerializeField] private RelativePlacementSource source = RelativePlacementSource.None;
-        [SerializeField, Min(0.01f)] private float radius = 2f;
-        [SerializeField] private LayerMask sceneLayers = ~0;
+        public static string Name(BenchmarkMeasurementKind measurement) => measurement switch
+        {
+            BenchmarkMeasurementKind.Primary => "Runtime",
+            BenchmarkMeasurementKind.Diagnostic => "Phase breakdown",
+            _ => measurement.ToString()
+        };
 
-        /// <summary>Creates immutable runtime relative-placement settings.</summary>
-        public RelativePlacementSettings CreateSettings() => new(source, radius, sceneLayers, Array.Empty<Transform>());
+        public static string Name(string serializedMeasurement) =>
+            Enum.TryParse(serializedMeasurement, out BenchmarkMeasurementKind measurement)
+                ? Name(measurement)
+                : serializedMeasurement ?? string.Empty;
     }
 
     /// <summary>One scene and generation configuration expanded across counts, seeds, and cache states.</summary>
@@ -50,20 +50,10 @@ namespace Genix.Editor.Benchmarking
         [SerializeField] private SceneAsset scene;
         [SerializeField] private string areaProviderId = "space-foundation";
         [SerializeField] private string targetId = string.Empty;
-        [SerializeField] private AssetPool assetPool = null;
-        [SerializeField] private StylePreset stylePreset = null;
-        [SerializeField] private PlacementTarget placementTargets = PlacementTarget.InsideSpace;
-        [SerializeField] private TargetDistributionMode targetDistributionMode = TargetDistributionMode.Random;
-        [SerializeField] private TargetDistributionWeights targetDistributionWeights = new(1, 1, 1, 1);
-        [SerializeField] private AreaBuildSettings areaBuildSettings = new(
-            AreaDecompositionMode.Fast,
-            0,
-            surfaceDiscoveryMode: SurfaceDiscoveryMode.AllMatchingSurfacesInVolume);
-        [SerializeField] private BenchmarkRelativePlacement relativePlacement = new();
-        [SerializeField] private bool bestEffort = true;
-        [SerializeField] private List<int> objectCounts = new() { 100, 1000, 5000, 10000 };
+        [SerializeField] private GenerationPreset generationPreset;
+        [SerializeField] private List<int> objectCounts = new() { 100, 1000, 10000 };
 
-        /// <summary>Indicates whether the scenario participates in Run All Enabled.</summary>
+        /// <summary>Indicates whether the full suite includes this scenario.</summary>
         public bool Enabled => enabled;
         /// <summary>Gets the scenario label.</summary>
         public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? "Unnamed Scenario" : displayName.Trim();
@@ -73,60 +63,24 @@ namespace Genix.Editor.Benchmarking
         public string AreaProviderId => areaProviderId ?? string.Empty;
         /// <summary>Gets the stable target identifier, or an empty value when the scene has exactly one target.</summary>
         public string TargetId => targetId ?? string.Empty;
-        /// <summary>Gets the configured asset pool.</summary>
-        public AssetPool AssetPool => assetPool;
-        /// <summary>Gets the configured style preset.</summary>
-        public StylePreset StylePreset => stylePreset;
-        /// <summary>Gets the selected placement targets.</summary>
-        public PlacementTarget PlacementTargets => placementTargets & PlacementTarget.All;
-        /// <summary>Gets target distribution mode.</summary>
-        public TargetDistributionMode TargetDistributionMode => targetDistributionMode;
-        /// <summary>Gets target distribution weights.</summary>
-        public TargetDistributionWeights TargetDistributionWeights => targetDistributionWeights;
-        /// <summary>Gets area construction settings.</summary>
-        public AreaBuildSettings AreaBuildSettings => areaBuildSettings;
-        /// <summary>Gets relative placement settings.</summary>
-        public RelativePlacementSettings RelativePlacement => relativePlacement?.CreateSettings() ?? RelativePlacementSettings.Disabled;
-        /// <summary>Indicates whether valid partial plans are retained.</summary>
-        public bool BestEffort => bestEffort;
+        /// <summary>Gets the complete designer configuration measured by this scenario.</summary>
+        public GenerationPreset GenerationPreset => generationPreset;
         /// <summary>Gets requested object-count variants.</summary>
         public IReadOnlyList<int> ObjectCounts => objectCounts;
 
         /// <summary>Creates a scenario initialized for an evaluation scene.</summary>
-        public static GenerationBenchmarkScenario Create(string name, SceneAsset sceneAsset)
+        public static GenerationBenchmarkScenario Create(
+            string name,
+            SceneAsset sceneAsset,
+            GenerationPreset preset = null)
         {
             GenerationBenchmarkScenario scenario = new()
             {
                 displayName = string.IsNullOrWhiteSpace(name) ? "Benchmark Scenario" : name.Trim(),
                 scene = sceneAsset,
-                targetDistributionWeights = TargetDistributionWeights.Default,
-                areaBuildSettings = CreateDefaultAreaBuildSettings()
+                generationPreset = preset
             };
             return scenario;
-        }
-
-        internal void EnsureSurfaceLayerDefaults()
-        {
-            int combinedLayers = areaBuildSettings.floorSurfaceLayers.value |
-                                 areaBuildSettings.wallSurfaceLayers.value |
-                                 areaBuildSettings.ceilingSurfaceLayers.value;
-            if (combinedLayers != 0)
-                return;
-
-            areaBuildSettings = CreateDefaultAreaBuildSettings();
-        }
-
-        private static AreaBuildSettings CreateDefaultAreaBuildSettings()
-        {
-            int placementSurfaceLayer = LayerMask.NameToLayer("Placement Surface");
-            LayerMask surfaceLayers = placementSurfaceLayer >= 0 ? 1 << placementSurfaceLayer : 0;
-            return new AreaBuildSettings(
-                AreaDecompositionMode.Fast,
-                surfaceLayers,
-                floorSurfaceLayers: surfaceLayers,
-                wallSurfaceLayers: surfaceLayers,
-                ceilingSurfaceLayers: surfaceLayers,
-                surfaceDiscoveryMode: SurfaceDiscoveryMode.AllMatchingSurfacesInVolume);
         }
     }
 
@@ -164,9 +118,12 @@ namespace Genix.Editor.Benchmarking
         public IReadOnlyList<GenerationBenchmarkScenario> Scenarios => scenarios;
 
         /// <summary>Adds a benchmark scenario for the supplied scene.</summary>
-        public void AddScenario(string scenarioName, SceneAsset sceneAsset)
+        public void AddScenario(
+            string scenarioName,
+            SceneAsset sceneAsset,
+            GenerationPreset generationPreset = null)
         {
-            scenarios.Add(GenerationBenchmarkScenario.Create(scenarioName, sceneAsset));
+            scenarios.Add(GenerationBenchmarkScenario.Create(scenarioName, sceneAsset, generationPreset));
         }
 
         /// <summary>Removes a benchmark scenario by index.</summary>
@@ -176,13 +133,7 @@ namespace Genix.Editor.Benchmarking
                 scenarios.RemoveAt(index);
         }
 
-        private void OnEnable()
-        {
-            EnsureSeeds();
-
-            foreach (GenerationBenchmarkScenario scenario in scenarios)
-                scenario?.EnsureSurfaceLayerDefaults();
-        }
+        private void OnEnable() => EnsureSeeds();
 
         private void OnValidate()
         {

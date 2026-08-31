@@ -180,7 +180,7 @@ namespace Genix.Editor.Evaluation
             for (int index = 0; index < suite.Scenarios.Count; index++)
             {
                 GenerationEvaluationScenario scenario = suite.Scenarios[index];
-                if (scenario == null || !scenario.Enabled || !scenario.Ready || selectedScenario >= 0 && index != selectedScenario)
+                if (scenario == null || !scenario.Enabled || selectedScenario >= 0 && index != selectedScenario)
                     continue;
 
                 scenarioCount++;
@@ -193,11 +193,11 @@ namespace Genix.Editor.Evaluation
                 {
                     GenerationPresetSettings settings = scenario.GenerationPreset.Settings;
                     if (!settings.AssetPool)
-                        errors.Add($"{label}: Preset Asset Pool is missing.");
+                        errors.Add($"{label}: Generation Preset has no Asset Pool.");
                     if (!settings.StylePreset)
-                        errors.Add($"{label}: Preset Style is missing.");
+                        errors.Add($"{label}: Generation Preset has no Generation Style.");
                     if (settings.PlacementTargets == PlacementTarget.None)
-                        errors.Add($"{label}: Preset has no Placement Target.");
+                        errors.Add($"{label}: Generation Preset has no Placement Target.");
                     if (settings.RelativePlacementSource == RelativePlacementSource.SelectedObjects)
                         errors.Add($"{label}: Selected Objects cannot be restored across automatic scene switches.");
                 }
@@ -208,21 +208,13 @@ namespace Genix.Editor.Evaluation
 
             if (scenarioCount == 0)
                 errors.Add(selectedScenario >= 0
-                    ? "The selected scenario is disabled, unfinished, or missing."
-                    : "Enable and mark at least one evaluation scenario as ready.");
+                    ? "The selected scenario is disabled or missing."
+                    : "Enable at least one evaluation scenario.");
 
             if (suite.Seeds == null || suite.Seeds.Count < suite.RunsPerScenario)
                 errors.Add($"The suite needs at least {suite.RunsPerScenario} deterministic seeds.");
             else if (suite.Seeds.Take(suite.RunsPerScenario).Distinct().Count() != suite.RunsPerScenario)
                 errors.Add($"The first {suite.RunsPerScenario} deterministic seeds must be unique.");
-
-            if (string.Equals(
-                    AssetDatabase.GetAssetPath(suite),
-                    ThesisEvaluationSuiteFactory.SuitePath,
-                    StringComparison.Ordinal))
-            {
-                errors.AddRange(ThesisEvaluationSuiteFactory.ValidateCanonicalConfiguration(suite));
-            }
 
             return errors;
         }
@@ -574,7 +566,7 @@ namespace Genix.Editor.Evaluation
             for (int scenarioIndex = 0; scenarioIndex < suite.Scenarios.Count; scenarioIndex++)
             {
                 GenerationEvaluationScenario scenario = suite.Scenarios[scenarioIndex];
-                if (scenario == null || !scenario.Enabled || !scenario.Ready ||
+                if (scenario == null || !scenario.Enabled ||
                     selectedScenario >= 0 && scenarioIndex != selectedScenario)
                     continue;
 

@@ -67,6 +67,9 @@ namespace Genix.Editor.Benchmarking
 
             try
             {
+                if (string.IsNullOrWhiteSpace(request.suiteAssetPath))
+                    throw new InvalidOperationException("A suiteAssetPath is required.");
+
                 if (request.prepareEnvironment)
                 {
                     Profiler.enabled = false;
@@ -152,7 +155,7 @@ namespace Genix.Editor.Benchmarking
         [Serializable]
         private sealed class BenchmarkCommandRequest
         {
-            public string suiteAssetPath = "Assets/Genix/Benchmarks/ThesisPerformanceSuite.asset";
+            public string suiteAssetPath = string.Empty;
             public int scenarioIndex = -1;
             public bool validateOnly = false;
             public bool prepareEnvironment;

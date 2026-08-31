@@ -1,6 +1,7 @@
 using System.Collections.Generic;
-using Genix.Editor.Utilities;
 using Genix.Assets;
+using Genix.Core;
+using Genix.Editor.Utilities;
 using Genix.Styles;
 using UnityEditor;
 using UnityEngine;
@@ -34,12 +35,22 @@ namespace Genix.Editor.Drawers
             return DrawDropdownWithEditButton(label, assetPools, options, selectedPool, "No Asset Pools Found");
         }
 
+        /// <summary>Draws a generation-preset selector with a shortcut to inspect the selected preset.</summary>
+        public static GenerationPreset DrawGenerationPresetDropdownWithEditButton(
+            GUIContent label,
+            IReadOnlyList<GenerationPreset> presets,
+            string[] options,
+            GenerationPreset selectedPreset)
+        {
+            return DrawDropdownWithEditButton(label, presets, options, selectedPreset, "No Generation Presets Found");
+        }
+
         private static T DrawDropdown<T>(GUIContent label, IReadOnlyList<T> assets, string[] options, T selectedAsset, string emptyLabel) where T : Object
         {
             if (assets == null || assets.Count == 0)
             {
                 DrawEmptyDropdown(label, emptyLabel);
-                return null;
+                return selectedAsset;
             }
 
             if (options == null || options.Length != assets.Count)

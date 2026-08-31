@@ -21,6 +21,11 @@ namespace Genix.Tests
     [Category(GenixTestCategories.WorkflowArea)]
     public sealed class GenerationEvaluationTests
     {
+        private const string OutdoorScenePath =
+            "Packages/com.possiphil.genix.devtools/Evaluation/Scenes/RealWorld/OutdoorEnvironment.unity";
+        private const string OutdoorPoolPath = "Assets/Genix/Assets/Pools/EvalOutdoorPool.asset";
+        private const string OutdoorPresetPath = "Assets/Genix/Generation Presets/OutdoorEval.asset";
+
         [Test]
         public void SuiteCreatesStableDistinctTwentySeedSample()
         {
@@ -76,22 +81,6 @@ namespace Genix.Tests
             {
                 Object.DestroyImmediate(suite);
             }
-        }
-
-        [Test]
-        public void ThesisSuiteUsesFrozenSummativeSeedBlock()
-        {
-            int[] expected =
-            {
-                -1851488837, 594494322, -1423066958, -1689967793, -625522695,
-                2068292989, 1927287721, 1647605635, 1950899649, -2114452199,
-                -1439182028, 1518213276, -1260957334, -2118255369, -96239834,
-                559500117, 239994572, 476828007, -1364768060, -1207775653
-            };
-
-            Assert.That(ThesisEvaluationSuiteFactory.FinalRunsPerScenario, Is.EqualTo(20));
-            Assert.That(ThesisEvaluationSuiteFactory.FinalSettleFrames, Is.EqualTo(2));
-            Assert.That(ThesisEvaluationSuiteFactory.FinalSeeds, Is.EqualTo(expected));
         }
 
         [Test]
@@ -296,8 +285,14 @@ namespace Genix.Tests
         [Test]
         public void CleanupFindsPersistedReportsWithoutTypeIndex()
         {
-            GenerationEvaluationSuite suite = AssetDatabase.LoadAssetAtPath<GenerationEvaluationSuite>(
-                ThesisEvaluationSuiteFactory.SuitePath);
+            string suiteGuid = AssetDatabase.FindAssets(
+                    "t:GenerationEvaluationSuite",
+                    new[] { DevToolsContentPaths.EvaluationSuites })
+                .FirstOrDefault();
+            GenerationEvaluationSuite suite = string.IsNullOrWhiteSpace(suiteGuid)
+                ? null
+                : AssetDatabase.LoadAssetAtPath<GenerationEvaluationSuite>(
+                    AssetDatabase.GUIDToAssetPath(suiteGuid));
             string[] persistedReports = AssetDatabase.IsValidFolder(DevToolsContentPaths.EvaluationReports)
                 ? AssetDatabase.FindAssets(string.Empty, new[] { DevToolsContentPaths.EvaluationReports })
                 : System.Array.Empty<string>();
@@ -581,12 +576,12 @@ namespace Genix.Tests
         [Test]
         public void OutdoorSceneUsesBroadSemanticRegionsAndReusablePathSources()
         {
-            Scene scene = SceneManager.GetSceneByPath(OutdoorEvaluationSetupUtility.ScenePath);
+            Scene scene = SceneManager.GetSceneByPath(OutdoorScenePath);
             bool closeAfterTest = !scene.IsValid() || !scene.isLoaded;
             if (closeAfterTest)
             {
                 scene = EditorSceneManager.OpenScene(
-                    OutdoorEvaluationSetupUtility.ScenePath,
+                    OutdoorScenePath,
                     OpenSceneMode.Additive);
             }
 
@@ -706,9 +701,9 @@ namespace Genix.Tests
                 "Assets/Genix/Assets/Tags/Values/Function/Rest Area.asset");
             SemanticTag signage = AssetDatabase.LoadAssetAtPath<SemanticTag>(
                 "Assets/Genix/Assets/Tags/Values/Role/Signage.asset");
-            AssetPool pool = AssetDatabase.LoadAssetAtPath<AssetPool>(OutdoorEvaluationSetupUtility.PoolPath);
+            AssetPool pool = AssetDatabase.LoadAssetAtPath<AssetPool>(OutdoorPoolPath);
             GenerationPreset preset = AssetDatabase.LoadAssetAtPath<GenerationPreset>(
-                OutdoorEvaluationSetupUtility.PresetPath);
+                OutdoorPresetPath);
 
             Assert.That(trailSign, Is.Not.Null);
             Assert.That(cliffRock, Is.Not.Null);

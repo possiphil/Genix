@@ -69,7 +69,7 @@ Scene-scale timing is intentionally separate from correctness testing. Use the [
 
 Use **Coverage** in the dashboard to open **Window > Analysis > Code Coverage**. Enable coverage, include `Genix.Runtime`, `Genix.Editor.Common`, `Genix.Editor`, and `Genix.SpaceFoundation.Editor`, enable automatic HTML report generation, then run Full from the dashboard. Coverage identifies unexecuted code; it does not show whether assertions are strong, so report it together with property results and the mutation score.
 
-For thesis evaluation, retain the generated HTML report and record statement and branch coverage separately. Exclude generated code, third-party packages, and Unity framework assemblies from the denominator.
+For coverage reporting, retain the generated HTML report and record statement and branch coverage separately. Exclude generated code, third-party packages, and Unity framework assemblies from the denominator.
 
 ## Mutation testing
 

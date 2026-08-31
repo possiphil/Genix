@@ -28,7 +28,7 @@ namespace Genix.Editor.Evaluation
         public string SuiteAssetPath => suiteAssetPath;
         /// <summary>Gets the campaign creation timestamp in UTC.</summary>
         public string CreatedAtUtc => createdAtUtc;
-        /// <summary>Gets whether the report represents Run All or a selected-scenario invocation.</summary>
+        /// <summary>Gets whether the report represents a full-suite or selected-scenario invocation.</summary>
         public string RunScope => string.IsNullOrWhiteSpace(runScope) ? "Unknown" : runScope;
         /// <summary>Gets the selected scenario index, or -1 for a full-suite invocation.</summary>
         public int SelectedScenarioIndex => selectedScenarioIndex;

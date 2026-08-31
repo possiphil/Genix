@@ -3,8 +3,8 @@
 Optional development tooling for the Genix designer package.
 
 The package contains the test dashboard and test assemblies, generation profiler,
-performance benchmarks, automated evaluation runner, evaluation scenes, and thesis
-evaluation assets. It depends on `com.possiphil.genix`; the designer package has no
+performance benchmarks, automated evaluation runner, and evaluation scenes. It
+depends on `com.possiphil.genix`; the designer package has no
 dependency on this package.
 
 See the [DevTools documentation](Documentation~/index.md) for prerequisites and workflows.

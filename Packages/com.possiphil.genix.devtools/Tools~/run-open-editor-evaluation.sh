@@ -4,9 +4,13 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 UNITY_PROJECT="${GENIX_UNITY_PROJECT:-$SCRIPT_DIR/../../../../space-foundation-system}"
-SUITE_PATH="${1:-Assets/Genix/Evaluations/Suites/ThesisQualityEvaluation.asset}"
+if (( $# < 1 )) || [[ -z "$1" ]]; then
+    echo "Usage: $0 <suite-asset-path> [scenario-index]" >&2
+    exit 2
+fi
+
+SUITE_PATH="$1"
 SCENARIO_INDEX="${2:--1}"
-REFRESH_SUITE="${3:-false}"
 TIMEOUT_SECONDS="${GENIX_EVALUATION_TIMEOUT:-7200}"
 COMMAND_DIR="$UNITY_PROJECT/Library/Genix"
 REQUEST_PATH="$COMMAND_DIR/EvaluationCommandRequest.json"
@@ -20,8 +24,8 @@ fi
 
 mkdir -p "$COMMAND_DIR"
 rm -f "$RESPONSE_PATH"
-printf '{"suiteAssetPath":"%s","scenarioIndex":%s,"refreshThesisSuite":%s}\n' \
-    "$SUITE_PATH" "$SCENARIO_INDEX" "$REFRESH_SUITE" > "$REQUEST_PATH"
+printf '{"suiteAssetPath":"%s","scenarioIndex":%s}\n' \
+    "$SUITE_PATH" "$SCENARIO_INDEX" > "$REQUEST_PATH"
 echo "Requested Genix evaluation from the open Unity editor..."
 START_TIME="$(date +%s)"
 
