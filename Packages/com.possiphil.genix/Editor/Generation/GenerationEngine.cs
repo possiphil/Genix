@@ -131,7 +131,7 @@ namespace Genix.Editor.Generation
         {
             string message = $"Required asset relations could not be completed.{relationPlanner.FailureSummary}";
             return context.BestEffort && context.Plan.Count > 0
-                ? GenerationOutcome.Partial(context.Plan.Count, $"Best Effort planned {context.Plan.Count} objects. {message}")
+                ? GenerationOutcome.Partial(context.Plan.Count, $"Partial result planned {context.Plan.Count} objects. {message}")
                 : GenerationOutcome.Failed(context.Plan.Count, message);
         }
 
@@ -148,7 +148,7 @@ namespace Genix.Editor.Generation
 
             string message = $"Required shared tag counts could not be completed.{unmetMinimums}";
             return context.BestEffort && context.Plan.Count > 0
-                ? GenerationOutcome.Partial(context.Plan.Count, $"Best Effort planned {context.Plan.Count} objects. {message}")
+                ? GenerationOutcome.Partial(context.Plan.Count, $"Partial result planned {context.Plan.Count} objects. {message}")
                 : GenerationOutcome.Failed(context.Plan.Count, message);
         }
     }

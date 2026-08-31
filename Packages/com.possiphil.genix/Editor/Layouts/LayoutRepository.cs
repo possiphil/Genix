@@ -178,7 +178,7 @@ namespace Genix.Editor.Layouts
                 }
             }
 
-            LayoutPreviewService.ClearAll();
+            LayoutPreviewService.Clear();
             AssetDatabase.StartAssetEditing();
             try
             {
@@ -266,7 +266,7 @@ namespace Genix.Editor.Layouts
 
         private static void FinishChanges()
         {
-            LayoutPreviewService.ClearAll();
+            LayoutPreviewService.Clear();
             InvalidateCache();
             AssetDatabase.SaveAssets();
         }

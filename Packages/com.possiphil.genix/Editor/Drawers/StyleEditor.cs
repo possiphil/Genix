@@ -66,11 +66,11 @@ namespace Genix.Editor.Drawers
 
         private bool DrawPlacementSettings(StyleEditState state, Action<string, string, string> onInvalid)
         {
-            return DrawSettingsGroup(ref _showPlacementSettings, EditorGui.ChangedLabel("Placement Settings", state.HasPlacementSettingsChanged()),
+            return DrawSettingsGroup(ref _showPlacementSettings, EditorGui.ChangedLabel("Scene Clearance", state.HasPlacementSettingsChanged()),
                 () => {
                     state.EditingSettings.placement.useFixedObjectClearance = EditorGUILayout.Toggle(
-                        Explain(EditorGui.ChangedLabel("Fixed Clearance", state.HasPlacementUseFixedObjectClearanceChanged()),
-                            "Keep generated objects away from existing non-Genix scene colliders."),
+                        Explain(EditorGui.ChangedLabel("Avoid Existing Scene Objects", state.HasPlacementUseFixedObjectClearanceChanged()),
+                            "Keep generated objects away from existing non-Genix colliders."),
                         state.EditingSettings.placement.useFixedObjectClearance);
 
                     if (state.EditingSettings.placement is { useFixedObjectClearance: true, fixedObjectDistance: <= 0f })
@@ -78,7 +78,7 @@ namespace Genix.Editor.Drawers
 
                     if (state.EditingSettings.placement.useFixedObjectClearance)
                     {
-                        state.EditingSettings.placement.fixedObjectDistance = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Min Distance", state.HasPlacementFixedObjectDistanceChanged()),
+                        state.EditingSettings.placement.fixedObjectDistance = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Minimum Distance (units)", state.HasPlacementFixedObjectDistanceChanged()),
                                 "Minimum horizontal clearance from existing scene objects."),
                             state.EditingSettings.placement.fixedObjectDistance, state.SavedSettings.placement.fixedObjectDistance, "Fixed Object Distance",
                             value => value > 0f, GreaterThanZero, onInvalid);
@@ -91,7 +91,7 @@ namespace Genix.Editor.Drawers
         {
             EditorGUILayout.LabelField(
                 Explain(EditorGui.ChangedLabel("Description", state.HasDescriptionChanged()),
-                    "Designer-facing note that explains the visual intent and recommended use of this generation style."),
+                    "Summarize the visual result and when designers should use this style."),
                 EditorStyles.boldLabel);
 
             EditorGUI.BeginChangeCheck();
@@ -101,8 +101,8 @@ namespace Genix.Editor.Drawers
             EditorGUILayout.Space(4);
 
             state.EditingSettings.algorithm = (SamplingAlgorithm)EditorGUILayout.EnumPopup(
-                Explain(EditorGui.ChangedLabel("Algorithm", state.HasAlgorithmChanged()),
-                    "Random is unconstrained, Grid is regular, Jittered Grid adds controlled variation, Cluster groups points, and Bridson Poisson Disk produces even organic spacing."),
+                Explain(EditorGui.ChangedLabel("Distribution Method", state.HasAlgorithmChanged()),
+                    "Choose random, regular, varied-grid, clustered, or evenly spaced placement."),
                 state.EditingSettings.algorithm);
 
             return EditorGUI.EndChangeCheck();
@@ -110,15 +110,15 @@ namespace Genix.Editor.Drawers
 
         private bool DrawCandidateSettings(StyleEditState state, Action<string, string, string> onInvalid)
         {
-            return DrawSettingsGroup(ref _showCandidateSettings, EditorGui.ChangedLabel("Candidate Settings", state.HasCandidateSettingsChanged()),
+            return DrawSettingsGroup(ref _showCandidateSettings, EditorGui.ChangedLabel("Search Limits", state.HasCandidateSettingsChanged()),
                 () => {
-                    state.EditingSettings.candidates.multiplier = ValidatedField.DrawIntField(Explain(EditorGui.ChangedLabel("Candidate Multiplier", state.HasCandidateMultiplierChanged()),
-                            "Hard candidate-position budget per requested object. Higher values improve the chance of filling constrained areas but increase worst-case work. Lazy generation still stops as soon as the requested count is reached."),
+                    state.EditingSettings.candidates.multiplier = ValidatedField.DrawIntField(Explain(EditorGui.ChangedLabel("Candidates per Object", state.HasCandidateMultiplierChanged()),
+                            "Increase the search effort per requested object. Higher values may fill constrained areas but increase worst-case work."),
                         state.EditingSettings.candidates.multiplier, state.SavedSettings.candidates.multiplier, "Candidate Multiplier",
                         value => value > 0, GreaterThanZero, onInvalid);
 
-                    state.EditingSettings.candidates.minimumCount = ValidatedField.DrawIntField(Explain(EditorGui.ChangedLabel("Minimum Candidates", state.HasMinimumCandidatesChanged()),
-                            "Lower bound for the candidate pool, useful when generating only a few objects."),
+                    state.EditingSettings.candidates.minimumCount = ValidatedField.DrawIntField(Explain(EditorGui.ChangedLabel("Minimum Candidate Count", state.HasMinimumCandidatesChanged()),
+                            "Keep a useful search budget when generating only a few objects."),
                         state.EditingSettings.candidates.minimumCount, state.SavedSettings.candidates.minimumCount, "Minimum Candidates",
                         value => value > 0, GreaterThanZero, onInvalid);
 
@@ -131,16 +131,16 @@ namespace Genix.Editor.Drawers
 
         private bool DrawGridSettings(StyleEditState state, bool showJitter, Action<string, string, string> onInvalid)
         {
-            return DrawSettingsGroup(ref _showGridSettings, EditorGui.ChangedLabel("Grid Settings", state.HasGridSettingsChanged()),
+            return DrawSettingsGroup(ref _showGridSettings, EditorGui.ChangedLabel(showJitter ? "Varied Grid" : "Grid", state.HasGridSettingsChanged()),
                 () => {
-                    state.EditingSettings.grid.cellSize = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Cell Size", state.HasGridCellSizeChanged()),
+                    state.EditingSettings.grid.cellSize = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Spacing (units)", state.HasGridCellSizeChanged()),
                             "Distance between neighboring grid sample positions."),
                         state.EditingSettings.grid.cellSize, state.SavedSettings.grid.cellSize, "Cell Size",
                         value => value > 0f, GreaterThanZero, onInvalid);
 
                     if (showJitter)
                         state.EditingSettings.grid.jitterAmount = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Jitter Amount", state.HasGridJitterChanged()),
-                                "Random offset as a fraction of Cell Size. Zero is a regular grid; one uses the full cell range."),
+                            "Random offset as a fraction of grid spacing. Zero keeps a regular grid; one uses the full cell range."),
                             state.EditingSettings.grid.jitterAmount, state.SavedSettings.grid.jitterAmount, "Jitter Amount",
                             value => value >= 0f && value <= 1f, BetweenZeroAndOne, onInvalid);
                     else
@@ -154,14 +154,14 @@ namespace Genix.Editor.Drawers
             Action<string, string, string> onInvalid,
             bool advanced)
         {
-            return DrawSettingsGroup(ref _showClusterSettings, EditorGui.ChangedLabel("Cluster Settings", state.HasClusterSettingsChanged()),
+            return DrawSettingsGroup(ref _showClusterSettings, EditorGui.ChangedLabel("Clusters", state.HasClusterSettingsChanged()),
                 () => {
                     state.EditingSettings.cluster.count = ValidatedField.DrawIntField(Explain(EditorGui.ChangedLabel("Cluster Count", state.HasClusterCountChanged()),
                             "Number of cluster centers used to group candidate positions."),
                         state.EditingSettings.cluster.count, state.SavedSettings.cluster.count, "Cluster Count",
                         value => value > 0, GreaterThanZero, onInvalid);
 
-                    state.EditingSettings.cluster.radius = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Cluster Radius", state.HasClusterRadiusChanged()),
+                    state.EditingSettings.cluster.radius = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Cluster Radius (units)", state.HasClusterRadiusChanged()),
                             "Maximum horizontal distance of candidates from their cluster center."),
                         state.EditingSettings.cluster.radius, state.SavedSettings.cluster.radius, "Cluster Radius",
                         value => value > 0f, GreaterThanZero, onInvalid);
@@ -177,7 +177,7 @@ namespace Genix.Editor.Drawers
 
                         if (state.EditingSettings.cluster.useMinCenterDistance)
                         {
-                            state.EditingSettings.cluster.minCenterDistance = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Min Distance", state.HasClusterMinCenterDistanceChanged()),
+                            state.EditingSettings.cluster.minCenterDistance = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Minimum Center Distance (units)", state.HasClusterMinCenterDistanceChanged()),
                                     "Minimum horizontal distance between cluster centers."),
                                 state.EditingSettings.cluster.minCenterDistance, state.SavedSettings.cluster.minCenterDistance, "Cluster Center Min Distance",
                                 value => value > 0f, GreaterThanZero, onInvalid);
@@ -192,10 +192,10 @@ namespace Genix.Editor.Drawers
             Action<string, string, string> onInvalid,
             bool advanced)
         {
-            return DrawSettingsGroup(ref _showPoissonSettings, EditorGui.ChangedLabel("Poisson Settings", state.HasPoissonSettingsChanged()),
+            return DrawSettingsGroup(ref _showPoissonSettings, EditorGui.ChangedLabel("Even Spacing", state.HasPoissonSettingsChanged()),
                 () => {
-                    state.EditingSettings.poisson.minDistance = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Min Distance", state.HasPoissonMinDistanceChanged()),
-                            "Minimum distance between generated objects. Floor and ceiling placement use horizontal distance; wall and inside-space placement use full 3D distance. Use Random instead when related assets must deliberately form a tighter composition, such as a monitor, keyboard, and mouse on one desk."),
+                    state.EditingSettings.poisson.minDistance = ValidatedField.DrawFloatField(Explain(EditorGui.ChangedLabel("Minimum Distance (units)", state.HasPoissonMinDistanceChanged()),
+                            "Minimum object spacing. Floor and ceiling use horizontal distance; wall and inside-space use full 3D distance."),
                         state.EditingSettings.poisson.minDistance, state.SavedSettings.poisson.minDistance, "Min Distance",
                         value => value > 0f, GreaterThanZero, onInvalid);
 

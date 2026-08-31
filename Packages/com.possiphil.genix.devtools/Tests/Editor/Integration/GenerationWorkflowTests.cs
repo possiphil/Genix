@@ -92,7 +92,7 @@ namespace Genix.Tests.Integration
         [Test]
         public void ApplyPreviewReturnsFalseWithoutRetainedPlan()
         {
-            LogAssert.Expect(LogType.Warning, "No Genix preview run is available to apply. Run Preview Run first.");
+            LogAssert.Expect(LogType.Warning, "No Genix preview is available to apply. Run Preview first.");
 
             Assert.That(GenerationWorkflow.ApplyPreview(), Is.False);
         }
@@ -101,15 +101,30 @@ namespace Genix.Tests.Integration
         public void GenerateCreatesObjectsAndClearRemovesThem()
         {
             GenerationRequest request = CreatePrefabBackedRequest(2);
+            Assert.That(GeneratedHierarchy.HasObjects(_scene.AreaSource), Is.False);
 
             GenerationWorkflow.Generate(request);
 
             Assert.That(GeneratedHierarchy.TryGet(_scene.AreaSource, out Transform group), Is.True);
             Assert.That(group.childCount, Is.EqualTo(2));
+            Assert.That(GeneratedHierarchy.HasObjects(_scene.AreaSource), Is.True);
 
             GenerationWorkflow.Clear(_scene.AreaSource);
 
             Assert.That(GeneratedHierarchy.TryGet(_scene.AreaSource, out _), Is.False);
+            Assert.That(GeneratedHierarchy.HasObjects(_scene.AreaSource), Is.False);
+        }
+
+        [Test]
+        public void GenerateAppendsToExistingResultInSameArea()
+        {
+            CreatePrefabBackedRequest(2);
+
+            GenerationWorkflow.Generate(_scene.CreateRequest(count: 2, seed: 123));
+            GenerationWorkflow.Generate(_scene.CreateRequest(count: 3, seed: 456));
+
+            Assert.That(GeneratedHierarchy.TryGet(_scene.AreaSource, out Transform group), Is.True);
+            Assert.That(group.childCount, Is.EqualTo(5));
         }
 
         [Test]

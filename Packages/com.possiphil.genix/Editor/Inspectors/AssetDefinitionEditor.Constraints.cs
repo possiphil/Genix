@@ -73,8 +73,8 @@ namespace Genix.Editor.Inspectors
 
                     EditorGUI.BeginChangeCheck();
                     float value = EditorGUILayout.FloatField(new GUIContent(
-                        "Minimum Distance",
-                        "Required center-to-center distance in world units."),
+                        "Minimum Distance (units)",
+                        "Required center-to-center distance."),
                         distance.floatValue);
                     if (EditorGUI.EndChangeCheck())
                         distance.floatValue = Mathf.Max(0f, value);
@@ -136,11 +136,11 @@ namespace Genix.Editor.Inspectors
         private void DrawAssetRelativePlacement()
         {
             EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField("Asset-Relative Placement", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField("Placement Relative to Objects", EditorStyles.miniBoldLabel);
             SerializedProperty enabled = _assetRelativePlacement.FindPropertyRelative("enabled");
             EditorGUILayout.PropertyField(enabled, new GUIContent(
-                "Enabled",
-                "Require this asset to be positioned relative to a matching generated asset or explicit scene anchor."));
+                "Use Object Relationship",
+                "Place this asset relative to a matching generated object or scene anchor."));
 
             if (!enabled.boolValue)
                 return;
@@ -172,24 +172,24 @@ namespace Genix.Editor.Inspectors
                 SerializedProperty pathStationMaximumCount = _assetRelativePlacement.FindPropertyRelative("pathStationMaximumCount");
 
                 EditorGUILayout.PropertyField(source, new GUIContent(
-                    "Anchor Source",
-                    "Generated Objects uses current and previous Genix output. Scene Anchors uses explicit Asset Relation Anchor components, which can be added through GameObject > Genix > Add Asset Relation Anchor. Any uses both."));
+                    "Anchor Objects",
+                    "Choose generated objects, fixed scene anchors, or both as relationship anchors."));
                 EditorGUILayout.PropertyField(scope, new GUIContent(
-                    "Match By",
-                    "Match one exact Asset Definition or any anchor carrying an asset-compatible semantic tag."));
+                    "Find Anchor By",
+                    "Match one exact asset definition or any anchor carrying a selected asset tag."));
 
                 if ((AssetRelativeTargetScope)scope.enumValueIndex == AssetRelativeTargetScope.Asset)
                 {
                     EditorGUILayout.PropertyField(targetAsset, new GUIContent(
-                        "Target Asset",
-                        "Concrete generated asset or scene anchor with the same Represented Asset."));
+                        "Anchor Asset",
+                        "Match generated objects or scene anchors representing this asset."));
                 }
                 else
                 {
                     DrawAssetTagField(
                         targetTag,
-                        "Target Tag",
-                        "Generated assets and scene anchors carrying this asset-compatible tag may satisfy the relation.");
+                        "Anchor Tag",
+                        "Match generated objects and scene anchors carrying this tag.");
                 }
 
                 bool canUsePathStations =
@@ -199,24 +199,24 @@ namespace Genix.Editor.Inspectors
                 if (canUsePathStations)
                 {
                     EditorGUILayout.PropertyField(usePathStations, new GUIContent(
-                        "Regular Path Stations",
-                        "Derive virtual anchors from every matching Path Placement Source instead of authoring one scene anchor per object. Use Exactly 1 with Both Sides for paired roadside objects."));
+                        "Create Regular Path Stations",
+                        "Derive evenly spaced virtual anchors from matching paths instead of authoring each anchor manually."));
                     if (usePathStations.boolValue)
                     {
                         using (new EditorGUI.IndentLevelScope())
                         {
                             DrawPathStationSides(pathStationSides);
                             pathStationSpacing.floatValue = Mathf.Max(0.1f, EditorGUILayout.FloatField(
-                                new GUIContent("Station Spacing", "Distance along the path between station groups."),
+                                new GUIContent("Station Spacing (units)", "Distance along the path between station groups."),
                                 pathStationSpacing.floatValue));
                             pathStationLateralOffset.floatValue = Mathf.Max(0f, EditorGUILayout.FloatField(
-                                new GUIContent("Lateral Offset", "Horizontal distance from the path centerline."),
+                                new GUIContent("Side Offset (units)", "Horizontal distance from the path centerline."),
                                 pathStationLateralOffset.floatValue));
                             pathStationEndpointMargin.floatValue = Mathf.Max(0f, EditorGUILayout.FloatField(
-                                new GUIContent("Endpoint Margin", "Path length ignored at both ends."),
+                                new GUIContent("End Margin (units)", "Path length ignored at both ends."),
                                 pathStationEndpointMargin.floatValue));
                             pathStationMaximumCount.intValue = Mathf.Max(1, EditorGUILayout.IntField(
-                                new GUIContent("Max Station Groups", "Maximum regular station groups across all matching paths in the target area."),
+                                new GUIContent("Maximum Station Groups", "Maximum station groups across all matching paths in the target area."),
                                 pathStationMaximumCount.intValue));
                         }
                     }
@@ -231,19 +231,19 @@ namespace Genix.Editor.Inspectors
                     alignment,
                     GetAssetRelativeSides(side, additionalSides));
                 EditorGUILayout.PropertyField(sameSupport, new GUIContent(
-                    "Require Same Support Surface",
-                    "Require candidate and anchor to reference the same Placement Surface Descriptor. Use this to keep a keyboard and monitor on the same desk. Both placements need a descriptor reference; for fixed scene anchors, assign Support Surface on the Asset Relation Anchor."));
+                    "Same Support Surface",
+                    "Keep this asset and its anchor on the same configured support surface, such as one workbench."));
                 EditorGUILayout.PropertyField(insideAnchor, new GUIContent(
-                    "Require Inside Anchor Bounds",
-                    "Keep the complete generated asset inside the matched anchor bounds while still projecting it onto its normal placement surface. Use semantic regions such as parking areas, rest areas, habitat zones, or work cells without turning those regions into artificial support surfaces."));
+                    "Stay Inside Anchor Area",
+                    "Keep the complete asset inside the anchor bounds while still placing it on its normal support surface."));
 
                 EditorGUI.BeginChangeCheck();
                 float minValue = EditorGUILayout.FloatField(new GUIContent(
-                    "Minimum Distance",
+                    "Minimum Distance (units)",
                     "Minimum 3D distance from the nearest point on the anchor bounds."),
                     minimum.floatValue);
                 float maxValue = EditorGUILayout.FloatField(new GUIContent(
-                    "Maximum Distance",
+                    "Maximum Distance (units)",
                     "Maximum 3D distance from the nearest point on the anchor bounds."),
                     maximum.floatValue);
                 if (EditorGUI.EndChangeCheck())
@@ -258,14 +258,14 @@ namespace Genix.Editor.Inspectors
                 if ((AssetRelativeFacing)facing.enumValueIndex != AssetRelativeFacing.Any)
                 {
                     facingVariation.floatValue = Mathf.Clamp(EditorGUILayout.FloatField(new GUIContent(
-                        "Max Facing Deviation",
-                        "Maximum deterministic yaw variation in either direction from the resolved facing. Zero faces exactly; 45 allows an angle from -45 to +45 degrees."),
+                        "Facing Variation (deg)",
+                        "Maximum yaw variation in either direction. Zero follows the resolved facing exactly."),
                         facingVariation.floatValue), 0f, 180f);
                 }
 
                 EditorGUILayout.PropertyField(cardinalityMode, new GUIContent(
-                    "Per Anchor Count",
-                    "Unlimited adds no count rule. At Most limits optional dependents. At Least, Exactly, and Between actively complete their required minimum locally for every matching anchor; all generated parts count toward Object Count. Required dependents are planned immediately after their anchor, including transitive requirements. Genix reserves their slots and rolls back an incomplete new group."));
+                    "Instances per Anchor",
+                    "Choose whether each matching anchor has no limit, a maximum, a minimum, an exact count, or a range."));
                 AssetRelativeCardinalityMode selectedCardinality =
                     (AssetRelativeCardinalityMode)cardinalityMode.enumValueIndex;
                 if (selectedCardinality != AssetRelativeCardinalityMode.Unlimited)
@@ -327,11 +327,11 @@ namespace Genix.Editor.Inspectors
         private void DrawPathPlacement()
         {
             EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField("Path Placement", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField("Placement Along Paths", EditorStyles.miniBoldLabel);
             SerializedProperty enabled = _pathPlacement.FindPropertyRelative("enabled");
             EditorGUILayout.PropertyField(enabled, new GUIContent(
-                "Enabled",
-                "Constrain this asset by horizontal distance, side, and facing relative to the nearest matching Path Placement Source. This composes with Asset-Relative Placement and semantic regions."));
+                "Use Path Relationship",
+                "Constrain distance, side, and facing relative to the nearest matching Genix path."));
             if (!enabled.boolValue)
                 return;
 
@@ -351,10 +351,10 @@ namespace Genix.Editor.Inspectors
                     "Only Path Placement Sources carrying this asset-compatible semantic tag are considered.");
                 EditorGUI.BeginChangeCheck();
                 float minValue = EditorGUILayout.FloatField(new GUIContent(
-                    "Minimum Distance",
+                    "Minimum Distance (units)",
                     "Minimum horizontal center distance from the nearest path centerline."), minimum.floatValue);
                 float maxValue = EditorGUILayout.FloatField(new GUIContent(
-                    "Maximum Distance",
+                    "Maximum Distance (units)",
                     "Maximum horizontal center distance from the nearest path centerline."), maximum.floatValue);
                 if (EditorGUI.EndChangeCheck())
                 {
@@ -362,8 +362,8 @@ namespace Genix.Editor.Inspectors
                     maximum.floatValue = Mathf.Max(minimum.floatValue, maxValue);
                 }
                 endpointMargin.floatValue = Mathf.Max(0f, EditorGUILayout.FloatField(new GUIContent(
-                    "Endpoint Margin",
-                    "Path length excluded at both ends. Use this to keep objects away from path entrances, exits, junctions, or transitions."),
+                    "End Margin (units)",
+                    "Ignore this distance at both path ends."),
                     endpointMargin.floatValue));
 
                 DrawPathConstraintSide(side);
@@ -373,7 +373,7 @@ namespace Genix.Editor.Inspectors
                 if ((PathPlacementFacing)facing.enumValueIndex != PathPlacementFacing.Any)
                 {
                     variation.floatValue = Mathf.Clamp(EditorGUILayout.FloatField(new GUIContent(
-                        "Max Facing Deviation",
+                        "Facing Variation (deg)",
                         "Maximum deterministic yaw variation in either direction from the path-relative direction."),
                         variation.floatValue), 0f, 180f);
                 }
@@ -446,7 +446,7 @@ namespace Genix.Editor.Inspectors
             };
             Rect row = EditorGUILayout.GetControlRect();
             Rect button = EditorGUI.PrefixLabel(row, new GUIContent(
-                "Required Sides",
+                "Place On Sides",
                 "Accepted dominant-axis sectors around the anchor. Any disables the restriction; Front is local +Z, Back -Z, Left -X, Right +X, Above world +Y, and Below world -Y. Horizontal-only rules ignore height differences for backward compatibility."));
 
             if (!EditorGUI.DropdownButton(button, new GUIContent(summary), FocusType.Keyboard))
@@ -542,7 +542,7 @@ namespace Genix.Editor.Inspectors
 
             EditorGUI.BeginChangeCheck();
             selected = EditorGUILayout.Popup(new GUIContent(
-                    "Alignment Within Side",
+                    "Side Alignment",
                     "Soft local preference after side and distance constraints. Random uses the fixed run seed. Center prefers the side midpoint. For one horizontal side, the remaining options prefer either local end. Above/Below and multi-side rules expose only Random or Center."),
                 selected,
                 labels);
@@ -575,4 +575,3 @@ namespace Genix.Editor.Inspectors
         }
     }
 }
-

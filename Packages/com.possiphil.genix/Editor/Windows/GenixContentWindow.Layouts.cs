@@ -4,6 +4,7 @@ using System.Linq;
 using Genix.Areas;
 using Genix.Core;
 using Genix.Editor.Layouts;
+using Genix.Editor.UI;
 using Genix.Extensions;
 using Genix.Layouts;
 using UnityEditor;
@@ -19,16 +20,20 @@ namespace Genix.Editor.Windows
 
             EditorGUILayout.Space(4f);
 
-            List<SavedLayout> layouts = GetFilteredLayouts();
+            LayoutBrowserSnapshot snapshot = GetLayoutBrowserSnapshot();
+            List<LayoutBrowserIndexEntry> layouts = GetFilteredLayouts(snapshot.Entries);
 
-            DrawLayoutList(layouts);
+            DrawLayoutList(layouts, snapshot);
         }
 
         private void DrawLayoutFilters()
         {
             DrawSectionHeader("Filters", () =>
             {
-                if (GUILayout.Button("Clear", GUILayout.Width(60f)))
+                if ((!string.IsNullOrWhiteSpace(_layoutSearch) ||
+                     _layoutScopeFilter != LayoutScopeFilter.CurrentScene ||
+                     _layoutSortMode != LayoutSortMode.NewestFirst) &&
+                    GUILayout.Button("Reset", GUILayout.Width(60f)))
                     ClearLayoutFilters();
             });
 
@@ -46,23 +51,29 @@ namespace Genix.Editor.Windows
             }
         }
 
-        private List<SavedLayout> GetFilteredLayouts()
+        private LayoutBrowserSnapshot GetLayoutBrowserSnapshot()
         {
-            IEnumerable<SavedLayout> layouts = _layoutScopeFilter switch
+            return _layoutScopeFilter switch
             {
-                LayoutScopeFilter.CurrentTargetArea => LayoutWorkflow.LoadLayoutsForArea(CreateLayoutAreaSource()),
-                LayoutScopeFilter.AllScenes => LayoutWorkflow.LoadLayouts(),
-                _ => LayoutWorkflow.LoadLayoutsForCurrentScene()
+                LayoutScopeFilter.CurrentTargetArea => LayoutWorkflow.BrowseLayoutsForArea(CreateLayoutAreaSource()),
+                LayoutScopeFilter.AllScenes => LayoutWorkflow.BrowseLayouts(),
+                _ => LayoutWorkflow.BrowseLayoutsForCurrentScene()
             };
-
-            layouts = layouts
-                .Where(layout => layout)
-                .Where(MatchesLayoutSearch);
-
-            return SortLayouts(layouts);
         }
 
-        private void DrawLayoutList(IReadOnlyList<SavedLayout> layouts)
+        private List<LayoutBrowserIndexEntry> GetFilteredLayouts(
+            IEnumerable<LayoutBrowserIndexEntry> layouts)
+        {
+            IEnumerable<LayoutBrowserIndexEntry> filteredLayouts = layouts
+                .Where(layout => layout != null)
+                .Where(MatchesLayoutSearch);
+
+            return SortLayouts(filteredLayouts);
+        }
+
+        private void DrawLayoutList(
+            IReadOnlyList<LayoutBrowserIndexEntry> layouts,
+            LayoutBrowserSnapshot snapshot)
         {
             int pageCount = Mathf.Max(1, Mathf.CeilToInt(layouts.Count / (float)LayoutPageSize));
             _layoutPage = Mathf.Clamp(_layoutPage, 0, pageCount - 1);
@@ -71,12 +82,12 @@ namespace Genix.Editor.Windows
             {
                 DrawLayoutSortDropdown();
 
-                using (new EditorGUI.DisabledScope(layouts.Count == 0))
+                using (new EditorGUI.DisabledScope(layouts.All(layout => layout == null || layout.Locked)))
                 {
-                    if (GUILayout.Button(
+                    if (DesignerUiPreferences.IsAdvanced && GUILayout.Button(
                             new GUIContent(
-                                "Delete Matching",
-                                "Deletes every layout matching the current search and scope filters, including locked evaluation layouts."),
+                                "Delete Filtered…",
+                                "Delete every unlocked layout matching the current filters. Locked layouts are kept."),
                             GUILayout.Width(104f)))
                     {
                         DeleteMatchingLayouts(layouts);
@@ -85,7 +96,7 @@ namespace Genix.Editor.Windows
 
                 using (new EditorGUI.DisabledScope(!_selectedLayout || _selectedLayout.Locked))
                 {
-                    if (GUILayout.Button("Delete", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Delete…", GUILayout.Width(64f)))
                         DeleteSelectedLayout();
                 }
             });
@@ -116,17 +127,24 @@ namespace Genix.Editor.Windows
             {
                 _layoutListScroll = EditorGUILayout.BeginScrollView(_layoutListScroll);
 
-                if (layouts.Count == 0)
+                if (snapshot.IsLoading)
                 {
-                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
+                    Rect progressRect = EditorGUILayout.GetControlRect(false, 20f);
+                    EditorGUI.ProgressBar(
+                        progressRect,
+                        snapshot.Progress,
+                        $"Loading saved layouts... {snapshot.Progress:P0}");
+                    Repaint();
                 }
+                else if (layouts.Count == 0)
+                    DesignerTerminology.DrawEmptyState("No saved layouts match the current filters.");
                 else
                 {
                     int first = _layoutPage * LayoutPageSize;
                     int last = Mathf.Min(first + LayoutPageSize, layouts.Count);
                     for (int i = first; i < last; i++)
                     {
-                        SavedLayout layout = layouts[i];
+                        LayoutBrowserIndexEntry layout = layouts[i];
                         DrawLayoutListItem(layout);
                     }
                 }
@@ -135,9 +153,12 @@ namespace Genix.Editor.Windows
             }
         }
 
-        private void DrawLayoutListItem(SavedLayout layout)
+        private void DrawLayoutListItem(LayoutBrowserIndexEntry layout)
         {
-            bool selected = GetSelectedObject() == layout;
+            bool selected = _selectedLayout && string.Equals(
+                AssetDatabase.GetAssetPath(_selectedLayout),
+                layout.AssetPath,
+                StringComparison.OrdinalIgnoreCase);
             GUIStyle style = selected ? EditorStyles.helpBox : GUIStyle.none;
 
             using (new EditorGUILayout.VerticalScope(style))
@@ -145,7 +166,11 @@ namespace Genix.Editor.Windows
                 Rect rowRect = EditorGUILayout.GetControlRect(false, 40f);
 
                 if (GUI.Button(rowRect, GUIContent.none, GUIStyle.none))
-                    SelectObject(layout);
+                {
+                    SavedLayout selectedLayout = layout.LoadAsset();
+                    if (selectedLayout)
+                        SelectObject(selectedLayout);
+                }
 
                 Rect titleRect = new(rowRect.x, rowRect.y, rowRect.width, 18f);
                 Rect infoRect = new(rowRect.x, rowRect.y + 18f, rowRect.width, 18f);
@@ -162,7 +187,7 @@ namespace Genix.Editor.Windows
             if (!layout)
                 return;
 
-            EditorGUILayout.LabelField("Layout Preview", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Saved Layout", EditorStyles.boldLabel);
 
             using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
             {
@@ -208,24 +233,28 @@ namespace Genix.Editor.Windows
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button("Preview A"))
-                    PreviewContentLayout(layout, LayoutPreviewSlot.A);
+                bool isPreviewing = LayoutWorkflow.IsPreviewing(layout);
+                bool shouldPreview = GUILayout.Toggle(
+                    isPreviewing,
+                    new GUIContent(
+                        isPreviewing ? "Hide Preview" : "Preview Layout",
+                        "Show or hide this saved layout as a non-persistent Scene view preview."),
+                    GUI.skin.button);
+                if (shouldPreview != isPreviewing)
+                    ToggleContentLayoutPreview(layout, shouldPreview);
+            }
 
-                if (GUILayout.Button("Preview B"))
-                    PreviewContentLayout(layout, LayoutPreviewSlot.B);
-
-                if (GUILayout.Button("Clear Preview"))
-                    LayoutWorkflow.ClearPreview();
-
+            using (new EditorGUILayout.HorizontalScope())
+            {
                 using (new EditorGUI.DisabledScope(!canApply))
                 {
-                    if (GUILayout.Button("Apply"))
+                    if (GUILayout.Button("Apply Layout"))
                         ApplyContentLayout(layout, areaSource);
                 }
 
                 using (new EditorGUI.DisabledScope(layout.Locked))
                 {
-                    if (GUILayout.Button(layout.Locked ? "Locked" : "Delete"))
+                    if (GUILayout.Button(layout.Locked ? "Locked" : "Delete Layout…"))
                         DeleteSelectedLayout();
                 }
             }
@@ -240,9 +269,15 @@ namespace Genix.Editor.Windows
             _layoutTargetAreaSelector.Draw("Target Area");
         }
 
-        private void PreviewContentLayout(SavedLayout layout, LayoutPreviewSlot slot)
+        private static void ToggleContentLayoutPreview(SavedLayout layout, bool show)
         {
-            if (!LayoutWorkflow.PreviewLayout(layout, slot, out string error))
+            if (!show)
+            {
+                LayoutWorkflow.ClearPreview();
+                return;
+            }
+
+            if (!LayoutWorkflow.PreviewLayout(layout, out string error))
                 Debug.LogWarning(error);
         }
 
@@ -293,27 +328,36 @@ namespace Genix.Editor.Windows
             Repaint();
         }
 
-        private void DeleteMatchingLayouts(IReadOnlyList<SavedLayout> layouts)
+        private void DeleteMatchingLayouts(IReadOnlyList<LayoutBrowserIndexEntry> layouts)
         {
-            SavedLayout[] targets = layouts.Where(layout => layout).Distinct().ToArray();
-            if (targets.Length == 0)
+            LayoutBrowserIndexEntry[] targetEntries = layouts
+                .Where(layout => layout != null && !layout.Locked)
+                .GroupBy(layout => layout.AssetPath, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToArray();
+            if (targetEntries.Length == 0)
                 return;
 
-            int lockedCount = targets.Count(layout => layout.Locked);
-            string warning = lockedCount > 0
-                ? $"\n\nThis includes {lockedCount:N0} locked evaluation layout(s). Reports that reference deleted layouts retain their numeric results, but those observations can no longer be applied or used as visual evidence."
+            int lockedCount = layouts.Count(layout => layout != null && layout.Locked);
+            string lockedNote = lockedCount > 0
+                ? $" {lockedCount:N0} locked layout(s) will be kept."
                 : string.Empty;
             bool confirmed = EditorUtility.DisplayDialog(
-                "Delete Matching Layouts",
-                $"Delete all {targets.Length:N0} layouts matching the current scope and search filters, together with their saved prefabs?{warning}\n\nThis cannot be undone.",
-                $"Delete {targets.Length:N0}",
+                "Delete Filtered Layouts",
+                $"Delete {targetEntries.Length:N0} unlocked layout(s) matching the current filters and their saved prefabs?{lockedNote}\n\nThis cannot be undone.",
+                $"Delete {targetEntries.Length:N0}",
                 "Cancel");
             if (!confirmed)
                 return;
 
+            SavedLayout[] targets = targetEntries
+                .Select(entry => entry.LoadAsset())
+                .Where(layout => layout)
+                .ToArray();
+
             _selectedLayout = null;
             DestroySelectedObjectEditor();
-            if (!LayoutWorkflow.DeleteLayouts(targets, true, out int deletedCount, out string error))
+            if (!LayoutWorkflow.DeleteLayouts(targets, false, out int deletedCount, out string error))
             {
                 Debug.LogWarning(error);
                 return;
@@ -381,7 +425,7 @@ namespace Genix.Editor.Windows
             _layoutPage = 0;
         }
 
-        private bool MatchesLayoutSearch(SavedLayout layout)
+        private bool MatchesLayoutSearch(LayoutBrowserIndexEntry layout)
         {
             if (string.IsNullOrWhiteSpace(_layoutSearch))
                 return true;
@@ -392,11 +436,14 @@ namespace Genix.Editor.Windows
                    (layout.TargetAreaName ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
                    (layout.SceneName ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
                    (layout.StyleName ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                   layout.AssetPool && layout.AssetPool.name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                   layout.AssetSummaries.Any(summary => (summary.AssetName ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase));
+                   (layout.AssetPoolName ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                   (layout.Notes ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                   layout.AssetNames.Any(name =>
+                       (name ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
-        private List<SavedLayout> SortLayouts(IEnumerable<SavedLayout> layouts)
+        private List<LayoutBrowserIndexEntry> SortLayouts(
+            IEnumerable<LayoutBrowserIndexEntry> layouts)
         {
             return _layoutSortMode switch
             {
@@ -451,9 +498,13 @@ namespace Genix.Editor.Windows
             EditorGUILayout.LabelField(label, value);
         }
 
-        private static string GetLayoutListInfo(SavedLayout layout)
+        private static string GetLayoutListInfo(LayoutBrowserIndexEntry layout)
         {
-            return $"{GetLayoutSceneLabel(layout)}    {GetLayoutTargetLabel(layout)}    {layout.ObjectCount} objects    {layout.CreatedAt}";
+            string scene = string.IsNullOrWhiteSpace(layout.SceneName) ? "Unknown Scene" : layout.SceneName;
+            string target = string.IsNullOrWhiteSpace(layout.TargetAreaName)
+                ? "Unknown Target Area"
+                : layout.TargetAreaName;
+            return $"{scene}    {target}    {layout.ObjectCount} objects    {layout.CreatedAt}";
         }
 
         private static string GetLayoutSceneLabel(SavedLayout layout)

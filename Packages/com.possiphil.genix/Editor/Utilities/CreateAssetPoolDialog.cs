@@ -1,6 +1,6 @@
 using System;
 using Genix.Assets;
-using Genix.Extensions;
+using Genix.Editor.UI;
 using UnityEditor;
 using UnityEngine;
 
@@ -24,8 +24,8 @@ namespace Genix.Editor.Utilities
 
         private static readonly string[] PoolModeLabels =
         {
-            AssetPoolMode.Static.ToDisplayName(),
-            AssetPoolMode.Dynamic.ToDisplayName()
+            DesignerTerminology.AssetPoolMode(AssetPoolMode.Static),
+            DesignerTerminology.AssetPoolMode(AssetPoolMode.Dynamic)
         };
 
         /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
@@ -84,7 +84,7 @@ namespace Genix.Editor.Utilities
                 currentIndex = 0;
 
             int selectedIndex = EditorGUILayout.Popup(
-                new GUIContent("Mode", "Static stores a curated list. Dynamic resolves matching catalog assets from filters and is better for reusable semantic rules."),
+                new GUIContent("Pool Type", "Manual pools contain a chosen list. Rule-based pools include matching catalog assets."),
                 currentIndex,
                 PoolModeLabels);
 

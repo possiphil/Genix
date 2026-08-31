@@ -2,7 +2,6 @@ using System.IO;
 using Genix.Editor.Drawers;
 using Genix.Editor.Infrastructure;
 using Genix.Editor.State;
-using Genix.Editor.UI;
 using Genix.Editor.Utilities;
 using Genix.Extensions;
 using Genix.Styles;
@@ -58,9 +57,6 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.Space(10);
             DrawActionButtons();
 
-            EditorGUILayout.Space(6);
-            DrawDefaultButtons();
-
             EditorGUILayout.Space(10);
             DrawFooterStatus();
         }
@@ -85,22 +81,6 @@ namespace Genix.Editor.Inspectors
 
                 if (GUILayout.Button("Save As New Preset"))
                     SaveAsNewPreset();
-            }
-        }
-
-        private void DrawDefaultButtons()
-        {
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                if (DesignerUiPreferences.IsAdvanced && GUILayout.Button(new GUIContent(
-                        "Set Current As Defaults",
-                        "Replace this preset's restore point with the current settings.")))
-                    SetCurrentAsDefaults();
-
-                if (GUILayout.Button(new GUIContent(
-                        "Restore Defaults",
-                        "Restore the settings stored as this preset's defaults.")))
-                    RestoreDefaults();
             }
         }
 
@@ -196,37 +176,6 @@ namespace Genix.Editor.Inspectors
 
             Selection.activeObject = newPreset;
             EditorGUIUtility.PingObject(newPreset);
-        }
-
-        private void SetCurrentAsDefaults()
-        {
-            StyleSettingsUtility.ClearUnusedSettings(ref _state.EditingSettings);
-
-            Undo.RecordObject(_preset, "Set Genix Style Defaults");
-
-            _preset.Apply(_state.EditingSettings);
-            _preset.SetCurrentSettingsAsDefaults();
-
-            EditorUtility.SetDirty(_preset);
-            AssetDatabase.SaveAssets();
-
-            LoadFromPreset();
-            ShowFeedback("Current settings saved as defaults.");
-        }
-
-        private void RestoreDefaults()
-        {
-            EditorGui.ClearTextFieldFocus();
-
-            Undo.RecordObject(_preset, "Restore Genix Style Defaults");
-
-            _preset.RestoreDefaults();
-
-            EditorUtility.SetDirty(_preset);
-            AssetDatabase.SaveAssets();
-
-            LoadFromPreset();
-            ShowFeedback("Defaults restored.");
         }
 
         private void LoadFromPreset()

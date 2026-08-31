@@ -50,7 +50,7 @@ namespace Genix.Editor.Inspectors
                     }
 
                     EditorGUILayout.PropertyField(_maxSurfaceHeightDifference, new GUIContent(
-                        isWall ? "Max Depth Difference" : "Max Height Difference",
+                        isWall ? "Max Depth Difference (units)" : "Max Height Difference (units)",
                         isWall
                             ? "Reject the placement when supported wall probes vary more than this distance along the wall normal."
                             : "Reject the placement when supported footprint probes span a larger vertical range."));
@@ -63,7 +63,7 @@ namespace Genix.Editor.Inspectors
             }
 
             EditorGUILayout.PropertyField(_surfaceSinkOffset, new GUIContent(
-                "Sink Offset",
+                "Sink Offset (units)",
                 isWall
                     ? "Move the asset into the wall by this distance to compensate for pivots, mounts, or tiny visible gaps."
                     : "Move the asset into the support surface by this distance to compensate for pivots or tiny visible gaps."));
@@ -80,7 +80,7 @@ namespace Genix.Editor.Inspectors
                 using (new EditorGUI.DisabledScope(!_prefab.objectReferenceValue))
                 {
                     if (GUILayout.Button(new GUIContent(
-                            "Generate From Prefab",
+                            "Update from Prefab",
                             "Recalculate placement size and center offset from the prefab renderers and colliders."),
                         GUILayout.Width(140f)))
                         UpdateBoundsFromPrefab();
@@ -100,10 +100,10 @@ namespace Genix.Editor.Inspectors
                 using (new EditorGUI.IndentLevelScope())
                 {
                     EditorGUILayout.PropertyField(_clearanceSize, new GUIContent(
-                        "Clearance Size",
+                        "Clearance Size (units)",
                         "Full local-space size of the reserved volume. It rotates with the asset and creates no gameplay collider."));
                     EditorGUILayout.PropertyField(_clearanceCenterOffset, new GUIContent(
-                        "Center Offset",
+                        "Center Offset (units)",
                         "Clearance center relative to the prefab transform origin."));
 
                     if (GUILayout.Button(new GUIContent(
@@ -118,4 +118,3 @@ namespace Genix.Editor.Inspectors
         }
     }
 }
-

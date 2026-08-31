@@ -26,13 +26,13 @@ namespace Genix.Editor.Inspectors
                 _requiredSupportTags,
                 _requiredSupportNoneCategories,
                 true,
-                "Required Tags",
+                "Required Support Tags",
                 "Any adds no restriction. None deliberately disables placement. Within one category, any selected tag may match; every category containing a selection must match.");
             DrawSupportTagList(
                 _forbiddenSupportTags,
                 _forbiddenSupportAnyCategories,
                 false,
-                "Forbidden Tags",
+                "Blocked Support Tags",
                 "None adds no restriction. Any rejects every surface. Otherwise each selected matching tag rejects the surface.");
 
             List<SemanticTag> conflicts = GetTags(_requiredSupportTags)
@@ -236,7 +236,7 @@ namespace Genix.Editor.Inspectors
                 return;
 
             DrawNonNegativeFloat(_wallDistance, new GUIContent(
-                mode == WallProximityMode.NearWall ? "Max Wall Distance" : "Min Wall Distance",
+                mode == WallProximityMode.NearWall ? "Max Wall Distance (units)" : "Min Wall Distance (units)",
                 mode == WallProximityMode.NearWall
                     ? "Maximum horizontal gap between the asset bounds and the nearest detected wall."
                     : "Minimum horizontal clearance between the asset bounds and every detected wall."));
@@ -253,7 +253,7 @@ namespace Genix.Editor.Inspectors
             if (mode == WallVerticalPlacementMode.FixedHeight)
             {
                 DrawNonNegativeFloat(_placementHeight, new GUIContent(
-                    "Fixed Height",
+                    "Fixed Height (units)",
                     "Height of the asset's lower bound above the target area's lower bound. Zero rests the asset on that lower boundary."));
                 return;
             }
@@ -261,10 +261,10 @@ namespace Genix.Editor.Inspectors
             if (mode == WallVerticalPlacementMode.HeightRange)
             {
                 DrawNonNegativeFloat(_wallMinHeight, new GUIContent(
-                    "Min Height",
+                    "Min Height (units)",
                     "Lowest permitted asset-bottom height above the target area's lower bound."));
                 DrawNonNegativeFloat(_wallMaxHeight, new GUIContent(
-                    "Max Height",
+                    "Max Height (units)",
                     "Highest permitted asset-bottom height above the target area's lower bound."));
 
                 if (_wallMaxHeight.floatValue < _wallMinHeight.floatValue)
@@ -274,7 +274,7 @@ namespace Genix.Editor.Inspectors
             }
 
             EditorGUILayout.PropertyField(_placementHeight, new GUIContent(
-                "Baseline Offset",
+                "Baseline Offset (units)",
                 "Additional vertical clearance above every sampled wall baseline. Zero keeps the asset's lower bound flush with each sampled level."));
         }
 

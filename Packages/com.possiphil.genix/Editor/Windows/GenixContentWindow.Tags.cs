@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Assets;
+using Genix.Editor.UI;
 using Genix.Extensions;
 using Genix.Semantics;
 using UnityEditor;
@@ -28,7 +29,7 @@ namespace Genix.Editor.Windows
         {
             DrawSectionHeader("Category Filters", () =>
             {
-                if (GUILayout.Button("Clear", GUILayout.Width(60f)))
+                if (!string.IsNullOrWhiteSpace(_categorySearch) && GUILayout.Button("Reset", GUILayout.Width(60f)))
                     ClearCategoryFilters();
             });
 
@@ -37,28 +38,12 @@ namespace Genix.Editor.Windows
                 _categorySearch = EditorGUILayout.TextField(
                     new GUIContent("Search", "Filter semantic categories by display name."),
                     _categorySearch);
-                _filterCategoriesByMode = EditorGUILayout.Toggle(
-                    new GUIContent("Filter By Mode", "Filter categories by whether assets may select one or several tags."),
-                    _filterCategoriesByMode);
-
-                if (_filterCategoriesByMode)
-                {
-                    string[] labels = { "Multiple Tags", "Single Tag" };
-                    int selectedIndex = _categoryModeFilterAllowsMultiple ? 0 : 1;
-                    selectedIndex = EditorGUILayout.Popup(
-                        new GUIContent("Mode", "Single Tag is exclusive; Multiple Tags allows several values in the category."),
-                        selectedIndex,
-                        labels);
-                    _categoryModeFilterAllowsMultiple = selectedIndex == 0;
-                }
             }
         }
 
         private void ClearCategoryFilters()
         {
             _categorySearch = string.Empty;
-            _filterCategoriesByMode = false;
-            _categoryModeFilterAllowsMultiple = true;
         }
 
         private void DrawCategoryList(AssetCatalog catalog)
@@ -67,21 +52,13 @@ namespace Genix.Editor.Windows
 
             DrawSectionHeader($"Categories ({categories.Count})", () =>
             {
-                DrawCategorySortDropdown();
-
-                if (GUILayout.Button("Create", GUILayout.Width(60f)))
+                if (GUILayout.Button("New", GUILayout.Width(48f)))
                     CreateCategory();
 
                 using (new EditorGUI.DisabledScope(!_selectedTagCategory))
                 {
-                    if (GUILayout.Button("Delete", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Delete…", GUILayout.Width(64f)))
                         DeleteCategory(_selectedTagCategory);
-                }
-
-                using (new EditorGUI.DisabledScope(categories.Count == 0))
-                {
-                    if (GUILayout.Button("Clear", GUILayout.Width(60f)))
-                        ClearCategories();
                 }
             });
 
@@ -90,9 +67,7 @@ namespace Genix.Editor.Windows
             _categoryScroll = EditorGUILayout.BeginScrollView(_categoryScroll);
 
             if (categories.Count == 0)
-            {
-                GUILayout.Space(EditorGUIUtility.singleLineHeight);
-            }
+                DesignerTerminology.DrawEmptyState("No categories match the current filters.");
             else
             {
                 foreach (TagCategory category in categories)
@@ -101,25 +76,6 @@ namespace Genix.Editor.Windows
 
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
-        }
-
-        private void DrawCategorySortDropdown()
-        {
-            CategorySortMode[] modes =
-            {
-                CategorySortMode.AlphabeticalAscending,
-                CategorySortMode.TagCountAscending,
-                CategorySortMode.Mode
-            };
-
-            string[] labels =
-            {
-                "Name (A-Z)",
-                "Fewest Tags First",
-                "Selection Mode"
-            };
-
-            _categorySortMode = DrawSortDropdown(_categorySortMode, modes, labels);
         }
 
         private void DrawCategoryListItem(
@@ -147,7 +103,7 @@ namespace Genix.Editor.Windows
                 Rect infoRect = new(rowRect.x, rowRect.y + 18f, rowRect.width, 18f);
 
                 const float usageColumnWidth = 150f;
-                const float modeColumnWidth = 130f;
+                const float modeColumnWidth = 120f;
 
                 Rect usageRect = new(
                     infoRect.x,
@@ -168,12 +124,23 @@ namespace Genix.Editor.Windows
                     infoRect.height);
 
                 int tagCount = catalog.Tags.Count(tag => tag && tag.Category == category);
-                string mode = category.AllowMultipleTags ? "Multiple Tags" : "Single Tag";
+                string mode = category.AllowMultipleTags ? "Multiple" : "Single";
 
                 EditorGUI.LabelField(titleRect, category.DisplayName, EditorStyles.boldLabel);
-                EditorGUI.LabelField(usageRect, $"Usage: {category.Usage.ToDisplayName()}");
-                EditorGUI.LabelField(modeRect, $"Mode: {mode}");
-                EditorGUI.LabelField(tagsRect, $"Tags: {tagCount}");
+                if (infoRect.width < 390f)
+                {
+                    EditorGUI.LabelField(
+                        infoRect,
+                        $"{category.Usage.ToDisplayName()} · {mode} · {tagCount} tag(s)");
+                }
+                else
+                {
+                    EditorGUI.LabelField(usageRect, $"Available On: {category.Usage.ToDisplayName()}");
+                    EditorGUI.LabelField(
+                        modeRect,
+                        new GUIContent($"Selection: {mode}", "Whether this category allows one or multiple tags to be selected."));
+                    EditorGUI.LabelField(tagsRect, $"Tags: {tagCount}");
+                }
             }
         }
 
@@ -193,24 +160,26 @@ namespace Genix.Editor.Windows
 
             DrawSectionHeader(title, () =>
             {
-                DrawTagSortDropdown();
+                using (new EditorGUI.DisabledScope(!filterBySelectedCategory))
+                {
+                    if (GUILayout.Button(
+                            new GUIContent("Show All", "Clear the category filter and show tags from every category."),
+                            GUILayout.Width(66f)))
+                    {
+                        ClearSelection();
+                    }
+                }
 
                 using (new EditorGUI.DisabledScope(GetTargetCategoryForNewTag() == null))
                 {
-                    if (GUILayout.Button("Create", GUILayout.Width(60f)))
+                    if (GUILayout.Button("New", GUILayout.Width(48f)))
                         CreateTag();
                 }
 
                 using (new EditorGUI.DisabledScope(!_selectedSemanticTag))
                 {
-                    if (GUILayout.Button("Delete", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Delete…", GUILayout.Width(64f)))
                         DeleteTag(_selectedSemanticTag);
-                }
-
-                using (new EditorGUI.DisabledScope(tags.Count == 0))
-                {
-                    if (GUILayout.Button("Clear", GUILayout.Width(60f)))
-                        ClearTags(filterBySelectedCategory ? selectedCategory : null);
                 }
             });
 
@@ -219,9 +188,7 @@ namespace Genix.Editor.Windows
             _tagScroll = EditorGUILayout.BeginScrollView(_tagScroll);
 
             if (tags.Count == 0)
-            {
-                GUILayout.Space(EditorGUIUtility.singleLineHeight);
-            }
+                DesignerTerminology.DrawEmptyState("No tags match the selected category and filters.");
             else
             {
                 foreach (SemanticTag tag in tags)
@@ -230,23 +197,6 @@ namespace Genix.Editor.Windows
 
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
-        }
-
-        private void DrawTagSortDropdown()
-        {
-            TagSortMode[] modes =
-            {
-                TagSortMode.AlphabeticalAscending,
-                TagSortMode.CategoryAscending
-            };
-
-            string[] labels =
-            {
-                "Name (A-Z)",
-                "Category, then Name"
-            };
-
-            _tagSortMode = DrawSortDropdown(_tagSortMode, modes, labels);
         }
 
         private void DrawTagListItem(SemanticTag tag, bool showCategoryPrefix)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Genix.Editor.Diagnostics;
+using Genix.Editor.UI;
 using Genix.Diagnostics;
 using Genix.Extensions;
 using Genix.Sampling;
@@ -14,6 +15,10 @@ namespace Genix.Editor.Inspectors
     [CustomEditor(typeof(DiagnosticsReport))]
     public sealed class DiagnosticsReportEditor : UnityEditor.Editor
     {
+        private const float MinimumStatLabelWidth = 190f;
+        private const float MaximumStatLabelWidth = 240f;
+        private const float StatLabelWidthRatio = 0.38f;
+
         private enum CandidateEntryDisplayMode
         {
             Tested,
@@ -39,12 +44,81 @@ namespace Genix.Editor.Inspectors
             DiagnosticsReport report = (DiagnosticsReport)target;
             DiagnosticsPreview.SetReport(report);
 
+            float previousLabelWidth = EditorGUIUtility.labelWidth;
+            EditorGUIUtility.labelWidth = Mathf.Clamp(
+                EditorGUIUtility.currentViewWidth * StatLabelWidthRatio,
+                MinimumStatLabelWidth,
+                MaximumStatLabelWidth);
+
+            try
+            {
+                DrawReport(report);
+            }
+            finally
+            {
+                EditorGUIUtility.labelWidth = previousLabelWidth;
+            }
+        }
+
+        private void DrawReport(DiagnosticsReport report)
+        {
             EditorGUILayout.LabelField(GetReportTitle(report), EditorStyles.boldLabel);
             EditorGUILayout.Space(4f);
 
-            DrawRunSummary(report);
-            DrawCandidateSummary(report);
-            DrawSceneViewOptions(report);
+            if (DesignerUiPreferences.IsAdvanced)
+            {
+                DrawRunSummary(report);
+                DrawCandidateSummary(report);
+
+                DrawSceneViewOptions(report);
+            }
+            else
+            {
+                DrawOutcomeSummary(report);
+            }
+        }
+
+        private void DrawOutcomeSummary(DiagnosticsReport report)
+        {
+            EditorGUILayout.LabelField("Result", EditorStyles.boldLabel);
+            bool hasRecordedIssue = !string.IsNullOrWhiteSpace(report.StopReason);
+            string outcome = report.PlacedObjectCount >= report.RequestedObjectCount
+                ? hasRecordedIssue ? "Completed with Issues" : "All Objects Placed"
+                : report.PlacedObjectCount > 0 ? "Some Objects Placed" : "No Objects Placed";
+            DrawStat("Status", outcome);
+            DrawStat("Target Area", report.TargetName);
+            DrawStat("Run", report.DryRun ? "Preview" : "Generation");
+            DrawStat("Style", report.StyleName);
+            DrawStat("Requested Objects", report.RequestedObjectCount.ToString());
+            DrawStat(report.DryRun ? "Planned Objects" : "Placed Objects", report.PlacedObjectCount.ToString());
+
+            if (report.RejectionReasons.Count > 0)
+            {
+                DiagnosticsReport.CountEntry topRejection = report.RejectionReasons[0];
+                string advice = RejectionReasonGuidance.GetAdvice(topRejection.Label);
+                string label = RejectionReasonGuidance.GetDisplayName(topRejection.Label);
+                DrawStat("Main Placement Issue", $"{label} ({topRejection.Count})", advice);
+            }
+
+            _showPlacedObjects = DrawFoldoutStat(
+                _showPlacedObjects,
+                report.DryRun ? "Planned Objects" : "Placed Objects",
+                report.PlacedObjectCount.ToString());
+            if (_showPlacedObjects)
+                DrawCountEntries(
+                    report.PlacedObjects,
+                    report.DryRun ? "No objects were planned." : "No objects were placed.");
+
+            if (hasRecordedIssue)
+                DrawDesignerIssueSummary(report);
+        }
+
+        private static void DrawDesignerIssueSummary(DiagnosticsReport report)
+        {
+            string message = report.PlacedObjectCount >= report.RequestedObjectCount
+                ? "The requested number of objects was placed, but one or more placement requirements could not be completed. Check Main Placement Issue or enable Advanced for technical details."
+                : "Genix could not place every requested object. Check Main Placement Issue or enable Advanced for technical details.";
+            EditorGUILayout.HelpBox(message, MessageType.Warning);
         }
 
         private void OnDisable()
@@ -57,26 +131,30 @@ namespace Genix.Editor.Inspectors
 
         private void DrawRunSummary(DiagnosticsReport report)
         {
-            DrawStat("Created At", report.CreatedAt);
+            DrawStat("Created", report.CreatedAt);
             DrawStat("Run ID", ShortenRunId(report.RunId));
-            DrawStat("Target", report.TargetName);
-            DrawStat("Best Effort", report.BestEffort ? "Enabled" : "Disabled");
-            DrawStat("Run Type", report.DryRun ? "Preview Run" : "Generation");
-            DrawStat("Seed", report.RandomSeed.ToString());
+            DrawStat("Target Area", report.TargetName);
+            DrawStat("Allow Partial Results", report.BestEffort ? "Enabled" : "Disabled");
+            DrawStat("Run", report.DryRun ? "Preview" : "Generation");
+            DrawStat("Random Seed", report.RandomSeed.ToString());
 
             if (!string.IsNullOrWhiteSpace(report.PlacementTargets) &&
                 !string.Equals(report.PlacementTargets, "None", StringComparison.OrdinalIgnoreCase))
             {
-                DrawStat("Targets", report.PlacementTargets);
-                DrawStat("Distribution", report.TargetDistributionMode);
+                DrawStat("Placement Targets", report.PlacementTargets);
+                DrawStat("Target Distribution", report.TargetDistributionMode);
 
                 if (string.Equals(report.TargetDistributionMode, "Weighted", StringComparison.OrdinalIgnoreCase))
-                    DrawStat("Weights", report.TargetDistributionWeights);
+                    DrawStat("Target Weights", report.TargetDistributionWeights);
 
                 if (!string.IsNullOrWhiteSpace(report.RelativeSource))
                 {
-                    DrawStat("Relative To", report.RelativeSource);
-                    DrawStat("Relative Radius", report.RelativeRadius.ToString("0.##"));
+                    EditorGUILayout.LabelField("Global Proximity", EditorStyles.miniBoldLabel);
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        DrawStat("Place Near", report.RelativeSource);
+                        DrawStat("Maximum Distance", report.RelativeRadius.ToString("0.##"));
+                    }
                 }
 
                 DrawTargetBudgetEntries(report.TargetBudgets);
@@ -85,7 +163,7 @@ namespace Genix.Editor.Inspectors
 
             _showStyleSettings = DrawFoldoutStat(
                 _showStyleSettings,
-                "Style",
+                "Generation Style",
                 report.StyleName);
 
             if (_showStyleSettings)
@@ -103,17 +181,20 @@ namespace Genix.Editor.Inspectors
 
             _showRejectedObjects = DrawFoldoutStat(
                 _showRejectedObjects,
-                "Rejected Attempts",
+                "Rejected Asset Attempts",
                 report.RejectedCandidates.ToString());
 
             if (_showRejectedObjects)
-                DrawCountEntries(report.RejectionReasons, "No rejected attempts.");
+                DrawCountEntries(
+                    report.RejectionReasons,
+                    "No rejected attempts.",
+                    RejectionReasonGuidance.GetDisplayName);
         }
 
         private void DrawCandidateSummary(DiagnosticsReport report)
         {
             EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField("Candidates", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Placement Search", EditorStyles.boldLabel);
 
             if (report.IsDetailed)
             {
@@ -125,14 +206,17 @@ namespace Genix.Editor.Inspectors
             }
 
             if (!string.IsNullOrWhiteSpace(report.StopReason))
+            {
+                EditorGUILayout.LabelField("Technical Stop Reason", EditorStyles.miniBoldLabel);
                 EditorGUILayout.HelpBox(report.StopReason, MessageType.Warning);
+            }
         }
 
         private void DrawSupportCandidateSummary(DiagnosticsReport report)
         {
             _showSupportCandidates = DrawFoldoutStat(
                 _showSupportCandidates,
-                "Semantic Support Coverage",
+                "Support Surface Coverage",
                 report.SupportCandidates.Count.ToString());
 
             if (!_showSupportCandidates)
@@ -144,7 +228,7 @@ namespace Genix.Editor.Inspectors
                 {
                     DrawStat(
                         entry.Label,
-                        $"{entry.CandidateCount} candidates / {entry.SurfaceCount} surfaces");
+                        $"{entry.CandidateCount} positions / {entry.SurfaceCount} surfaces");
                 }
             }
         }
@@ -155,10 +239,14 @@ namespace Genix.Editor.Inspectors
             if (entries == null || entries.Count == 0)
                 return;
 
+            EditorGUILayout.LabelField("Objects by Placement Target", EditorStyles.miniBoldLabel);
             using (new EditorGUI.IndentLevelScope())
             {
                 foreach (DiagnosticsReport.TargetBudgetEntry entry in entries)
-                    DrawStat(entry.Target, $"{entry.PlacedCount}/{entry.TargetCount}");
+                    DrawStat(
+                        entry.Target,
+                        $"{entry.PlacedCount}/{entry.TargetCount}",
+                        "Placed or planned objects / target objects");
             }
         }
 
@@ -168,50 +256,53 @@ namespace Genix.Editor.Inspectors
             if (entries == null || entries.Count == 0)
                 return;
 
-            EditorGUILayout.LabelField("Support Distribution", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField("Objects by Support Surface", EditorStyles.miniBoldLabel);
             using (new EditorGUI.IndentLevelScope())
             {
                 foreach (DiagnosticsReport.SupportBudgetEntry entry in entries)
-                    DrawStat(entry.Label, $"{entry.PlacedCount}/{entry.TargetCount}");
+                    DrawStat(
+                        entry.Label,
+                        $"{entry.PlacedCount}/{entry.TargetCount}",
+                        "Placed or planned objects / target objects");
             }
         }
 
         private void DrawSummaryCandidateSummary(DiagnosticsReport report)
         {
-            DrawStat("Generated Positions", report.GeneratedCandidates.ToString());
+            DrawStat("Candidate Positions", report.GeneratedCandidates.ToString());
             DrawSupportCandidateSummary(report);
-            DrawStat("Tested Positions", report.TestedCandidateSeeds.ToString());
+            DrawStat("Evaluated Positions", report.TestedCandidateSeeds.ToString());
             DrawStat("Accepted Positions", report.AcceptedPositions > 0
                 ? report.AcceptedPositions.ToString()
                 : report.AcceptedCandidates.ToString());
-            DrawStat("Rejected Positions", "-");
             DrawStat("Asset Attempts", report.CandidateAttempts.ToString());
             DrawStat("Accepted Attempts", report.AcceptedCandidates.ToString());
             DrawStat("Rejected Attempts", report.RejectedCandidates.ToString());
             if (report.SupportPrefilterSkips > 0)
-                DrawStat("Support Prefilter Skips", report.SupportPrefilterSkips.ToString());
+                DrawStat("Attempts Skipped by Support Rules", report.SupportPrefilterSkips.ToString());
             DrawStat("Unused Positions", report.UnusedCandidates.ToString());
 
             if (report.RejectionReasons.Count > 0)
             {
                 DiagnosticsReport.CountEntry topRejection = report.RejectionReasons[0];
                 string advice = RejectionReasonGuidance.GetAdvice(topRejection.Label);
-                DrawStat("Top Rejection", $"{topRejection.Label} ({topRejection.Count})", advice);
+                string label = RejectionReasonGuidance.GetDisplayName(topRejection.Label);
+                DrawStat("Primary Rejection Reason", $"{label} ({topRejection.Count})", advice);
             }
         }
 
         private void DrawDetailedCandidateSummary(DiagnosticsReport report)
         {
-            DrawStat("Tested Positions", report.TestedCandidateSeeds.ToString());
+            DrawStat("Evaluated Positions", report.TestedCandidateSeeds.ToString());
             DrawStat("Accepted Positions", report.AcceptedPositions.ToString());
             DrawStat("Rejected Positions", report.RejectedPositions.ToString());
             DrawSupportCandidateSummary(report);
             if (report.SupportPrefilterSkips > 0)
-                DrawStat("Support Prefilter Skips", report.SupportPrefilterSkips.ToString());
+                DrawStat("Attempts Skipped by Support Rules", report.SupportPrefilterSkips.ToString());
 
             _showGeneratedCandidates = DrawFoldoutStat(
                 _showGeneratedCandidates,
-                "Generated Positions",
+                "Candidate Positions",
                 report.GeneratedCandidates.ToString());
 
             if (_showGeneratedCandidates)
@@ -238,7 +329,7 @@ namespace Genix.Editor.Inspectors
                 DrawCandidateEntries(
                     report.CandidateDetails,
                     candidate => candidate.Accepted,
-                    "No accepted candidates.",
+                    "No accepted asset attempts.",
                     CandidateEntryDisplayMode.Accepted);
 
             _showRejectedCandidates = DrawFoldoutStat(
@@ -250,7 +341,7 @@ namespace Genix.Editor.Inspectors
                 DrawCandidateEntries(
                     report.CandidateDetails,
                     candidate => !candidate.Accepted,
-                    "No rejected candidates.",
+                    "No rejected asset attempts.",
                     CandidateEntryDisplayMode.Rejected);
 
             _showUnusedCandidates = DrawFoldoutStat(
@@ -280,7 +371,7 @@ namespace Genix.Editor.Inspectors
                     EditorGUILayout.Space(2f);
                 }
 
-                EditorGUILayout.LabelField("Candidate Positions", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("All Candidate Positions", EditorStyles.boldLabel);
                 DrawVector3Entries(report.CandidateSeeds, "No candidate positions.");
             }
         }
@@ -298,7 +389,7 @@ namespace Genix.Editor.Inspectors
                     report.CandidateSeeds,
                     firstUnusedIndex,
                     report.CandidateSeeds.Count,
-                    "No unused candidates.");
+                    "No unused positions.");
             }
         }
 
@@ -370,13 +461,13 @@ namespace Genix.Editor.Inspectors
                 if (!string.IsNullOrWhiteSpace(entry.ObjectName))
                     DrawStat("Asset", entry.AssetId);
 
-                DrawStat("Position", FormatVector3(entry.Position));
-                DrawStat("Rotation", FormatVector3(entry.Rotation.eulerAngles));
-                DrawStat("Bounds Center", FormatVector3(entry.Bounds.center));
-                DrawStat("Bounds Size", FormatVector3(entry.Bounds.size));
+                DrawStat("World Position", FormatVector3(entry.Position));
+                DrawStat("World Rotation", FormatVector3(entry.Rotation.eulerAngles));
+                DrawStat("World Bounds Center", FormatVector3(entry.Bounds.center));
+                DrawStat("World Bounds Size", FormatVector3(entry.Bounds.size));
 
                 if (!string.IsNullOrWhiteSpace(entry.PlacementType))
-                    DrawStat("Placement", entry.PlacementType);
+                    DrawStat("Placement Target", entry.PlacementType);
 
                 DrawCandidateResult(entry, displayMode);
             }
@@ -395,7 +486,7 @@ namespace Genix.Editor.Inspectors
 
                     if (!entry.Accepted)
                     {
-                        DrawStat("Reason", entry.RejectionReason);
+                        DrawStat("Rejection Reason", RejectionReasonGuidance.GetDisplayName(entry.RejectionReason));
                         DrawRelatedObject(entry);
                     }
 
@@ -405,7 +496,7 @@ namespace Genix.Editor.Inspectors
                     break;
 
                 case CandidateEntryDisplayMode.Rejected:
-                    DrawStat("Reason", entry.RejectionReason);
+                    DrawStat("Rejection Reason", RejectionReasonGuidance.GetDisplayName(entry.RejectionReason));
                     DrawRelatedObject(entry);
                     break;
             }
@@ -416,14 +507,14 @@ namespace Genix.Editor.Inspectors
             if (string.IsNullOrWhiteSpace(entry.RelatedObjectName))
                 return;
 
-            DrawStat("Object", entry.RelatedObjectName);
+            DrawStat("Related Object", entry.RelatedObjectName);
         }
 
         private void DrawSceneViewOptions(DiagnosticsReport report)
         {
             EditorGUILayout.Space(4f);
 
-            _showSceneViewOptions = EditorGUILayout.Foldout(_showSceneViewOptions, "Scene View", true);
+            _showSceneViewOptions = EditorGUILayout.Foldout(_showSceneViewOptions, "Scene View Overlay", true);
 
             if (!_showSceneViewOptions)
                 return;
@@ -433,13 +524,13 @@ namespace Genix.Editor.Inspectors
             using (new EditorGUI.IndentLevelScope())
             {
                 DiagnosticsPreview.ShowBounds = EditorGUILayout.Toggle(
-                    new GUIContent("Show Bounds", "Draw the recorded target area's world bounds."),
+                    new GUIContent("Show Target Bounds", "Draw the recorded target area's world bounds."),
                     DiagnosticsPreview.ShowBounds);
 
                 if (report.SupportsGrid)
                 {
                     DiagnosticsPreview.ShowGrid = EditorGUILayout.Toggle(
-                        new GUIContent("Show Grid", "Draw recorded grid cells for Grid and Jittered Grid sampling."),
+                        new GUIContent("Show Sampling Grid", "Draw recorded grid cells for Grid and Jittered Grid sampling."),
                         DiagnosticsPreview.ShowGrid);
                 }
                 else
@@ -448,21 +539,21 @@ namespace Genix.Editor.Inspectors
                 }
 
                 DiagnosticsPreview.ShowCandidateSeeds = EditorGUILayout.Toggle(
-                    new GUIContent("Show Candidates", "Draw the raw candidate positions captured in this report."),
+                    new GUIContent("Show Candidate Positions", "Draw the sampled candidate positions captured in this report."),
                     DiagnosticsPreview.ShowCandidateSeeds);
 
                 DiagnosticsPreview.ShowAccepted = EditorGUILayout.Toggle(
-                    new GUIContent("Show Accepted", "Draw accepted placement attempts from this report."),
+                    new GUIContent("Show Accepted Attempts", "Draw accepted asset placement attempts from this report."),
                     DiagnosticsPreview.ShowAccepted);
 
                 DiagnosticsPreview.ShowRejected = EditorGUILayout.Toggle(
-                    new GUIContent("Show Rejected", "Draw rejected placement attempts and their recorded bounds."),
+                    new GUIContent("Show Rejected Attempts", "Draw rejected asset placement attempts and their recorded bounds."),
                     DiagnosticsPreview.ShowRejected);
 
                 if (report.SupportsClusters)
                 {
                     DiagnosticsPreview.ShowClusters = EditorGUILayout.Toggle(
-                        new GUIContent("Show Clusters", "Draw recorded cluster centers and radii for Cluster sampling."),
+                        new GUIContent("Show Cluster Regions", "Draw recorded cluster centers and radii for Cluster sampling."),
                         DiagnosticsPreview.ShowClusters);
                 }
                 else
@@ -479,7 +570,7 @@ namespace Genix.Editor.Inspectors
         {
             using (new EditorGUI.IndentLevelScope())
             {
-                DrawStat("Algorithm", settings.algorithm.ToAlgorithmName());
+                DrawStat("Sampling Algorithm", settings.algorithm.ToAlgorithmName());
 
                 if (ShouldDrawCandidateSettings(settings.algorithm))
                     DrawCandidateSettings(settings);
@@ -500,22 +591,22 @@ namespace Genix.Editor.Inspectors
         private static void DrawCandidateSettings(StyleSettings settings)
         {
             EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Candidates", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Search Limits", EditorStyles.boldLabel);
 
-            DrawStat("Multiplier", settings.candidates.multiplier.ToString());
-            DrawStat("Minimum Count", settings.candidates.minimumCount.ToString());
-            DrawStat("Shuffle", settings.candidates.shuffle ? "Enabled" : "Disabled");
+            DrawStat("Candidates per Object", settings.candidates.multiplier.ToString());
+            DrawStat("Minimum Candidate Count", settings.candidates.minimumCount.ToString());
+            DrawStat("Shuffle Candidates", settings.candidates.shuffle ? "Enabled" : "Disabled");
         }
 
         private static void DrawPlacementSettings(StyleSettings settings)
         {
             EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Placement", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Scene Clearance", EditorStyles.boldLabel);
 
-            DrawStat("Fixed Clearance", settings.placement.useFixedObjectClearance ? "Enabled" : "Disabled");
+            DrawStat("Avoid Existing Scene Objects", settings.placement.useFixedObjectClearance ? "Enabled" : "Disabled");
 
             if (settings.placement.useFixedObjectClearance)
-                DrawStat("Distance", settings.placement.fixedObjectDistance.ToString("0.###"));
+                DrawStat("Minimum Distance", settings.placement.fixedObjectDistance.ToString("0.###"));
         }
 
         private static void DrawRelevantAlgorithmSettings(StyleSettings settings)
@@ -545,43 +636,44 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.Space(2f);
             EditorGUILayout.LabelField("Grid", EditorStyles.boldLabel);
 
-            DrawStat("Cell Size", settings.grid.cellSize.ToString("0.###"));
+            DrawStat("Spacing", settings.grid.cellSize.ToString("0.###"));
         }
 
         private static void DrawJitteredGridSettings(StyleSettings settings)
         {
             EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Jittered Grid", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Varied Grid", EditorStyles.boldLabel);
 
-            DrawStat("Cell Size", settings.grid.cellSize.ToString("0.###"));
-            DrawStat("Jitter", settings.grid.jitterAmount.ToString("0.###"));
+            DrawStat("Spacing", settings.grid.cellSize.ToString("0.###"));
+            DrawStat("Jitter Amount", settings.grid.jitterAmount.ToString("0.###"));
         }
 
         private static void DrawClusterSettings(StyleSettings settings)
         {
             EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Cluster", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Clusters", EditorStyles.boldLabel);
 
-            DrawStat("Count", settings.cluster.count.ToString());
-            DrawStat("Radius", settings.cluster.radius.ToString("0.###"));
+            DrawStat("Cluster Count", settings.cluster.count.ToString());
+            DrawStat("Cluster Radius", settings.cluster.radius.ToString("0.###"));
             DrawStat("Center Spacing", settings.cluster.useMinCenterDistance ? "Enabled" : "Disabled");
 
             if (settings.cluster.useMinCenterDistance)
-                DrawStat("Min Distance", settings.cluster.minCenterDistance.ToString("0.###"));
+                DrawStat("Minimum Center Distance", settings.cluster.minCenterDistance.ToString("0.###"));
         }
 
         private static void DrawPoissonSettings(StyleSettings settings)
         {
             EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Poisson Disk", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Even Spacing", EditorStyles.boldLabel);
 
-            DrawStat("Min Distance", settings.poisson.minDistance.ToString("0.###"));
+            DrawStat("Minimum Distance", settings.poisson.minDistance.ToString("0.###"));
             DrawStat("Attempts", settings.poisson.attempts.ToString());
         }
 
         private static void DrawCountEntries(
             IReadOnlyList<DiagnosticsReport.CountEntry> entries,
-            string emptyMessage)
+            string emptyMessage,
+            Func<string, string> formatLabel = null)
         {
             using (new EditorGUI.IndentLevelScope())
             {
@@ -592,7 +684,7 @@ namespace Genix.Editor.Inspectors
                 }
 
                 foreach (DiagnosticsReport.CountEntry entry in entries)
-                    DrawStat(entry.Label, entry.Count.ToString());
+                    DrawStat(formatLabel?.Invoke(entry.Label) ?? entry.Label, entry.Count.ToString());
             }
         }
 
@@ -619,8 +711,8 @@ namespace Genix.Editor.Inspectors
         private static string GetReportTitle(DiagnosticsReport report)
         {
             return report.IsDetailed
-                ? "Genix Diagnostics Detailed Report"
-                : "Genix Diagnostics Summary";
+                ? "Detailed Diagnostics"
+                : "Diagnostics Summary";
         }
 
         private static string ShortenRunId(string runId)

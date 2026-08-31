@@ -9,3 +9,5 @@ Checks are grouped internally by the claim they support: geometric validity and 
 Evaluation and benchmark runners share the same campaign-state owner and target-area context. The original scene setup, profiling state, assembly-reload lock, and interrupted-run marker are restored through one cleanup path after completion, cancellation, or failure.
 
 Campaign exports retain raw runs and aggregate results. Keep the generated layouts required for visual evidence until the review is complete; old exploratory layouts can be removed separately.
+
+Use **Clean Up Layouts…** in the Evaluation window to remove superseded locked evaluation layouts without affecting designer-authored layouts. The preview retains the latest completed full campaign and the latest newer completed rerun for each scenario, reports exact keep and delete counts, and requires confirmation before deleting layout assets and their owned prefabs. Report assets are retained.

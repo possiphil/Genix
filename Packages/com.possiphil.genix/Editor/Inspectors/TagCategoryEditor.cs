@@ -31,13 +31,13 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.PropertyField(
                 _usage,
                 new GUIContent(
-                    "Usage",
-                    "Asset categories appear in asset, pool, and spatial-context fields. Surface categories appear in support-surface fields. Asset and Surface appears in both."));
+                    "Available On",
+                    "Choose whether this category describes generated assets, support surfaces, or both."));
 
             EditorGUILayout.PropertyField(
                 _allowMultipleTags,
-                new GUIContent("Allow Multiple Tags",
-                    "Allow an object or filter to select several tags from this category. Disable for mutually exclusive choices such as biome or room type."));
+                new GUIContent("Allow Multiple Selection",
+                    "Allow several tags from this category on one item. Disable for mutually exclusive choices such as one biome or room type."));
 
             serializedObject.ApplyModifiedProperties();
         }

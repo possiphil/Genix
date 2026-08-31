@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Genix.Assets;
+using Genix.Authoring;
 using Genix.Core;
 using Genix.Semantics;
 using UnityEngine;
@@ -34,7 +35,6 @@ namespace Genix.Placement
         [SerializeField, Min(0f)] private float radius = 0.5f;
         [SerializeField] private PlacementTarget affectedTargets = PlacementTarget.All;
         [SerializeField] private List<SemanticTag> exemptAssetTags = new();
-        [SerializeField] private bool alwaysShowRegion = false;
 
         /// <summary>Gets the configured geometry source.</summary>
         public ExclusionRegionShape Shape => shape;
@@ -48,8 +48,6 @@ namespace Genix.Placement
         public PlacementTarget AffectedTargets => affectedTargets & PlacementTarget.All;
         /// <summary>Gets asset-compatible tags that may overlap this region.</summary>
         public IReadOnlyList<SemanticTag> ExemptAssetTags => exemptAssetTags;
-        /// <summary>Gets whether the region remains visible while it is not selected.</summary>
-        public bool AlwaysShowRegion => alwaysShowRegion;
         /// <summary>Gets the world-space center.</summary>
         public Vector3 WorldCenter => transform.position + transform.rotation * center;
 
@@ -137,7 +135,7 @@ namespace Genix.Placement
 
         private void OnDrawGizmos()
         {
-            if (alwaysShowRegion)
+            if (AuthoringVisualization.ShowSceneGuides)
                 DrawRegion(selected: false);
         }
 

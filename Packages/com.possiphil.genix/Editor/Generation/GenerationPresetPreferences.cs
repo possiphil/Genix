@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Genix.Editor.Generation
 {
-    /// <summary>Resolves the per-project, per-user generation preset loaded when the Generator opens.</summary>
+    /// <summary>Remembers the last generation preset selected by this editor user for the current project.</summary>
     internal static class GenerationPresetPreferences
     {
         private const string DefaultPresetKeyPrefix = "Genix.GenerationPreset.DefaultGuid";

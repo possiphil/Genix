@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Assets;
+using Genix.Editor.UI;
 using Genix.Extensions;
 using Genix.Semantics;
 using UnityEngine;
@@ -12,13 +13,17 @@ namespace Genix.Editor.Windows
     {
         private List<AssetDefinition> GetFilteredAssets(AssetCatalog catalog)
         {
-            List<AssetDefinition> assets = catalog.Assets
+            IEnumerable<AssetDefinition> assets = catalog.Assets
                 .Where(asset => asset)
                 .Where(MatchesAssetSearch)
-                .Where(MatchesAssetPlacementTypeFilter)
-                .Where(MatchesAssetOrientationModeFilter)
-                .Where(MatchesAssetCategoryFilters)
-                .ToList();
+                .Where(MatchesAssetPlacementTypeFilter);
+
+            if (DesignerUiPreferences.IsAdvanced)
+            {
+                assets = assets
+                    .Where(MatchesAssetOrientationModeFilter)
+                    .Where(MatchesAssetCategoryFilters);
+            }
 
             return SortAssets(catalog, assets);
         }
@@ -28,10 +33,9 @@ namespace Genix.Editor.Windows
             List<TagCategory> categories = catalog.Categories
                 .Where(category => category)
                 .Where(category => MatchesCategorySearch(catalog, category))
-                .Where(MatchesCategoryModeFilter)
                 .ToList();
 
-            return SortCategories(catalog, categories);
+            return SortCategories(categories);
         }
 
         private List<AssetPool> GetFilteredAssetPools(AssetCatalog catalog)
@@ -40,10 +44,9 @@ namespace Genix.Editor.Windows
                 .Where(pool => pool)
                 .Where(MatchesPoolSearch)
                 .Where(MatchesPoolModeFilter)
-                .Where(pool => MatchesPoolAssetStateFilter(catalog, pool))
                 .ToList();
 
-            return SortAssetPools(catalog, assetPools);
+            return SortAssetPools(assetPools);
         }
 
         private List<AssetDefinition> SortAssets(AssetCatalog catalog, IEnumerable<AssetDefinition> assets)
@@ -98,69 +101,21 @@ namespace Genix.Editor.Windows
             return count;
         }
 
-        private List<TagCategory> SortCategories(
-            AssetCatalog catalog,
-            IEnumerable<TagCategory> categories)
-        {
-            return _categorySortMode switch
-            {
-                CategorySortMode.TagCountAscending => categories
-                    .OrderBy(category => GetCategoryTagCount(catalog, category))
-                    .ThenBy(category => category.DisplayName, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
+        private static List<TagCategory> SortCategories(IEnumerable<TagCategory> categories) =>
+            categories
+                .OrderBy(category => category.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-                CategorySortMode.Mode => categories
-                    .OrderBy(category => category.AllowMultipleTags ? 0 : 1)
-                    .ThenBy(category => category.DisplayName, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
+        private static List<SemanticTag> SortTags(IEnumerable<SemanticTag> tags) =>
+            tags
+                .OrderBy(tag => tag.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(GetTagCategoryName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-                _ => categories
-                    .OrderBy(category => category.DisplayName, StringComparer.OrdinalIgnoreCase)
-                    .ToList()
-            };
-        }
-
-        private List<SemanticTag> SortTags(IEnumerable<SemanticTag> tags)
-        {
-            return _tagSortMode switch
-            {
-                TagSortMode.AlphabeticalAscending => tags
-                    .OrderBy(tag => tag.DisplayName, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                _ => tags
-                    .OrderBy(GetTagCategoryName, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(tag => tag.DisplayName, StringComparer.OrdinalIgnoreCase)
-                    .ToList()
-            };
-        }
-
-        private List<AssetPool> SortAssetPools(
-            AssetCatalog catalog,
-            IEnumerable<AssetPool> assetPools)
-        {
-            return _poolSortMode switch
-            {
-                PoolSortMode.AssetCountDescending => assetPools
-                    .OrderByDescending(pool => GetPoolAssetCount(catalog, pool))
-                    .ThenBy(pool => pool.name, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                PoolSortMode.Mode => assetPools
-                    .OrderBy(pool => pool.Mode.ToString(), StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(pool => pool.name, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                _ => assetPools
-                    .OrderBy(pool => pool.name, StringComparer.OrdinalIgnoreCase)
-                    .ToList()
-            };
-        }
-
-        private static int GetCategoryTagCount(AssetCatalog catalog, TagCategory category)
-        {
-            return catalog.Tags.Count(tag => tag && tag.Category == category);
-        }
+        private static List<AssetPool> SortAssetPools(IEnumerable<AssetPool> assetPools) =>
+            assetPools
+                .OrderBy(pool => pool.name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
         private static string GetTagCategoryName(SemanticTag tag)
         {
@@ -208,12 +163,6 @@ namespace Genix.Editor.Windows
                 .Any(tag => tag.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
-        private bool MatchesCategoryModeFilter(TagCategory category)
-        {
-            return !_filterCategoriesByMode ||
-                   category.AllowMultipleTags == _categoryModeFilterAllowsMultiple;
-        }
-
         private bool MatchesPoolSearch(AssetPool pool)
         {
             if (string.IsNullOrWhiteSpace(_poolSearch))
@@ -228,20 +177,6 @@ namespace Genix.Editor.Windows
         private bool MatchesPoolModeFilter(AssetPool pool)
         {
             return !_filterAssetPoolsByMode || pool.Mode == _poolModeFilter;
-        }
-
-        private bool MatchesPoolAssetStateFilter(
-            AssetCatalog catalog,
-            AssetPool pool)
-        {
-            int assetCount = GetPoolAssetCount(catalog, pool);
-
-            return _poolAssetStateFilter switch
-            {
-                PoolAssetStateFilter.HasAssets => assetCount > 0,
-                PoolAssetStateFilter.Empty => assetCount == 0,
-                _ => true
-            };
         }
 
         private bool MatchesAssetCategoryFilters(AssetDefinition asset)

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Assets;
+using Genix.Authoring;
 using Genix.Geometry;
 using Genix.Semantics;
 using UnityEngine;
@@ -20,7 +21,6 @@ namespace Genix.Placement
         [SerializeField] private bool useCustomBounds;
         [SerializeField] private Vector3 boundsCenter;
         [SerializeField] private Vector3 boundsSize = Vector3.one;
-        [SerializeField] private bool alwaysShowAnchor = false;
 
         /// <summary>Gets the concrete asset identity represented by this scene object, when available.</summary>
         public AssetDefinition RepresentedAsset => representedAsset;
@@ -129,7 +129,7 @@ namespace Genix.Placement
 
         private void OnDrawGizmos()
         {
-            if (alwaysShowAnchor)
+            if (AuthoringVisualization.ShowSceneGuides)
                 DrawAnchorGizmo(0.45f);
         }
 

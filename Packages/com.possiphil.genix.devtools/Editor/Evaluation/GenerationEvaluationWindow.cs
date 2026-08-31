@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Genix.Areas;
 using Genix.Editor.Layouts;
+using Genix.Editor.DevTools;
 using Genix.Editor.TargetAreas;
 using Genix.Editor.Utilities;
 using Genix.Layouts;
@@ -19,7 +20,6 @@ namespace Genix.Editor.Evaluation
     {
         private const string SelectedSuiteKey = "Genix.Evaluations.SelectedSuite";
         private const string SelectedReportKey = "Genix.Evaluations.SelectedReport";
-        private const float ScenarioListWidth = 250f;
 
         private GenerationEvaluationSuite _suite;
         private SerializedObject _serializedSuite;
@@ -67,6 +67,7 @@ namespace Genix.Editor.Evaluation
             using (new EditorGUILayout.HorizontalScope())
             {
                 DrawScenarioList();
+                GUILayout.Space(6f);
                 DrawScenarioDetails();
             }
 
@@ -90,12 +91,10 @@ namespace Genix.Editor.Evaluation
                 using (new EditorGUI.DisabledScope(GenerationEvaluationRunner.IsRunning))
                 {
                     if (GUILayout.Button(
-                            new GUIContent("Create / Refresh Thesis Suite", "Rebuilds the canonical 20-seed configuration from authored evaluation scenes and stable target IDs."),
-                            EditorStyles.toolbarButton,
-                            GUILayout.Width(178f)))
-                    {
-                        RefreshThesisSuite();
-                    }
+                            new GUIContent("Actions", "Create, refresh, or clean up evaluation content."),
+                            EditorStyles.toolbarDropDown,
+                            GUILayout.Width(72f)))
+                        ShowSuiteActionsMenu();
                 }
 
                 GUILayout.FlexibleSpace();
@@ -123,6 +122,29 @@ namespace Genix.Editor.Evaluation
             }
         }
 
+        private void ShowSuiteActionsMenu()
+        {
+            GenericMenu menu = new();
+            menu.AddItem(
+                new GUIContent("Create / Refresh Thesis Suite"),
+                false,
+                RefreshThesisSuite);
+
+            if (_suite && !GenerationEvaluationRunner.IsRunning)
+            {
+                menu.AddItem(
+                    new GUIContent("Clean Up Evaluation Layouts…"),
+                    false,
+                    CleanUpEvaluationLayouts);
+            }
+            else
+            {
+                menu.AddDisabledItem(new GUIContent("Clean Up Evaluation Layouts…"));
+            }
+
+            menu.ShowAsContext();
+        }
+
         private void DrawRunPanel()
         {
             int ready = _suite.Scenarios.Count(item => item is { Enabled: true, Ready: true });
@@ -132,28 +154,35 @@ namespace Genix.Editor.Evaluation
                                    item is { Enabled: true, Ready: true, SaveLayouts: true }) *
                                _suite.RunsPerScenario;
 
+            if (DeveloperWindowUi.SectionHeader(
+                    new GUIContent("Campaign", "Run and validate the configured evaluation campaign."),
+                    new GUIContent("Validate", "Check the suite without running it."),
+                    !GenerationEvaluationRunner.IsRunning,
+                    72f))
+            {
+                ValidateSuite();
+            }
+
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     using (new EditorGUI.DisabledScope(GenerationEvaluationRunner.IsRunning))
                     {
-                        if (GUILayout.Button(
+                        if (DeveloperWindowUi.CommandButton(
                                 new GUIContent(
                                     "Run All",
                                     $"Runs all {ready} enabled and ready scenarios with {_suite.RunsPerScenario} deterministic seeds each ({totalRuns} runs total)."),
-                                GUILayout.Height(30f),
-                                GUILayout.Width(108f)))
+                                0,
+                                2))
                             StartEvaluation(false);
-                        if (GUILayout.Button("Run Selected", GUILayout.Height(30f), GUILayout.Width(108f)))
+                        if (DeveloperWindowUi.CommandButton(new GUIContent("Run Selected"), 1, 2))
                             StartEvaluation(true);
-                        if (GUILayout.Button("Validate", GUILayout.Height(30f), GUILayout.Width(78f)))
-                            ValidateSuite();
                     }
 
                     using (new EditorGUI.DisabledScope(!GenerationEvaluationRunner.IsRunning))
                     {
-                        if (GUILayout.Button("Stop", GUILayout.Height(30f), GUILayout.Width(64f)))
+                        if (GUILayout.Button("Stop", EditorStyles.miniButton, GUILayout.Height(28f), GUILayout.Width(64f)))
                             GenerationEvaluationRunner.RequestStop();
                     }
 
@@ -199,7 +228,8 @@ namespace Genix.Editor.Evaluation
         private void DrawScenarioList()
         {
             SerializedProperty scenarios = _serializedSuite.FindProperty("scenarios");
-            using (new EditorGUILayout.VerticalScope(GUILayout.Width(ScenarioListWidth)))
+            float listWidth = DeveloperWindowUi.ResponsiveListWidth(position.width);
+            using (new EditorGUILayout.VerticalScope(GUILayout.Width(listWidth)))
             {
                 EditorGUILayout.LabelField("Scenarios", EditorStyles.boldLabel);
                 _scenarioScroll = EditorGUILayout.BeginScrollView(_scenarioScroll, EditorStyles.helpBox);
@@ -211,8 +241,8 @@ namespace Genix.Editor.Evaluation
                     bool enabled = scenario.FindPropertyRelative("enabled").boolValue;
                     bool ready = scenario.FindPropertyRelative("ready").boolValue;
                     string marker = !ready ? "[!]" : enabled ? "[x]" : "[ ]";
-                    GUIStyle style = i == _selectedScenario ? EditorStyles.miniButtonMid : EditorStyles.miniButton;
-                    if (GUILayout.Button($"{marker} {name}", style, GUILayout.Height(24f)))
+                    GUIContent label = new($"{marker} {name}", name);
+                    if (DeveloperWindowUi.SelectableRow(i == _selectedScenario, label, 24f, listWidth - 20f))
                         _selectedScenario = i;
                 }
 
@@ -349,6 +379,7 @@ namespace Genix.Editor.Evaluation
             using (new EditorGUILayout.HorizontalScope())
             {
                 DrawRunList(filtered);
+                GUILayout.Space(6f);
                 DrawRunDetails(runs);
             }
         }
@@ -357,13 +388,14 @@ namespace Genix.Editor.Evaluation
         {
             string[] labels = { "All", "Isolated", "Integrated", "Performance" };
             int selected = _kindFilter.HasValue ? (int)_kindFilter.Value + 1 : 0;
-            int changed = EditorGUILayout.Popup(selected, labels, GUILayout.Width(110f));
+            int changed = EditorGui.Popup(selected, labels, GUILayout.Width(110f));
             _kindFilter = changed == 0 ? null : (EvaluationScenarioKind?)(changed - 1);
         }
 
         private void DrawRunList(IReadOnlyList<(GenerationEvaluationRunRecord Run, int Index)> filtered)
         {
-            _runScroll = EditorGUILayout.BeginScrollView(_runScroll, EditorStyles.helpBox, GUILayout.Width(330f), GUILayout.Height(220f));
+            float listWidth = DeveloperWindowUi.ResponsiveListWidth(position.width, 300f, 500f, 0.38f, 430f);
+            _runScroll = EditorGUILayout.BeginScrollView(_runScroll, EditorStyles.helpBox, GUILayout.Width(listWidth), GUILayout.Height(220f));
             foreach ((GenerationEvaluationRunRecord run, int index) in filtered)
             {
                 string automatic = run.AutomaticVerdict switch
@@ -377,8 +409,8 @@ namespace Genix.Editor.Evaluation
                     : run.visualRating == EvaluationVisualRating.NotReviewed
                         ? "-"
                         : run.visualRating.ToString();
-                GUIStyle style = index == _selectedRun ? EditorStyles.miniButtonMid : EditorStyles.miniButton;
-                if (GUILayout.Button($"{automatic} | {review} | {run.scenario} | {run.seed}", style, GUILayout.Height(23f)))
+                string label = $"{automatic} | {review} | {run.scenario} | {run.seed}";
+                if (DeveloperWindowUi.SelectableRow(index == _selectedRun, new GUIContent(label, label), 23f, listWidth - 20f))
                     _selectedRun = index;
             }
             EditorGUILayout.EndScrollView();
@@ -644,6 +676,61 @@ namespace Genix.Editor.Evaluation
                     ? $"Export retained {reviewable - valid:N0} saved layout(s) without complete valid visual-review evidence."
                     : string.Empty;
             EditorUtility.RevealInFinder(directory);
+        }
+
+        private void CleanUpEvaluationLayouts()
+        {
+            GenerationEvaluationLayoutCleanupPlan plan =
+                GenerationEvaluationLayoutCleanupService.BuildPlan(_suite);
+            if (!plan.IsValid)
+            {
+                EditorUtility.DisplayDialog("Clean Up Evaluation Layouts", plan.Error, "OK");
+                return;
+            }
+
+            if (plan.MissingProtectedLayouts > 0)
+            {
+                EditorUtility.DisplayDialog(
+                    "Clean Up Evaluation Layouts",
+                    $"Cleanup was stopped because {plan.MissingProtectedLayouts:N0} layout(s) referenced by the retained reports are already missing. Restore them or select a valid final campaign before cleanup.",
+                    "OK");
+                return;
+            }
+
+            if (plan.DeletableLayoutPaths.Count == 0)
+            {
+                EditorUtility.DisplayDialog(
+                    "Clean Up Evaluation Layouts",
+                    $"No superseded evaluation layouts were found. {plan.ProtectedLayoutPaths.Count:N0} layout(s) referenced by the current reports remain protected.",
+                    "OK");
+                return;
+            }
+
+            string rerunSummary = plan.ProtectedReports.Count > 1
+                ? $" and {plan.ProtectedReports.Count - 1:N0} newer completed scenario rerun(s)"
+                : string.Empty;
+            bool confirmed = EditorUtility.DisplayDialog(
+                "Clean Up Evaluation Layouts",
+                $"Suite: {_suite.name}\n\n" +
+                $"Keep {plan.ProtectedLayoutPaths.Count:N0} layout(s) referenced by the latest completed full campaign{rerunSummary}.\n" +
+                $"Delete {plan.DeletableLayoutPaths.Count:N0} superseded locked evaluation layout(s) and their owned prefabs.\n\n" +
+                "Designer layouts and report assets are not deleted. This cannot be undone.",
+                $"Delete {plan.DeletableLayoutPaths.Count:N0}",
+                "Cancel");
+            if (!confirmed)
+                return;
+
+            if (!GenerationEvaluationLayoutCleanupService.Execute(plan, out int deletedCount, out string error))
+            {
+                EditorUtility.DisplayDialog("Cleanup Failed", error, "OK");
+                return;
+            }
+
+            EditorUtility.DisplayDialog(
+                "Evaluation Layouts Cleaned Up",
+                $"Deleted {deletedCount:N0} superseded evaluation layout(s). " +
+                $"Kept {plan.ProtectedLayoutPaths.Count:N0} layout(s) referenced by the current reports.",
+                "OK");
         }
 
         private void HandleRunnerChanged()

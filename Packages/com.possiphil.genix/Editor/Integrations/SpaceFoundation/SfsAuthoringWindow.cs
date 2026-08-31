@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Editor.UI;
+using Genix.Editor.Utilities;
 using SpaceFoundationSystem;
 using UnityEditor;
 using UnityEngine;
@@ -37,26 +38,28 @@ namespace Genix.SpaceFoundation.Editor
         [SerializeField] private List<Vector2Int> _customFootprint = new();
         [SerializeField] private bool _automaticAnchorRange = true;
         [SerializeField] private float _anchorRangeOverride = 40f;
-        [SerializeField] private bool _showValidation;
         [SerializeField] private bool _showPreview = true;
 
         private Vector2 _scroll;
         private SfsAuthoringPlan _plan;
         private string _planError = string.Empty;
         private List<SfsAuthoringValidationMessage> _sceneMessages = new();
+        private bool _sceneValidationHasRun;
 
-        [MenuItem("Tools/Genix/SFS Authoring", false, 40)]
+        [MenuItem("Tools/Genix/SFS Authoring", false, 20)]
         public static void Open()
         {
-            SfsAuthoringWindow window = GetWindow<SfsAuthoringWindow>("SFS Authoring");
+            SfsAuthoringWindow window = GenixWindowDocking.Open<SfsAuthoringWindow>("Genix SFS Authoring");
             window.minSize = new Vector2(520f, 600f);
-            window.Show();
         }
 
         private void OnEnable()
         {
             if (!_foundation)
                 _foundation = SfsAuthoringSceneBuilder.FindSingleFoundation();
+
+            if (_foundation)
+                SfsAuthoringSceneBuilder.ConfigureFoundationLayerMask(_foundation, out _);
 
             SceneView.duringSceneGui += DrawScenePreview;
             Selection.selectionChanged += OnSelectionChanged;
@@ -78,10 +81,7 @@ namespace Genix.SpaceFoundation.Editor
 
         private void OnGUI()
         {
-            DesignerUiPreferences.DrawWindowToolbar(
-                "SFS Authoring",
-                !_automaticAnchorRange || !_showPreview,
-                "This authoring configuration contains a custom anchor range or preview setting. Switch to Advanced to inspect it.");
+            DesignerUiPreferences.DrawWindowToolbar();
 
             EditorGUI.BeginChangeCheck();
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
@@ -91,12 +91,18 @@ namespace Genix.SpaceFoundation.Editor
             DrawElementActions();
             EditorGUILayout.Space(8f);
             DrawLayoutSection();
-            EditorGUILayout.Space(8f);
-            DrawPlanSummary();
+            if (DesignerUiPreferences.IsAdvanced)
+            {
+                EditorGUILayout.Space(8f);
+                DrawPlanSummary();
+            }
+            else if (_plan == null)
+            {
+                EditorGUILayout.Space(8f);
+                EditorGUILayout.HelpBox(_planError, MessageType.Error);
+            }
             EditorGUILayout.Space(8f);
             DrawCreateActions();
-            EditorGUILayout.Space(8f);
-            DrawValidation();
 
             EditorGUILayout.EndScrollView();
             if (EditorGUI.EndChangeCheck())
@@ -109,89 +115,104 @@ namespace Genix.SpaceFoundation.Editor
 
         private void DrawFoundationSection()
         {
-            EditorGUILayout.LabelField("Space Foundation", EditorStyles.boldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField("Space Foundation", EditorStyles.boldLabel);
+                using (new EditorGUI.DisabledScope(!_foundation))
+                {
+                    if (GUILayout.Button(new GUIContent("Check Scene", "Check the selected Foundation, delimiter layer, anchors, and colliders."), EditorStyles.miniButton, GUILayout.Width(100f)))
+                        CheckScene();
+                }
+            }
+
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
+                SpaceFoundationSystem.SpaceFoundation previousFoundation = _foundation;
                 _foundation = (SpaceFoundationSystem.SpaceFoundation)EditorGUILayout.ObjectField(
                     new GUIContent(
                         "Foundation",
-                        "The Space Foundation that owns the generated anchors and defines voxel size and delimiter layers."),
+                        "Choose the Space Foundation that owns generated anchors and defines voxel size and delimiter layers."),
                     _foundation,
                     typeof(SpaceFoundationSystem.SpaceFoundation),
                     true);
+                if (_foundation != previousFoundation)
+                {
+                    if (_foundation)
+                        SfsAuthoringSceneBuilder.ConfigureFoundationLayerMask(_foundation, out _);
+
+                    ClearSceneValidation();
+                }
 
                 if (_foundation)
                 {
                     using (new EditorGUI.DisabledScope(true))
-                        EditorGUILayout.FloatField(new GUIContent("Voxel Size", "The selected Foundation's voxel size is preserved."), _foundation.voxelSize);
+                        EditorGUILayout.FloatField(new GUIContent("Voxel Size (units)", "The selected Foundation's voxel size is preserved."), _foundation.voxelSize);
                 }
                 else
                 {
                     _newFoundationVoxelSize = EditorGUILayout.FloatField(
-                        new GUIContent("New Voxel Size", "Voxel size used only when this window creates a new Foundation."),
+                        new GUIContent("New Voxel Size (units)", "Use this size when Genix creates a new Foundation."),
                         _newFoundationVoxelSize);
                 }
 
-                using (new EditorGUILayout.HorizontalScope())
+                if (GUILayout.Button(_foundation ? "Select Foundation" : "Create Foundation"))
                 {
-                    if (GUILayout.Button(_foundation ? "Select Foundation" : "Create Foundation"))
+                    if (_foundation)
                     {
-                        if (_foundation)
-                        {
-                            Selection.activeObject = _foundation.gameObject;
-                            EditorGUIUtility.PingObject(_foundation.gameObject);
-                        }
-                        else
-                        {
-                            _foundation = SfsAuthoringSceneBuilder.CreateFoundation(_newFoundationVoxelSize);
-                            RebuildPlan();
-                        }
+                        Selection.activeObject = _foundation.gameObject;
+                        EditorGUIUtility.PingObject(_foundation.gameObject);
                     }
-
-                    using (new EditorGUI.DisabledScope(!_foundation))
+                    else
                     {
-                        if (GUILayout.Button(new GUIContent("Configure Layer", "Adds the SFS Delimiter layer to this Foundation's delimiting mask.")))
-                            SfsAuthoringSceneBuilder.ConfigureFoundationLayerMask(_foundation, out _);
+                        _foundation = SfsAuthoringSceneBuilder.CreateFoundation(_newFoundationVoxelSize);
+                        ClearSceneValidation();
+                        RebuildPlan();
                     }
                 }
+
+                DrawSceneValidationResult();
             }
         }
 
         private void DrawElementActions()
         {
-            EditorGUILayout.LabelField("Basic Elements", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Quick Add", EditorStyles.boldLabel);
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(new GUIContent("Anchor", "Creates an SFS Anchor at the current layout center.")))
+                if (GUILayout.Button(new GUIContent("Add Anchor", "Create an SFS Anchor at the current setup center.")))
                 {
                     SpaceFoundationSystem.SpaceFoundation foundation = EnsureFoundation();
                     if (foundation)
                     {
                         float range = Mathf.Max(40f, foundation.voxelSize * 8f);
                         SfsAuthoringSceneBuilder.CreateAnchor(ResolveCenter(), foundation, range);
+                        ClearSceneValidation();
                     }
                 }
 
-                if (GUILayout.Button(new GUIContent("Box Delimiter", "Creates a collider-backed SFS Delimiter at the current layout center.")))
+                if (GUILayout.Button(new GUIContent("Add Box Delimiter", "Create a voxel-aligned 4 x 4 x 1 SFS delimiter wall at the current setup center.")))
                 {
                     SpaceFoundationSystem.SpaceFoundation foundation = EnsureFoundation();
                     if (foundation)
                     {
-                        float voxelSize = foundation.voxelSize;
-                        SfsAuthoringSceneBuilder.CreateBoxDelimiter(
+                        SfsAuthoringSceneBuilder.CreateGridAlignedBoxDelimiter(
                             ResolveCenter(),
-                            new Vector3(voxelSize * 4f, voxelSize * 4f, voxelSize * 0.92f),
+                            new Vector3Int(4, 4, 1),
                             foundation);
+                        ClearSceneValidation();
                     }
                 }
 
                 using (new EditorGUI.DisabledScope(!Selection.gameObjects.Any(value => value.GetComponent<Collider>())))
                 {
-                    if (GUILayout.Button(new GUIContent("Convert Colliders", "Adds Delimiter components and the correct layer to selected collider objects.")))
+                    if (GUILayout.Button(new GUIContent("Convert Selected", "Turn selected collider objects into SFS delimiters.")))
                     {
                         SpaceFoundationSystem.SpaceFoundation foundation = EnsureFoundation();
                         if (foundation)
+                        {
                             SfsAuthoringSceneBuilder.ConvertSelectedColliders(foundation, out _);
+                            ClearSceneValidation();
+                        }
                     }
                 }
             }
@@ -199,15 +220,15 @@ namespace Genix.SpaceFoundation.Editor
 
         private void DrawLayoutSection()
         {
-            EditorGUILayout.LabelField("Layout", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Location Setup", EditorStyles.boldLabel);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                _layoutType = (SfsAuthoringLayoutType)EditorGUILayout.EnumPopup(
-                    new GUIContent("Layout Type", GetLayoutTooltip(_layoutType)),
-                    _layoutType);
                 _layoutName = EditorGUILayout.TextField(
-                    new GUIContent("Name", "Name of the generated scene hierarchy."),
+                    new GUIContent("Location Name", "Name the generated scene hierarchy."),
                     _layoutName);
+                _layoutType = (SfsAuthoringLayoutType)EditorGUILayout.EnumPopup(
+                    new GUIContent("Setup Type", GetLayoutTooltip(_layoutType)),
+                    _layoutType);
 
                 DrawCenterFields();
                 EditorGUILayout.Space(3f);
@@ -234,7 +255,7 @@ namespace Genix.SpaceFoundation.Editor
                     if (!_automaticAnchorRange)
                     {
                         _anchorRangeOverride = EditorGUILayout.FloatField(
-                            new GUIContent("Anchor Range", "Maximum world-space distance that SFS may explore from every generated anchor."),
+                            new GUIContent("Anchor Range (units)", "Maximum distance SFS may explore from each generated anchor."),
                             _anchorRangeOverride);
                     }
 
@@ -248,28 +269,28 @@ namespace Genix.SpaceFoundation.Editor
         private void DrawCenterFields()
         {
             _centerMode = (SfsAuthoringCenterMode)EditorGUILayout.EnumPopup(
-                new GUIContent("Center Source", "Manual position, current Scene view pivot, or bounds of the selected objects."),
+                new GUIContent("Position Source", "Place the setup manually, at the Scene view pivot, or around the selected objects."),
                 _centerMode);
 
             if (_centerMode == SfsAuthoringCenterMode.Manual)
             {
-                _manualCenter = EditorGUILayout.Vector3Field("Center", _manualCenter);
+                _manualCenter = EditorGUILayout.Vector3Field("Position", _manualCenter);
             }
             else
             {
                 using (new EditorGUI.DisabledScope(true))
-                    EditorGUILayout.Vector3Field("Resolved Center", ResolveCenter());
+                    EditorGUILayout.Vector3Field("Resolved Position", ResolveCenter());
             }
         }
 
         private void DrawBoundedFields()
         {
             _sizeMode = (SfsAuthoringSizeMode)EditorGUILayout.EnumPopup(
-                new GUIContent("Size Input", "World units round up to full cells; voxel counts specify exact free cells; Fit Selection uses selected geometry bounds."),
+                new GUIContent("Size Input", "World size rounds up to complete cells. Cell count is exact. Fit Selection uses selected geometry."),
                 _sizeMode);
 
             if (_sizeMode == SfsAuthoringSizeMode.WorldUnits)
-                _worldSize = EditorGUILayout.Vector3Field("Requested Size", _worldSize);
+                _worldSize = EditorGUILayout.Vector3Field("Requested Size (units)", _worldSize);
             else if (_sizeMode == SfsAuthoringSizeMode.VoxelCounts)
                 _voxelCounts = EditorGUILayout.Vector3IntField("Free Voxel Cells", _voxelCounts);
             else
@@ -279,10 +300,10 @@ namespace Genix.SpaceFoundation.Editor
         private void DrawGridFields()
         {
             _gridCounts = EditorGUILayout.Vector3IntField(
-                new GUIContent("Grid Counts", "Number of locations on X, Y, and Z. For example, 1 x 2 x 1 creates two stacked locations."),
+                new GUIContent("Location Counts", "Number of locations on X, Y, and Z. For example, 1 x 2 x 1 creates two stacked locations."),
                 _gridCounts);
             _separatorCells = EditorGUILayout.Vector3IntField(
-                new GUIContent("Separator Cells", "Blocked voxel bands between neighbouring locations. One cell is the safe default."),
+                new GUIContent("Separation (cells)", "Blocked cell bands between neighboring locations. One cell is the safe default."),
                 _separatorCells);
             _usePerAxisRoomSizes = EditorGUILayout.Toggle(
                 new GUIContent("Per-Axis Sizes", "Use a separate exact free-cell count for each X column, Y level, and Z row while keeping every row and column aligned."),
@@ -294,7 +315,7 @@ namespace Genix.SpaceFoundation.Editor
                     new GUIContent("Room Size Input", "Uniform room size in world units or exact voxel counts."),
                     _sizeMode == SfsAuthoringSizeMode.FitSelection ? SfsAuthoringSizeMode.WorldUnits : _sizeMode);
                 if (_sizeMode == SfsAuthoringSizeMode.WorldUnits)
-                    _worldSize = EditorGUILayout.Vector3Field("Room Size", _worldSize);
+                    _worldSize = EditorGUILayout.Vector3Field("Room Size (units)", _worldSize);
                 else
                     _voxelCounts = EditorGUILayout.Vector3IntField("Room Voxel Cells", _voxelCounts);
             }
@@ -315,10 +336,10 @@ namespace Genix.SpaceFoundation.Editor
                 new GUIContent("Module Grid", "Width and depth of the footprint mask in modules."),
                 _footprintDimensions);
             _footprintTileCells = EditorGUILayout.Vector2IntField(
-                new GUIContent("Cells Per Module", "Free voxel cells represented by each occupied footprint module."),
+                new GUIContent("Module Size (cells)", "Free cells represented by each occupied footprint module."),
                 _footprintTileCells);
             _footprintHeightCells = EditorGUILayout.IntField(
-                new GUIContent("Height Cells", "Free vertical voxel cells in the location."),
+                new GUIContent("Height (cells)", "Free vertical cells in the location."),
                 _footprintHeightCells);
 
             DrawFootprintMask();
@@ -419,7 +440,7 @@ namespace Genix.SpaceFoundation.Editor
                     _plan.ActualCenter);
                 EditorGUILayout.Vector3Field("Requested Size", _plan.RequestedSize);
                 EditorGUILayout.Vector3Field(new GUIContent(
-                        "Actual Voxel Size",
+                        "Actual Size",
                         _plan.InteriorVolumes.Count > PreviewVolumeLimit
                             ? $"Scene preview is limited to {PreviewVolumeLimit} of {_plan.InteriorVolumes.Count} interior volumes; creation is not limited."
                             : "Voxel-aligned size used by the generated layout."),
@@ -433,32 +454,44 @@ namespace Genix.SpaceFoundation.Editor
             {
                 using (new EditorGUI.DisabledScope(_plan == null))
                 {
-                    if (GUILayout.Button("Create Layout", GUILayout.Height(32f)))
+                    if (GUILayout.Button("Create Location", GUILayout.Height(32f)))
                         CreateLayout(computeAfterCreation: false);
 
-                    if (GUILayout.Button(new GUIContent("Create + Compute", "Creates the layout, validates the scene, then runs the installed SFS Compute Graph command."), GUILayout.Height(32f)))
+                    if (GUILayout.Button(new GUIContent("Create and Compute", "Create the location, check the scene, then run the SFS Compute Graph command."), GUILayout.Height(32f)))
                         CreateLayout(computeAfterCreation: true);
                 }
             }
         }
 
-        private void DrawValidation()
+        private void CheckScene()
         {
-            _showValidation = EditorGUILayout.Foldout(_showValidation, "Scene Validation", true);
-            if (!_showValidation)
+            _sceneMessages = SfsAuthoringValidator.ValidateScene(_foundation);
+            _sceneValidationHasRun = true;
+        }
+
+        private void DrawSceneValidationResult()
+        {
+            if (!_sceneValidationHasRun)
                 return;
 
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            bool drewIssue = false;
+            foreach (SfsAuthoringValidationMessage message in _sceneMessages)
             {
-                if (GUILayout.Button("Validate Scene"))
-                    _sceneMessages = SfsAuthoringValidator.ValidateScene(_foundation);
-
-                foreach (SfsAuthoringValidationMessage message in _sceneMessages)
+                if (message.Type is MessageType.Warning or MessageType.Error)
                 {
-                    if (message.Type is MessageType.Warning or MessageType.Error)
-                        EditorGUILayout.HelpBox(message.Text, message.Type);
+                    EditorGUILayout.HelpBox(message.Text, message.Type);
+                    drewIssue = true;
                 }
             }
+
+            if (!drewIssue)
+                EditorGUILayout.HelpBox("Scene setup is valid.", MessageType.Info);
+        }
+
+        private void ClearSceneValidation()
+        {
+            _sceneMessages.Clear();
+            _sceneValidationHasRun = false;
         }
 
         private void CreateLayout(bool computeAfterCreation)
@@ -475,13 +508,13 @@ namespace Genix.SpaceFoundation.Editor
             }
 
             _sceneMessages = SfsAuthoringValidator.ValidateScene(foundation);
+            _sceneValidationHasRun = true;
             if (!computeAfterCreation)
                 return;
 
             SfsAuthoringValidationMessage firstError = _sceneMessages.FirstOrDefault(value => value.Type == MessageType.Error);
             if (!string.IsNullOrEmpty(firstError.Text))
             {
-                _showValidation = true;
                 EditorUtility.DisplayDialog(
                     "SFS Compute Blocked",
                     $"The layout was created, but Compute was not started:\n\n{firstError.Text}",

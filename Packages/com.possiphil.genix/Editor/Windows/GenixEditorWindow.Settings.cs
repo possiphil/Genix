@@ -23,29 +23,27 @@ namespace Genix.Editor.Windows
             AssignDefaultStylePresetIfMissing();
 
             _selectedStylePreset = AssetDropdown.DrawStylePresetDropdownWithEditButton(
-                new GUIContent(
-                    "Generation Style",
-                    "Preset that controls the sampling algorithm, candidate budget, spacing, and algorithm-specific distribution settings."),
+                CreateGenerationStyleLabel(),
                 _stylePresets,
                 _stylePresetOptions,
                 _selectedStylePreset);
             if (!_selectedStylePreset)
             {
                 EditorGUILayout.HelpBox("No generation style preset selected. Create or restore a preset named Natural to use it as the default.", MessageType.Warning);
-                return;
             }
+        }
 
-            if (DesignerUiPreferences.IsAdvanced)
-            {
-                int candidateBudget = _selectedStylePreset.Settings.candidates.GetBudget(_objectCount);
-                EditorGUILayout.LabelField(
-                    new GUIContent(
-                        "Maximum Candidates",
-                        "Hard upper bound on sampled candidate positions for this object count and generation style. Generation stops earlier as soon as the requested object count is reached."),
-                    new GUIContent(candidateBudget.ToString("N0")));
+        private GUIContent CreateGenerationStyleLabel()
+        {
+            const string guidance = "Choose the overall spacing and distribution behavior for this run.";
+            string description = _selectedStylePreset
+                ? _selectedStylePreset.Settings.description
+                : string.Empty;
+            string tooltip = string.IsNullOrWhiteSpace(description)
+                ? guidance
+                : $"{guidance}\n\n{_selectedStylePreset.name}: {description}";
 
-                _stylePreviewDrawer.Draw(_selectedStylePreset);
-            }
+            return new GUIContent("Generation Style", tooltip);
         }
 
         private void RefreshSelectableAssets()
@@ -58,11 +56,6 @@ namespace Genix.Editor.Windows
             RefreshTargetAreas();
 
             ValidateSelectedAssets();
-        }
-
-        private void RefreshGeneratedLayouts()
-        {
-            _generatedLayouts = LayoutWorkflow.LoadLayouts();
         }
 
         private void ValidateSelectedAssets()

@@ -35,10 +35,9 @@ namespace Genix.SpaceFoundation.Editor
             if (!foundation)
                 return;
             Transform parent = GetContextParent(command);
-            float voxelSize = foundation ? foundation.voxelSize : 1f;
-            SfsAuthoringSceneBuilder.CreateBoxDelimiter(
+            SfsAuthoringSceneBuilder.CreateGridAlignedBoxDelimiter(
                 GetCreationPosition(),
-                new Vector3(voxelSize * 4f, voxelSize * 4f, voxelSize * 0.92f),
+                new Vector3Int(4, 4, 1),
                 foundation,
                 parent);
         }

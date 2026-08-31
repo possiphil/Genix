@@ -29,8 +29,8 @@ namespace Genix.Editor.Generation
             {
                 assets = new List<AssetDefinition>();
                 error = request.AssetPool.IsDynamic
-                    ? $"Dynamic asset pool '{request.AssetPool.name}' does not match any assets. Check its filters and the asset catalog."
-                    : $"Static asset pool '{request.AssetPool.name}' is empty. Add at least one asset before generating.";
+                    ? $"Rule-based pool '{request.AssetPool.name}' does not match any assets. Check its rules and the content library."
+                    : $"Manual pool '{request.AssetPool.name}' is empty. Add at least one asset before generating.";
                 return false;
             }
 

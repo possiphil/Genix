@@ -31,6 +31,13 @@ namespace Genix.Editor.TargetAreas
         IAreaSource CreateAreaSource();
     }
 
+    /// <summary>Optionally separates target-area feedback from the selector field.</summary>
+    public interface ITargetAreaSelectorStatus
+    {
+        /// <summary>Draws warnings or guidance for the current target-area state.</summary>
+        void DrawStatus();
+    }
+
     /// <summary>Draws integration-specific semantic controls in the Genix content window.</summary>
     public interface ILocationPanel
     {

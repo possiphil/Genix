@@ -39,7 +39,7 @@ namespace Genix.Editor.Windows
             {
                 using (new EditorGUI.DisabledScope(!entry.SurfaceCollider))
                 {
-                    if (GUI.Button(columns.Tags, "Add Descriptor", EditorStyles.miniButton))
+                    if (GUI.Button(columns.Tags, "Configure", EditorStyles.miniButton))
                         AddSurfaceDescriptor(entry.GameObject);
                 }
 
@@ -264,7 +264,7 @@ namespace Genix.Editor.Windows
         {
             Undo.IncrementCurrentGroup();
             int undoGroup = Undo.GetCurrentGroup();
-            Undo.SetCurrentGroupName("Add Placement Surface Descriptors");
+            Undo.SetCurrentGroupName("Configure Genix Surfaces");
 
             foreach (SceneSetupObjectEntry entry in entries)
             {
@@ -285,4 +285,3 @@ namespace Genix.Editor.Windows
         }
     }
 }
-

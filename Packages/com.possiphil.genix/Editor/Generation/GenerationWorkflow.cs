@@ -29,7 +29,7 @@ namespace Genix.Editor.Generation
         /// <summary>Indicates whether preview plan.</summary>
         public static bool HasPreviewPlan => _lastPreviewPlan is { Count: > 0 };
 
-        /// <summary>Plans and applies a generation request to the scene.</summary>
+        /// <summary>Plans and appends a generation request without clearing existing output in the target area.</summary>
         public static void Generate(GenerationRequest request)
         {
             if (!Validate(request))
@@ -68,7 +68,7 @@ namespace Genix.Editor.Generation
         {
             if (!HasPreviewPlan)
             {
-                Debug.LogWarning("No Genix preview run is available to apply. Run Preview Run first.");
+                Debug.LogWarning("No Genix preview is available to apply. Run Preview first.");
                 return false;
             }
 
@@ -201,7 +201,7 @@ namespace Genix.Editor.Generation
                 {
                     string message =
                         $"Relative placement could not start because '{request.RelativePlacement.Source.ToDisplayName()}' has no usable anchor objects. " +
-                        "Choose another Relative To source, select scene objects, generate anchor objects first, or adjust the relative scene layers.";
+                        "Choose another Place Near source, select scene objects, generate anchor objects first, or adjust the relative scene layers.";
                     RecordProfileStopReason(profiler, message);
                     SceneGenerationService.RemoveEmptyParent(generatedParent, parentExisted);
                     Debug.LogWarning(message);
@@ -233,7 +233,7 @@ namespace Genix.Editor.Generation
 
                     string rollbackText = context.BestEffort
                         ? string.Empty
-                        : " Best Effort is disabled, so the complete plan was discarded and nothing was placed.";
+                        : " Allow Partial Results is disabled, so the incomplete plan was discarded and nothing was placed.";
                     Debug.LogWarning(
                         $"Genix found {outcome.PlacedCount} of {context.Count} requested placements. " +
                         $"{outcome.Message}{rollbackText} Open Genix Diagnostics for rejection details.");

@@ -4,6 +4,7 @@ using System.IO;
 using Genix.Core;
 using Genix.Editor.Generation;
 using Genix.Editor.Infrastructure;
+using Genix.Editor.UI;
 using Genix.Editor.Utilities;
 using UnityEditor;
 using UnityEngine;
@@ -14,10 +15,9 @@ namespace Genix.Editor.Windows
     {
         private static readonly GUIContent GenerationPresetLabel = new(
             "Generation Preset",
-            "Reusable generation configuration. Target Area and Detailed Diagnostics remain scene- or run-specific and are not stored.");
+            "Reuse generator settings across scenes. The target area and detailed diagnostic capture are not stored.");
 
         private GenerationPreset _selectedGenerationPreset;
-        private GenerationPreset _defaultGenerationPreset;
         private GenerationPreset[] _generationPresets = Array.Empty<GenerationPreset>();
         private string[] _generationPresetOptions = { "Custom" };
 
@@ -28,7 +28,7 @@ namespace Genix.Editor.Windows
             using (new EditorGUILayout.HorizontalScope())
             {
                 EditorGUI.BeginChangeCheck();
-                selectedIndex = EditorGUILayout.Popup(
+                selectedIndex = EditorGui.Popup(
                     GenerationPresetLabel,
                     selectedIndex,
                     _generationPresetOptions);
@@ -36,40 +36,53 @@ namespace Genix.Editor.Windows
                 if (EditorGUI.EndChangeCheck())
                     SelectGenerationPreset(selectedIndex);
 
-                EditorGui.DrawEditAssetButton(_selectedGenerationPreset);
-            }
-
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                GUILayout.Space(EditorGUIUtility.labelWidth);
-
-                if (GUILayout.Button(new GUIContent("Save New", "Create a new preset from the current generator settings.")))
-                    SaveGenerationPresetAsNew();
-
-                using (new EditorGUI.DisabledScope(!_selectedGenerationPreset))
+                if (DesignerUiPreferences.IsAdvanced)
                 {
-                    if (GUILayout.Button(new GUIContent("Update", "Replace the selected preset with the current generator settings.")))
-                        UpdateSelectedGenerationPreset();
-
-                    if (GUILayout.Button(new GUIContent("Reload", "Discard local changes and restore the selected preset.")))
-                        ApplyGenerationPreset(_selectedGenerationPreset);
+                    EditorGui.DrawEditAssetButton(
+                        _selectedGenerationPreset,
+                        EditorStyles.miniButtonLeft,
+                        48f,
+                        EditorGUIUtility.singleLineHeight);
+                    DrawGenerationPresetActions();
+                }
+                else
+                {
+                    EditorGui.DrawEditAssetButton(_selectedGenerationPreset);
                 }
             }
+        }
 
-            bool isDefault = _selectedGenerationPreset && _selectedGenerationPreset == _defaultGenerationPreset;
+        private void DrawGenerationPresetActions()
+        {
+            if (GUILayout.Button(
+                    new GUIContent("Save as New", "Create a preset from the current settings."),
+                    EditorStyles.miniButtonMid,
+                    GUILayout.Width(80f),
+                    GUILayout.Height(EditorGUIUtility.singleLineHeight)))
+            {
+                SaveGenerationPresetAsNew();
+            }
 
             using (new EditorGUI.DisabledScope(!_selectedGenerationPreset))
             {
-                EditorGUI.BeginChangeCheck();
-                bool useAsDefault = EditorGUILayout.Toggle(
-                    new GUIContent("Default on Startup", "Load this preset when the Genix Generator window is created after a Unity or domain reload."),
-                    isDefault);
+                if (GUILayout.Button(
+                        new GUIContent("Update", "Save the current settings to the selected preset."),
+                        EditorStyles.miniButtonMid,
+                        GUILayout.Width(58f),
+                        GUILayout.Height(EditorGUIUtility.singleLineHeight)))
+                {
+                    UpdateSelectedGenerationPreset();
+                }
 
-                if (EditorGUI.EndChangeCheck())
-                    SetSelectedGenerationPresetAsDefault(useAsDefault);
+                if (GUILayout.Button(
+                        new GUIContent("Revert", "Discard current changes and reload the selected preset."),
+                        EditorStyles.miniButtonRight,
+                        GUILayout.Width(58f),
+                        GUILayout.Height(EditorGUIUtility.singleLineHeight)))
+                {
+                    ApplyGenerationPreset(_selectedGenerationPreset);
+                }
             }
-
-            // The Update and Reload button tooltips explain how to resolve local preset changes.
         }
 
         private void RefreshGenerationPresets()
@@ -83,7 +96,6 @@ namespace Genix.Editor.Windows
             for (int i = 0; i < _generationPresets.Length; i++)
                 _generationPresetOptions[i + 1] = _generationPresets[i].name;
 
-            _defaultGenerationPreset = GenerationPresetPreferences.GetDefault();
         }
 
         private void ValidateSelectedGenerationPreset()
@@ -94,22 +106,16 @@ namespace Genix.Editor.Windows
                 _selectedGenerationPreset = null;
             }
 
-            if (_defaultGenerationPreset &&
-                !EditorAssets.ContainsAsset(_generationPresets, _defaultGenerationPreset))
-            {
-                GenerationPresetPreferences.ClearDefault();
-                _defaultGenerationPreset = null;
-            }
         }
 
         private void LoadDefaultGenerationPreset()
         {
-            _defaultGenerationPreset = GenerationPresetPreferences.GetDefault();
+            GenerationPreset lastPreset = GenerationPresetPreferences.GetDefault();
 
-            if (!_defaultGenerationPreset)
+            if (!lastPreset)
                 return;
 
-            _selectedGenerationPreset = _defaultGenerationPreset;
+            _selectedGenerationPreset = lastPreset;
             ApplyGenerationPreset(_selectedGenerationPreset);
         }
 
@@ -120,7 +126,14 @@ namespace Genix.Editor.Windows
                 : null;
 
             if (_selectedGenerationPreset)
+            {
+                GenerationPresetPreferences.SetDefault(_selectedGenerationPreset);
                 ApplyGenerationPreset(_selectedGenerationPreset);
+            }
+            else
+            {
+                GenerationPresetPreferences.ClearDefault();
+            }
         }
 
         private int GetGenerationPresetIndex(GenerationPreset preset)
@@ -235,6 +248,7 @@ namespace Genix.Editor.Windows
 
             RefreshGenerationPresets();
             _selectedGenerationPreset = preset;
+            GenerationPresetPreferences.SetDefault(preset);
             Debug.Log($"Created Genix generation preset '{Path.GetFileNameWithoutExtension(path)}'.");
         }
 
@@ -249,19 +263,6 @@ namespace Genix.Editor.Windows
             EditorUtility.SetDirty(_selectedGenerationPreset);
             AssetDatabase.SaveAssets();
             Debug.Log($"Updated Genix generation preset '{_selectedGenerationPreset.name}'.");
-        }
-
-        private void SetSelectedGenerationPresetAsDefault(bool useAsDefault)
-        {
-            if (useAsDefault && _selectedGenerationPreset)
-            {
-                GenerationPresetPreferences.SetDefault(_selectedGenerationPreset);
-                _defaultGenerationPreset = _selectedGenerationPreset;
-                return;
-            }
-
-            GenerationPresetPreferences.ClearDefault();
-            _defaultGenerationPreset = null;
         }
 
         private static int CompareGenerationPresets(GenerationPreset a, GenerationPreset b) =>

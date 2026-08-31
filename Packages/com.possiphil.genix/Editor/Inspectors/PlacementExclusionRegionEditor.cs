@@ -21,7 +21,6 @@ namespace Genix.Editor.Inspectors
         private SerializedProperty _radius;
         private SerializedProperty _affectedTargets;
         private SerializedProperty _exemptAssetTags;
-        private SerializedProperty _alwaysShowRegion;
 
         private void OnEnable()
         {
@@ -31,7 +30,6 @@ namespace Genix.Editor.Inspectors
             _radius = serializedObject.FindProperty("radius");
             _affectedTargets = serializedObject.FindProperty("affectedTargets");
             _exemptAssetTags = serializedObject.FindProperty("exemptAssetTags");
-            _alwaysShowRegion = serializedObject.FindProperty("alwaysShowRegion");
         }
 
         /// <summary>Draws the custom region inspector.</summary>
@@ -41,17 +39,17 @@ namespace Genix.Editor.Inspectors
 
             EditorGUILayout.PropertyField(_shape, new GUIContent(
                 "Shape",
-                "Reserves placement space without creating a Collider, Trigger, or gameplay physics behavior. Overlapping regions combine automatically. Box is suited to paths and door clearances; Sphere is suited to radial safety or interaction zones."));
+                "Reserve a box or sphere without adding gameplay physics. Overlapping exclusion regions combine automatically."));
             ExclusionRegionShape shape = (ExclusionRegionShape)_shape.enumValueIndex;
 
             if (shape == ExclusionRegionShape.Box)
             {
                 EditorGUILayout.PropertyField(_center, new GUIContent(
-                    "Center",
+                    "Center (units)",
                     "Local offset from this object's transform. Transform scale is intentionally ignored."));
                 EditorGUI.BeginChangeCheck();
                 Vector3 size = EditorGUILayout.Vector3Field(new GUIContent(
-                    "Size",
+                    "Size (units)",
                     "Box dimensions in world units. Rotate the GameObject to orient the region."),
                     _size.vector3Value);
 
@@ -66,11 +64,11 @@ namespace Genix.Editor.Inspectors
             else if (shape == ExclusionRegionShape.Sphere)
             {
                 EditorGUILayout.PropertyField(_center, new GUIContent(
-                    "Center",
+                    "Center (units)",
                     "Local offset from this object's transform. Transform scale is intentionally ignored."));
                 EditorGUI.BeginChangeCheck();
                 float radius = EditorGUILayout.FloatField(new GUIContent(
-                    "Radius",
+                    "Radius (units)",
                     "Sphere radius in world units."),
                     _radius.floatValue);
 
@@ -80,25 +78,8 @@ namespace Genix.Editor.Inspectors
 
             DrawAffectedTargets();
 
-            if (!DesignerUiPreferences.IsAdvanced &&
-                (_exemptAssetTags.arraySize > 0 || _alwaysShowRegion.boolValue))
-            {
-                using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
-                {
-                    GUILayout.FlexibleSpace();
-                    DesignerUiPreferences.DrawAdvancedActiveIndicator(
-                        true,
-                        "This region contains advanced exemptions or visualization settings. They remain active in Basic mode.");
-                }
-            }
-
             if (DesignerUiPreferences.IsAdvanced)
-            {
                 DrawExemptAssetTags();
-                EditorGUILayout.PropertyField(_alwaysShowRegion, new GUIContent(
-                    "Always Show Region",
-                    "Keep this region visible in the Scene view while another object is selected. Unity's global Gizmos switch still controls all gizmo rendering."));
-            }
 
             if (((PlacementTarget)_affectedTargets.intValue & PlacementTarget.All) == PlacementTarget.None)
             {
@@ -121,8 +102,8 @@ namespace Genix.Editor.Inspectors
             };
             Rect row = EditorGUILayout.GetControlRect();
             Rect button = EditorGUI.PrefixLabel(row, new GUIContent(
-                "Exempt Asset Tags",
-                "Assets carrying any selected asset-compatible tag may overlap this region. Use this for path furniture on collider-backed path exclusions."));
+                "Ignored Asset Tags",
+                "Assets carrying any selected tag may overlap this region, such as path furniture on a path exclusion."));
 
             if (!EditorGUI.DropdownButton(button, new GUIContent(summary), FocusType.Keyboard))
                 return;
@@ -195,8 +176,8 @@ namespace Genix.Editor.Inspectors
             Rect dropdownRect = EditorGUI.PrefixLabel(
                 controlRect,
                 new GUIContent(
-                    "Affected Targets",
-                    "Only candidates of these placement target types are rejected by this region."));
+                    "Blocks Placement On",
+                    "Reject only candidates using these placement target types."));
 
             if (!EditorGUI.DropdownButton(
                     dropdownRect,
@@ -222,7 +203,7 @@ namespace Genix.Editor.Inspectors
             Repaint();
         }
 
-        [MenuItem("GameObject/Genix/Exclusion Region", false, 30)]
+        [MenuItem("GameObject/Genix/Add Exclusion Region", false, 30)]
         private static void CreateExclusionRegion(MenuCommand command)
         {
             GameObject regionObject = new("Genix Exclusion Region");

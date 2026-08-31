@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Genix.Editor.TargetAreas;
+using Genix.Editor.DevTools;
+using Genix.Editor.Utilities;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -14,7 +16,6 @@ namespace Genix.Editor.Benchmarking
     public sealed class GenerationBenchmarkWindow : EditorWindow
     {
         private const string SelectedSuiteKey = "Genix.Benchmarks.SelectedSuite";
-        private const float ScenarioListWidth = 230f;
 
         private GenerationBenchmarkSuite _suite;
         private SerializedObject _serializedSuite;
@@ -29,9 +30,8 @@ namespace Genix.Editor.Benchmarking
         [MenuItem("Tools/Genix Developer/Benchmarks", false, 20)]
         public static void Open()
         {
-            GenerationBenchmarkWindow window = GetWindow<GenerationBenchmarkWindow>("Genix Benchmarks");
+            GenerationBenchmarkWindow window = GenixWindowDocking.Open<GenerationBenchmarkWindow>("Genix Benchmarks");
             window.minSize = new Vector2(760f, 520f);
-            window.Show();
         }
 
         private void OnEnable()
@@ -62,6 +62,7 @@ namespace Genix.Editor.Benchmarking
             using (new EditorGUILayout.HorizontalScope())
             {
                 DrawScenarioList();
+                GUILayout.Space(6f);
                 DrawScenarioDetails();
             }
 
@@ -83,14 +84,11 @@ namespace Genix.Editor.Benchmarking
                 if (EditorGUI.EndChangeCheck())
                     SetSuite(selected);
 
-                if (GUILayout.Button("Create Suite", EditorStyles.toolbarButton, GUILayout.Width(88f)))
-                    CreateSuite();
-
-                using (new EditorGUI.DisabledScope(!_suite || GenerationBenchmarkRunner.IsRunning))
-                {
-                    if (GUILayout.Button("Add Evaluation Scenes", EditorStyles.toolbarButton, GUILayout.Width(145f)))
-                        AddEvaluationScenes();
-                }
+                if (GUILayout.Button(
+                        new GUIContent("Actions", "Create or populate benchmark suites."),
+                        EditorStyles.toolbarDropDown,
+                        GUILayout.Width(72f)))
+                    ShowSuiteActionsMenu();
 
                 GUILayout.FlexibleSpace();
 
@@ -102,27 +100,44 @@ namespace Genix.Editor.Benchmarking
             }
         }
 
+        private void ShowSuiteActionsMenu()
+        {
+            GenericMenu menu = new();
+            menu.AddItem(new GUIContent("Create Suite"), false, CreateSuite);
+            if (_suite && !GenerationBenchmarkRunner.IsRunning)
+                menu.AddItem(new GUIContent("Add Evaluation Scenes"), false, AddEvaluationScenes);
+            else
+                menu.AddDisabledItem(new GUIContent("Add Evaluation Scenes"));
+            menu.ShowAsContext();
+        }
+
         private void DrawRunPanel()
         {
+            if (DeveloperWindowUi.SectionHeader(
+                    new GUIContent("Campaign", "Run and validate the configured benchmark campaign."),
+                    new GUIContent("Validate", "Check the suite without running it."),
+                    !GenerationBenchmarkRunner.IsRunning,
+                    72f))
+            {
+                ValidateSuite();
+            }
+
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     using (new EditorGUI.DisabledScope(GenerationBenchmarkRunner.IsRunning))
                     {
-                        if (GUILayout.Button("Run Full Suite", GUILayout.Height(30f), GUILayout.MinWidth(150f)))
+                        if (DeveloperWindowUi.CommandButton(new GUIContent("Run Full Suite"), 0, 2, 120f))
                             StartBenchmark(selectedOnly: false);
 
-                        if (GUILayout.Button("Run Selected", GUILayout.Height(30f), GUILayout.Width(110f)))
+                        if (DeveloperWindowUi.CommandButton(new GUIContent("Run Selected"), 1, 2, 120f))
                             StartBenchmark(selectedOnly: true);
-
-                        if (GUILayout.Button("Validate", GUILayout.Height(30f), GUILayout.Width(82f)))
-                            ValidateSuite();
                     }
 
                     using (new EditorGUI.DisabledScope(!GenerationBenchmarkRunner.IsRunning))
                     {
-                        if (GUILayout.Button("Stop", GUILayout.Height(30f), GUILayout.Width(70f)))
+                        if (GUILayout.Button("Stop", EditorStyles.miniButton, GUILayout.Height(28f), GUILayout.Width(70f)))
                             GenerationBenchmarkRunner.RequestStop();
                     }
 
@@ -192,7 +207,8 @@ namespace Genix.Editor.Benchmarking
         {
             SerializedProperty scenarios = _serializedSuite.FindProperty("scenarios");
 
-            using (new EditorGUILayout.VerticalScope(GUILayout.Width(ScenarioListWidth)))
+            float listWidth = DeveloperWindowUi.ResponsiveListWidth(position.width, 240f, 500f);
+            using (new EditorGUILayout.VerticalScope(GUILayout.Width(listWidth)))
             {
                 EditorGUILayout.LabelField("Scenarios", EditorStyles.boldLabel);
                 _scenarioScroll = EditorGUILayout.BeginScrollView(_scenarioScroll, EditorStyles.helpBox);
@@ -202,10 +218,13 @@ namespace Genix.Editor.Benchmarking
                     SerializedProperty scenario = scenarios.GetArrayElementAtIndex(i);
                     string name = scenario.FindPropertyRelative("displayName").stringValue;
                     bool enabled = scenario.FindPropertyRelative("enabled").boolValue;
-                    GUIStyle style = i == _selectedScenario ? EditorStyles.miniButtonMid : EditorStyles.miniButton;
                     string label = $"{(enabled ? "[x]" : "[ ]")} {name}";
 
-                    if (GUILayout.Button(label, style, GUILayout.Height(24f)))
+                    if (DeveloperWindowUi.SelectableRow(
+                            i == _selectedScenario,
+                            new GUIContent(label, name),
+                            24f,
+                            listWidth - 20f))
                         _selectedScenario = i;
                 }
 
@@ -293,7 +312,7 @@ namespace Genix.Editor.Benchmarking
 
             if (providerNames.Length > 0)
             {
-                int newIndex = EditorGUILayout.Popup(
+                int newIndex = EditorGui.Popup(
                     new GUIContent("Area Provider", "Spatial integration used to resolve the target after each scene switch."),
                     providerIndex,
                     providerNames);
@@ -316,7 +335,7 @@ namespace Genix.Editor.Benchmarking
                 if (targets.Count > 0)
                 {
                     int targetIndex = Mathf.Max(0, targets.ToList().FindIndex(target => target.Id == targetProperty.stringValue));
-                    int newTargetIndex = EditorGUILayout.Popup(
+                    int newTargetIndex = EditorGui.Popup(
                         new GUIContent("Target Area", "Stable scene target resolved for every automated run."),
                         targetIndex,
                         targets.Select(target => target.DisplayName).ToArray());

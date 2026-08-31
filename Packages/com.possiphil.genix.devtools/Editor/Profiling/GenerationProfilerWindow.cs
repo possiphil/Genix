@@ -4,6 +4,8 @@ using Genix.Areas;
 using Genix.Extensions;
 using Genix.Placement;
 using Genix.Profiling;
+using Genix.Editor.UI;
+using Genix.Editor.Utilities;
 using UnityEditor;
 using UnityEngine;
 
@@ -23,9 +25,7 @@ namespace Genix.Editor.Profiling
         [MenuItem("Tools/Genix Developer/Profiler", false, 10)]
         public static void Open()
         {
-            GenerationProfilerWindow window = GetWindow<GenerationProfilerWindow>("Genix Profiler");
-            window.Show();
-            window.Focus();
+            GenixWindowDocking.Open<GenerationProfilerWindow>("Genix Profiler");
         }
 
         private void OnEnable()
@@ -65,43 +65,57 @@ namespace Genix.Editor.Profiling
                 if (EditorGUI.EndChangeCheck())
                     GenerationProfilerService.SetProfilingEnabled(captureRuns);
 
-                GUILayout.Space(6f);
-
-                using (new EditorGUI.DisabledScope(GenerationProfilerService.LastProfile == null))
-                {
-                    if (GUILayout.Button("Save Profile", EditorStyles.toolbarButton, GUILayout.Width(90f)))
-                    {
-                        _selectedReport = GenerationProfileReportSaver.Save(GenerationProfilerService.LastProfile);
-                        GenerationProfileCatalogService.Refresh();
-                    }
-
-                    if (GUILayout.Button("Copy CSV", EditorStyles.toolbarButton, GUILayout.Width(80f)))
-                        CopyCsv(GenerationProfilerService.LastProfile);
-
-                    if (GUILayout.Button("Clear Current", EditorStyles.toolbarButton, GUILayout.Width(90f)))
-                        GenerationProfilerService.ClearLastProfile();
-                }
-
                 GUILayout.FlexibleSpace();
 
                 if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(70f)))
                     GenerationProfileCatalogService.Refresh();
 
-                if (GUILayout.Button("Clear Saved", EditorStyles.toolbarButton, GUILayout.Width(90f)))
-                    ClearSavedProfiles();
+                if (GUILayout.Button(
+                        new GUIContent("Actions", "Delete saved profiling data."),
+                        EditorStyles.toolbarDropDown,
+                        GUILayout.Width(72f)))
+                    ShowProfileActionsMenu();
             }
+        }
+
+        private void ShowProfileActionsMenu()
+        {
+            GenericMenu menu = new();
+            menu.AddItem(new GUIContent("Delete All Saved Profiles…"), false, ClearSavedProfiles);
+            menu.ShowAsContext();
         }
 
         private void DrawCurrentProfile()
         {
-            EditorGUILayout.LabelField("Current Profile", EditorStyles.boldLabel);
+            GenerationProfile profile = GenerationProfilerService.LastProfile;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField("Current Profile", EditorStyles.boldLabel);
+                GUILayout.FlexibleSpace();
+
+                using (new EditorGUI.DisabledScope(profile == null))
+                {
+                    if (GUILayout.Button("Save", EditorStyles.miniButtonLeft, GUILayout.Width(58f)))
+                    {
+                        _selectedReport = GenerationProfileReportSaver.Save(profile);
+                        GenerationProfileCatalogService.Refresh();
+                    }
+
+                    if (GUILayout.Button("Copy CSV", EditorStyles.miniButtonMid, GUILayout.Width(72f)))
+                        CopyCsv(profile);
+
+                    if (GUILayout.Button("Clear", EditorStyles.miniButtonRight, GUILayout.Width(58f)))
+                        GenerationProfilerService.ClearLastProfile();
+                }
+            }
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                GenerationProfile profile = GenerationProfilerService.LastProfile;
-
                 if (profile == null)
+                {
+                    DesignerTerminology.DrawEmptyState("No captured profile yet.");
                     return;
+                }
 
                 _currentScroll = EditorGUILayout.BeginScrollView(_currentScroll, GUILayout.MaxHeight(280f));
                 DrawRunSummary(profile);
@@ -126,9 +140,7 @@ namespace Genix.Editor.Profiling
                 _savedListScroll = EditorGUILayout.BeginScrollView(_savedListScroll);
 
                 if (reports.Count == 0)
-                {
-                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
-                }
+                    DesignerTerminology.DrawEmptyState("No saved profiles yet.");
                 else
                 {
                     foreach (GenerationProfileReport report in reports)
@@ -167,10 +179,16 @@ namespace Genix.Editor.Profiling
 
             using (new EditorGUILayout.VerticalScope(style))
             {
-                if (GUILayout.Button(GetReportListTitle(report), EditorStyles.boldLabel))
+                Rect rowRect = EditorGUILayout.GetControlRect(false, 40f);
+                string title = GetReportListTitle(report);
+
+                if (GUI.Button(rowRect, new GUIContent(string.Empty, title), GUIStyle.none))
                     SelectReport(report);
 
-                EditorGUILayout.LabelField(GetReportListInfo(report), EditorStyles.miniLabel);
+                Rect titleRect = new(rowRect.x, rowRect.y, rowRect.width, 18f);
+                Rect infoRect = new(rowRect.x, rowRect.y + 18f, rowRect.width, 18f);
+                EditorGUI.LabelField(titleRect, title, EditorStyles.boldLabel);
+                EditorGUI.LabelField(infoRect, GetReportListInfo(report), EditorStyles.miniLabel);
             }
         }
 

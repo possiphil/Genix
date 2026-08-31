@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Assets;
+using Genix.Editor.UI;
 using Genix.Extensions;
 using UnityEditor;
 using UnityEngine;
@@ -21,9 +22,10 @@ namespace Genix.Editor.Windows
 
         private void DrawPoolFilters()
         {
-            DrawSectionHeader("Asset Pool Filters", () =>
+            DrawSectionHeader("Pool Filters", () =>
             {
-                if (GUILayout.Button("Clear", GUILayout.Width(60f)))
+                if ((!string.IsNullOrWhiteSpace(_poolSearch) || _filterAssetPoolsByMode) &&
+                    GUILayout.Button("Reset", GUILayout.Width(60f)))
                     ClearPoolFilters();
             });
 
@@ -32,19 +34,7 @@ namespace Genix.Editor.Windows
                 _poolSearch = EditorGUILayout.TextField(
                     new GUIContent("Search", "Filter asset pools by display name."),
                     _poolSearch);
-                _filterAssetPoolsByMode = EditorGUILayout.Toggle(
-                    new GUIContent("Filter By Mode", "Show only Static or Dynamic pools."),
-                    _filterAssetPoolsByMode);
-
-                if (_filterAssetPoolsByMode)
-                    _poolModeFilter = DrawPoolModeFilterPopup(_poolModeFilter);
-
-                string[] assetStateLabels = { "All", "Has Assets", "Empty" };
-                int selectedAssetState = EditorGUILayout.Popup(
-                    new GUIContent("Asset State", "Filter by whether the pool currently resolves at least one asset."),
-                    (int)_poolAssetStateFilter,
-                    assetStateLabels);
-                _poolAssetStateFilter = (PoolAssetStateFilter)selectedAssetState;
+                DrawPoolModeFilterPopup();
             }
         }
 
@@ -53,10 +43,9 @@ namespace Genix.Editor.Windows
             _poolSearch = string.Empty;
             _filterAssetPoolsByMode = false;
             _poolModeFilter = AssetPoolMode.Static;
-            _poolAssetStateFilter = PoolAssetStateFilter.All;
         }
 
-        private static AssetPoolMode DrawPoolModeFilterPopup(AssetPoolMode currentMode)
+        private void DrawPoolModeFilterPopup()
         {
             AssetPoolMode[] modes =
             {
@@ -66,20 +55,23 @@ namespace Genix.Editor.Windows
 
             string[] labels =
             {
-                AssetPoolMode.Static.ToDisplayName(),
-                AssetPoolMode.Dynamic.ToDisplayName()
+                "Any",
+                DesignerTerminology.AssetPoolMode(AssetPoolMode.Static),
+                DesignerTerminology.AssetPoolMode(AssetPoolMode.Dynamic)
             };
 
-            int selectedIndex = Array.IndexOf(modes, currentMode);
-
-            if (selectedIndex < 0)
-                selectedIndex = 0;
+            int selectedIndex = _filterAssetPoolsByMode
+                ? Array.IndexOf(modes, _poolModeFilter) + 1
+                : 0;
 
             selectedIndex = EditorGUILayout.Popup(
-                new GUIContent("Mode", "Static stores an explicit list; Dynamic resolves current catalog matches."),
+                new GUIContent("Pool Type", "Manual pools contain a chosen list. Rule-based pools include matching catalog assets."),
                 selectedIndex,
                 labels);
-            return modes[selectedIndex];
+            _filterAssetPoolsByMode = selectedIndex > 0;
+
+            if (_filterAssetPoolsByMode)
+                _poolModeFilter = modes[selectedIndex - 1];
         }
 
         private void DrawPoolList(AssetCatalog catalog)
@@ -88,21 +80,13 @@ namespace Genix.Editor.Windows
 
             DrawSectionHeader($"Asset Pools ({assetPools.Count})", () =>
             {
-                DrawPoolSortDropdown();
-
-                if (GUILayout.Button("Create", GUILayout.Width(60f)))
+                if (GUILayout.Button("New Pool", GUILayout.Width(72f)))
                     CreatePool(AssetPoolMode.Static);
 
                 using (new EditorGUI.DisabledScope(!_selectedPool))
                 {
-                    if (GUILayout.Button("Delete", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Delete…", GUILayout.Width(64f)))
                         DeleteSelectedPool();
-                }
-
-                using (new EditorGUI.DisabledScope(assetPools.Count == 0))
-                {
-                    if (GUILayout.Button("Clear", GUILayout.Width(60f)))
-                        ClearAssetPools();
                 }
             });
 
@@ -111,9 +95,7 @@ namespace Genix.Editor.Windows
                 _listScroll = EditorGUILayout.BeginScrollView(_listScroll);
 
                 if (assetPools.Count == 0)
-                {
-                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
-                }
+                    DesignerTerminology.DrawEmptyState("No pools match the current filters.");
                 else
                 {
                     foreach (AssetPool pool in assetPools)
@@ -122,25 +104,6 @@ namespace Genix.Editor.Windows
 
                 EditorGUILayout.EndScrollView();
             }
-        }
-
-        private void DrawPoolSortDropdown()
-        {
-            PoolSortMode[] modes =
-            {
-                PoolSortMode.AlphabeticalAscending,
-                PoolSortMode.AssetCountDescending,
-                PoolSortMode.Mode
-            };
-
-            string[] labels =
-            {
-                "Name (A-Z)",
-                "Most Assets First",
-                "Pool Mode"
-            };
-
-            _poolSortMode = DrawSortDropdown(_poolSortMode, modes, labels);
         }
 
         private void DrawPoolListItem(
@@ -163,7 +126,9 @@ namespace Genix.Editor.Windows
                 int assetCount = pool.ResolveAssets(catalog).Count;
 
                 EditorGUI.LabelField(titleRect, pool.name, EditorStyles.boldLabel);
-                EditorGUI.LabelField(infoRect, $"Mode: {pool.Mode.ToDisplayName()}    Assets: {assetCount}");
+                EditorGUI.LabelField(
+                    infoRect,
+                    $"{DesignerTerminology.AssetPoolMode(pool.Mode)} · {assetCount} matching asset(s)");
             }
 
             EditorGUILayout.Space(2f);

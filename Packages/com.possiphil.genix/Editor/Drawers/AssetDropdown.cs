@@ -49,7 +49,7 @@ namespace Genix.Editor.Drawers
             }
 
             int selectedIndex = EditorAssets.GetAssetDropdownIndex(assets, selectedAsset);
-            int newIndex = EditorGUILayout.Popup(label, selectedIndex, options);
+            int newIndex = EditorGui.Popup(label, selectedIndex, options);
 
             return assets[newIndex];
         }
@@ -68,7 +68,7 @@ namespace Genix.Editor.Drawers
         private static void DrawEmptyDropdown(GUIContent label, string emptyLabel)
         {
             using (new EditorGUI.DisabledScope(true))
-                EditorGUILayout.Popup(label, 0, new[] { emptyLabel });
+                EditorGui.Popup(label, 0, new[] { emptyLabel });
         }
     }
 }

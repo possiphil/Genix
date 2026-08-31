@@ -3,6 +3,7 @@ using System.Linq;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Editor.Evaluation;
+using Genix.Editor.Infrastructure;
 using Genix.Layouts;
 using Genix.Placement;
 using Genix.Semantics;
@@ -157,6 +158,201 @@ namespace Genix.Tests
             {
                 Object.DestroyImmediate(report);
             }
+        }
+
+        [Test]
+        public void LayoutCleanupKeepsLatestFullCampaignAndLatestNewerRerunPerScenario()
+        {
+            GenerationEvaluationReport oldFull = CreateReport(
+                "Thesis",
+                "Assets/Thesis.asset",
+                "2026-08-25T10:00:00Z",
+                "RunAll",
+                -1,
+                true,
+                "Assets/Old Full.asset");
+            GenerationEvaluationReport baseline = CreateReport(
+                "Thesis",
+                "Assets/Thesis.asset",
+                "2026-08-27T18:00:00Z",
+                "RunAll",
+                -1,
+                true,
+                "Assets/Baseline Office.asset",
+                "Assets/Baseline Outdoor.asset");
+            GenerationEvaluationReport olderOfficeRerun = CreateReport(
+                "Thesis",
+                "Assets/Thesis.asset",
+                "2026-08-27T18:05:00Z",
+                "SelectedScenario",
+                23,
+                true,
+                "Assets/Older Office.asset");
+            GenerationEvaluationReport latestOfficeRerun = CreateReport(
+                "Thesis",
+                "Assets/Thesis.asset",
+                "2026-08-27T18:08:00Z",
+                "SelectedScenario",
+                23,
+                true,
+                "Assets/Latest Office.asset");
+            GenerationEvaluationReport partialOutdoorRerun = CreateReport(
+                "Thesis",
+                "Assets/Thesis.asset",
+                "2026-08-27T18:09:00Z",
+                "SelectedScenario",
+                24,
+                false,
+                "Assets/Partial Outdoor.asset");
+            GenerationEvaluationReport latestOutdoorRerun = CreateReport(
+                "Thesis",
+                "Assets/Thesis.asset",
+                "2026-08-27T18:10:00Z",
+                "SelectedScenario",
+                24,
+                true,
+                "Assets/Latest Outdoor.asset");
+            GenerationEvaluationReport otherSuite = CreateReport(
+                "Other",
+                "Assets/Other.asset",
+                "2026-08-28T18:00:00Z",
+                "RunAll",
+                -1,
+                true,
+                "Assets/Other.asset");
+            GenerationEvaluationReport[] reports =
+            {
+                oldFull,
+                baseline,
+                olderOfficeRerun,
+                latestOfficeRerun,
+                partialOutdoorRerun,
+                latestOutdoorRerun,
+                otherSuite
+            };
+
+            try
+            {
+                GenerationEvaluationLayoutCleanupPlan plan =
+                    GenerationEvaluationLayoutCleanupService.BuildPlan(
+                        reports,
+                        "Thesis",
+                        "Assets/Thesis.asset",
+                        _ => true);
+
+                Assert.That(plan.IsValid, Is.True, plan.Error);
+                Assert.That(plan.BaselineReport, Is.SameAs(baseline));
+                Assert.That(
+                    plan.ProtectedReports,
+                    Is.EquivalentTo(new[] { baseline, latestOfficeRerun, latestOutdoorRerun }));
+                Assert.That(
+                    plan.DeletableLayoutPaths,
+                    Is.EquivalentTo(new[]
+                    {
+                        "Assets/Old Full.asset",
+                        "Assets/Older Office.asset",
+                        "Assets/Partial Outdoor.asset"
+                    }));
+                Assert.That(plan.DeletableLayoutPaths, Does.Not.Contain("Assets/Other.asset"));
+            }
+            finally
+            {
+                foreach (GenerationEvaluationReport report in reports)
+                    Object.DestroyImmediate(report);
+            }
+        }
+
+        [Test]
+        public void LayoutCleanupRequiresCompletedFullCampaign()
+        {
+            GenerationEvaluationReport partial = CreateReport(
+                "Thesis",
+                "Assets/Thesis.asset",
+                "2026-08-27T18:00:00Z",
+                "RunAll",
+                -1,
+                false,
+                "Assets/Partial.asset");
+
+            try
+            {
+                GenerationEvaluationLayoutCleanupPlan plan =
+                    GenerationEvaluationLayoutCleanupService.BuildPlan(
+                        new[] { partial },
+                        "Thesis",
+                        "Assets/Thesis.asset",
+                        _ => true);
+
+                Assert.That(plan.IsValid, Is.False);
+                Assert.That(plan.Error, Does.Contain("completed full campaign"));
+                Assert.That(plan.DeletableLayoutPaths, Is.Empty);
+            }
+            finally
+            {
+                Object.DestroyImmediate(partial);
+            }
+        }
+
+        [Test]
+        public void LayoutCleanupDiscoversPersistedReportsWithoutTypeIndexEntries()
+        {
+            GenerationEvaluationSuite suite = AssetDatabase.LoadAssetAtPath<GenerationEvaluationSuite>(
+                ThesisEvaluationSuiteFactory.SuitePath);
+            string[] persistedReports = AssetDatabase.IsValidFolder(DevToolsContentPaths.EvaluationReports)
+                ? AssetDatabase.FindAssets(string.Empty, new[] { DevToolsContentPaths.EvaluationReports })
+                : System.Array.Empty<string>();
+            if (!suite || persistedReports.Length == 0)
+                Assert.Ignore("No persisted evaluation campaign is available in this project.");
+
+            GenerationEvaluationLayoutCleanupPlan plan =
+                GenerationEvaluationLayoutCleanupService.BuildPlan(suite);
+
+            Assert.That(plan.IsValid, Is.True, plan.Error);
+            Assert.That(plan.BaselineReport.RunScope, Is.EqualTo("RunAll"));
+            Assert.That(plan.ProtectedLayoutPaths, Is.Not.Empty);
+            Assert.That(plan.MissingProtectedLayouts, Is.Zero);
+        }
+
+        [Test]
+        public void ReportMigrationRepairsOnlyLegacyMissingScriptHeader()
+        {
+            const string guid = "82f4641c484e4fe09c56e3baf063380f";
+            const string legacy =
+                "MonoBehaviour:\n" +
+                "  m_Script: {fileID: 0}\n" +
+                "  m_EditorClassIdentifier: Genix.DevTools.Editor:Genix.Editor.Evaluation:GenerationEvaluationReport\n" +
+                "  suiteName: Thesis\n";
+
+            bool changed = GenerationEvaluationReportMigration.TryRewriteLegacyYaml(
+                legacy,
+                guid,
+                out string rewritten);
+
+            Assert.That(changed, Is.True);
+            Assert.That(rewritten, Does.Contain($"m_Script: {{fileID: 11500000, guid: {guid}, type: 3}}"));
+            Assert.That(
+                rewritten,
+                Does.Contain("Genix.DevTools.Editor::Genix.Editor.Evaluation.GenerationEvaluationReport"));
+            Assert.That(rewritten, Does.Contain("suiteName: Thesis"));
+            Assert.That(
+                GenerationEvaluationReportMigration.TryRewriteLegacyYaml(
+                    rewritten,
+                    guid,
+                    out string unchanged),
+                Is.False);
+            Assert.That(unchanged, Is.EqualTo(rewritten));
+
+            string preSplit = legacy.Replace(
+                "Genix.DevTools.Editor:Genix.Editor.Evaluation:GenerationEvaluationReport",
+                "Genix.Editor:Genix.Editor.Evaluation:GenerationEvaluationReport");
+            Assert.That(
+                GenerationEvaluationReportMigration.TryRewriteLegacyYaml(
+                    preSplit,
+                    guid,
+                    out string migratedPreSplit),
+                Is.True);
+            Assert.That(migratedPreSplit, Does.Contain($"guid: {guid}"));
+            Assert.That(migratedPreSplit, Does.Contain("Genix.DevTools.Editor::"));
         }
 
         [Test]
@@ -569,6 +765,33 @@ namespace Genix.Tests
             Assert.That(distribution.IsEnabled, Is.True);
             Assert.That(rules.Keys, Is.EquivalentTo(new[] { "Water" }));
             Assert.That(rules["Water"].Value, Is.EqualTo(8));
+        }
+
+        private static GenerationEvaluationReport CreateReport(
+            string suiteName,
+            string suiteAssetPath,
+            string createdAtUtc,
+            string runScope,
+            int selectedScenarioIndex,
+            bool completed,
+            params string[] layoutPaths)
+        {
+            GenerationEvaluationReport report = ScriptableObject.CreateInstance<GenerationEvaluationReport>();
+            report.Initialize(new GenerationEvaluationCampaignResult
+            {
+                suiteName = suiteName,
+                suiteAssetPath = suiteAssetPath,
+                createdAtUtc = createdAtUtc,
+                runScope = runScope,
+                selectedScenarioIndex = selectedScenarioIndex,
+                expectedRunCount = layoutPaths.Length,
+                campaignCompleted = completed,
+                runs = layoutPaths
+                    .Select(path => new GenerationEvaluationRunRecord { layoutAssetPath = path })
+                    .ToList()
+            });
+            report.name = $"{runScope} {createdAtUtc}";
+            return report;
         }
     }
 }

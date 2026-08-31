@@ -10,12 +10,10 @@ namespace Genix.Editor.Inspectors
     public sealed class PathPlacementSourceEditor : UnityEditor.Editor
     {
         private SerializedProperty _pathTags;
-        private SerializedProperty _alwaysShowPath;
 
         private void OnEnable()
         {
             _pathTags = serializedObject.FindProperty("pathTags");
-            _alwaysShowPath = serializedObject.FindProperty("alwaysShowPath");
         }
 
         /// <inheritdoc />
@@ -23,30 +21,10 @@ namespace Genix.Editor.Inspectors
         {
             serializedObject.Update();
             EditorGUILayout.PropertyField(_pathTags, new GUIContent(
-                "Path Tags",
-                "Asset-compatible semantic tags used by Path Placement and Regular Path Stations."), true);
-
-            if (!DesignerUiPreferences.IsAdvanced && _alwaysShowPath.boolValue)
-            {
-                using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
-                {
-                    GUILayout.FlexibleSpace();
-                    DesignerUiPreferences.DrawAdvancedActiveIndicator(
-                        true,
-                        "This path has advanced visualization enabled. It remains active in Basic mode.");
-                }
-            }
+                "Path Identity Tags",
+                "Tags that assets use to find this path for path placement or regular stations."), true);
 
             PathPlacementSource source = (PathPlacementSource)target;
-            if (DesignerUiPreferences.IsAdvanced)
-            {
-                EditorGUILayout.PropertyField(_alwaysShowPath, new GUIContent(
-                    "Always Show Path",
-                    "Keep the sampled centerline visible in the Scene view when this object is not selected."));
-                using (new EditorGUI.DisabledScope(true))
-                    EditorGUILayout.IntField(new GUIContent("Sampled Points", "Ordered centerline points stored by the authoring integration."), source.PointCount);
-            }
-
             if (source.PointCount < 2)
             {
                 EditorGUILayout.HelpBox(

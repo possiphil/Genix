@@ -55,8 +55,8 @@ namespace Genix.Editor.Inspectors
                 headerRect,
                 _staticAssets.isExpanded,
                 new GUIContent(
-                    "Static Assets",
-                    "Explicit assets available to this pool. Missing references and duplicates are ignored."),
+                    "Selected Assets",
+                    "Assets explicitly included in this manual pool. Missing references and duplicates are ignored."),
                 true,
                 EditorStyles.foldout);
 
@@ -367,9 +367,9 @@ namespace Genix.Editor.Inspectors
         private void ClearStaticAssets()
         {
             bool confirmed = EditorUtility.DisplayDialog(
-                "Clear Static Assets",
-                "Remove all assets from this static pool?",
-                "Clear",
+                "Remove All Selected Assets",
+                "Remove every asset from this manual pool?",
+                "Remove All",
                 "Cancel");
 
             if (!confirmed)

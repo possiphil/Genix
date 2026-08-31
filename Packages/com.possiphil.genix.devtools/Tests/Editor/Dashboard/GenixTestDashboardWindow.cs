@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Genix.Editor.Utilities;
 using Genix.Tests.Framework;
 using UnityEditor;
 using UnityEditor.TestTools.TestRunner.Api;
@@ -28,6 +29,24 @@ namespace Genix.Tests.Dashboard
         }
 
         private const string PresetPreference = "Genix.Tests.DashboardPreset.v2";
+        private const float MinimumWindowWidth = 480f;
+        private const float MinimumWindowHeight = 420f;
+        private const float MinimumTestListWidth = 480f;
+        private const float TestListHorizontalPadding = 6f;
+        private const float MinimumSummaryWidth = 480f;
+        private const float SummaryHorizontalPadding = 6f;
+        private const float SummaryStatsIndent = 22f;
+        private const float SummaryStatsSpacing = 8f;
+        private const float SummaryInnerPadding = 12f;
+        private const float CategoryLeftPadding = 4f;
+        private const float CategoryGroupSpacing = 2f;
+        private const float TestRowHeight = 18f;
+        private const float TestActionWidth = 48f;
+        private const float TestRowRightPadding = 4f;
+        private const float TestDurationWidth = 82f;
+        private const float TestCasesWidth = 104f;
+        private const float TestTypeWidth = 54f;
+        private const float TestColumnSpacing = 4f;
         private static readonly string[] KnownTestAssemblies =
         {
             "Genix.Tests.Editor",
@@ -41,11 +60,15 @@ namespace Genix.Tests.Dashboard
         private ResultTypeFilter _typeFilter;
         private ResultStatusFilter _statusFilter;
         private GenixTestPreset _preset;
-        private GenixTestResultRecord _selected;
         private TestRunnerApi _runner;
+        private GUIStyle _testNameStyle;
 
         [MenuItem("Tools/Genix Developer/Tests", false, 40)]
-        private static void Open() => GetWindow<GenixTestDashboardWindow>("Genix Tests");
+        private static void Open()
+        {
+            GenixTestDashboardWindow window = GenixWindowDocking.Open<GenixTestDashboardWindow>("Genix Tests");
+            window.minSize = new Vector2(MinimumWindowWidth, MinimumWindowHeight);
+        }
 
         private void OnEnable()
         {
@@ -79,8 +102,11 @@ namespace Genix.Tests.Dashboard
             DrawFilters();
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
-            DrawCategories();
-            DrawSelectedResult();
+            float testListWidth = Mathf.Max(
+                MinimumTestListWidth,
+                position.width - TestListHorizontalPadding);
+            using (new EditorGUILayout.VerticalScope(GUILayout.Width(testListWidth)))
+                DrawCategories();
             EditorGUILayout.EndScrollView();
         }
 
@@ -128,7 +154,7 @@ namespace Genix.Tests.Dashboard
             }
         }
 
-        private static void DrawSummary()
+        private void DrawSummary()
         {
             GenixTestDashboardState state = GenixTestDashboardState.instance;
             int passed = state.Results.Count(result => result.Passed);
@@ -137,7 +163,11 @@ namespace Genix.Tests.Dashboard
             int nunitPassed = state.Results.Count(result => !result.IsProperty && result.Passed);
             int propertyPassed = state.Results.Count(result => result.IsProperty && result.Passed);
 
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            float availableWidth = position.width - SummaryHorizontalPadding;
+            float summaryWidth = Mathf.Max(MinimumSummaryWidth, availableWidth);
+            using (new EditorGUILayout.VerticalScope(
+                       EditorStyles.helpBox,
+                       GUILayout.Width(summaryWidth)))
             {
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -148,24 +178,64 @@ namespace Genix.Tests.Dashboard
                     GUILayout.Label($"{state.DurationSeconds * 1000d:0.0} ms", GUILayout.Width(90f));
                 }
 
-                using (new EditorGUILayout.HorizontalScope())
+                string[] stats =
                 {
-                    GUILayout.Space(22f);
-                    GUILayout.Label($"Total: {passed:N0}/{state.Results.Count:N0}", GUILayout.Width(112f));
-                    GUILayout.Label($"NUnit: {nunitPassed:N0}/{state.NUnitTestCount:N0}", GUILayout.Width(120f));
-                    GUILayout.Label($"Properties: {propertyPassed:N0}/{state.PropertyTestCount:N0}", GUILayout.Width(132f));
-                    GUILayout.Label(
-                        $"Property Cases: {state.PropertyCases:N0}/{state.ExpectedPropertyCases:N0}",
-                        EditorStyles.boldLabel,
-                        GUILayout.Width(205f));
-                    GUILayout.Label($"Failed: {failed:N0}", GUILayout.Width(82f));
-                    GUILayout.Label($"Skipped: {skipped:N0}", GUILayout.Width(88f));
-                    GUILayout.FlexibleSpace();
-                }
+                    $"Total: {passed:N0}/{state.Results.Count:N0}",
+                    $"NUnit: {nunitPassed:N0}/{state.NUnitTestCount:N0}",
+                    $"Properties: {propertyPassed:N0}/{state.PropertyTestCount:N0}",
+                    $"Property Cases: {state.PropertyCases:N0}/{state.ExpectedPropertyCases:N0}",
+                    $"Failed: {failed:N0}",
+                    $"Skipped: {skipped:N0}"
+                };
+                float[] widths = { 110f, 110f, 130f, 200f, 82f, 88f };
+                float statsWidth = summaryWidth - SummaryStatsIndent - SummaryInnerPadding;
+                DrawWrappedSummaryStats(stats, widths, statsWidth);
             }
 
             if (!string.IsNullOrWhiteSpace(state.RunMessage))
                 EditorGUILayout.HelpBox(state.RunMessage, state.Running ? MessageType.Info : MessageType.Warning);
+        }
+
+        private static void DrawWrappedSummaryStats(
+            IReadOnlyList<string> stats,
+            IReadOnlyList<float> widths,
+            float availableWidth)
+        {
+            int start = 0;
+
+            while (start < stats.Count)
+            {
+                int end = start;
+                float usedWidth = 0f;
+
+                while (end < stats.Count)
+                {
+                    float nextWidth = widths[end] + (end > start ? SummaryStatsSpacing : 0f);
+                    if (end > start && usedWidth + nextWidth > availableWidth)
+                        break;
+
+                    usedWidth += nextWidth;
+                    end++;
+                }
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.Space(SummaryStatsIndent);
+
+                    for (int index = start; index < end; index++)
+                    {
+                        if (index > start)
+                            GUILayout.Space(SummaryStatsSpacing);
+
+                        GUIStyle style = index == 3 ? EditorStyles.boldLabel : EditorStyles.label;
+                        GUILayout.Label(stats[index], style, GUILayout.Width(widths[index]));
+                    }
+
+                    GUILayout.FlexibleSpace();
+                }
+
+                start = end;
+            }
         }
 
         private void DrawFilters()
@@ -239,11 +309,16 @@ namespace Genix.Tests.Dashboard
                 return;
             }
 
+            bool firstCategory = true;
             foreach (IGrouping<string, GenixTestResultRecord> group in filteredResults
                          .OrderBy(result => result.Area, StringComparer.Ordinal)
                          .ThenBy(result => result.Name, StringComparer.Ordinal)
                          .GroupBy(result => result.Area))
             {
+                if (!firstCategory)
+                    GUILayout.Space(CategoryGroupSpacing);
+
+                firstCategory = false;
                 List<GenixTestResultRecord> categoryResults = group.ToList();
                 int passed = categoryResults.Count(result => result.Passed);
                 int failed = categoryResults.Count(result => result.Failed);
@@ -251,102 +326,144 @@ namespace Genix.Tests.Dashboard
                 int propertyTarget = categoryResults.Sum(result => result.PropertyCasesExpected);
                 bool expanded = _foldouts.TryGetValue(group.Key, out bool value) && value;
 
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    DrawStatusDot(GetAggregateColor(categoryResults));
-                    expanded = EditorGUILayout.Foldout(
-                        expanded,
-                        $"{group.Key}  {passed}/{categoryResults.Count} passed" +
-                        (propertyTarget > 0 ? $", {propertyCases:N0}/{propertyTarget:N0} property cases" : string.Empty) +
-                        (failed > 0 ? $", {failed} failed" : string.Empty),
-                        true,
-                        EditorStyles.foldoutHeader);
-
-                    using (new EditorGUI.DisabledScope(GenixTestDashboardState.instance.Running))
-                    {
-                        if (GUILayout.Button(new GUIContent("Run", $"Repeat the {group.Key} tests shown in this result set."), GUILayout.Width(48f)))
-                            RunTests(categoryResults.Select(result => result.FullName).ToArray(), GenixTestPresetContext.Current);
-                    }
-                }
+                expanded = DrawCategoryRow(
+                    group.Key,
+                    passed,
+                    categoryResults,
+                    propertyCases,
+                    propertyTarget,
+                    failed,
+                    expanded);
 
                 _foldouts[group.Key] = expanded;
 
                 if (!expanded)
                     continue;
 
+                GUILayout.Space(CategoryGroupSpacing);
+
                 foreach (GenixTestResultRecord result in categoryResults)
                     DrawTestRow(result);
             }
         }
 
-        private void DrawTestRow(GenixTestResultRecord result)
+        private bool DrawCategoryRow(
+            string categoryName,
+            int passed,
+            IReadOnlyList<GenixTestResultRecord> results,
+            int propertyCases,
+            int propertyTarget,
+            int failed,
+            bool expanded)
         {
-            using (new EditorGUILayout.HorizontalScope())
+            Rect rowRect = GUILayoutUtility.GetRect(
+                0f,
+                TestRowHeight,
+                GUIStyle.none,
+                GUILayout.ExpandWidth(true));
+            float left = rowRect.x + CategoryLeftPadding;
+            EditorGUI.DrawRect(new Rect(left, rowRect.y + 4f, 10f, 10f), GetAggregateColor(results));
+            left += 16f;
+
+            float right = rowRect.xMax - TestRowRightPadding;
+            Rect runRect = new(right - TestActionWidth, rowRect.y, TestActionWidth, rowRect.height);
+            Rect foldoutRect = new(
+                left,
+                rowRect.y,
+                Mathf.Max(0f, runRect.x - TestColumnSpacing - left),
+                rowRect.height);
+            string label = $"{categoryName}  {passed}/{results.Count} passed" +
+                           (propertyTarget > 0 ? $", {propertyCases:N0}/{propertyTarget:N0} property cases" : string.Empty) +
+                           (failed > 0 ? $", {failed} failed" : string.Empty);
+            expanded = EditorGUI.Foldout(
+                foldoutRect,
+                expanded,
+                label,
+                true,
+                EditorStyles.foldoutHeader);
+
+            using (new EditorGUI.DisabledScope(GenixTestDashboardState.instance.Running))
             {
-                GUILayout.Space(22f);
-                DrawStatusDot(GetResultColor(result));
-                GUIStyle style = _selected == result ? EditorStyles.boldLabel : EditorStyles.label;
-
-                if (GUILayout.Button(result.Name, style))
-                    _selected = result;
-
-                GUILayout.FlexibleSpace();
-                GUILayout.Label(result.IsProperty ? "Property" : "NUnit", EditorStyles.miniLabel, GUILayout.Width(52f));
-
-                if (result.IsProperty)
+                if (GUI.Button(
+                        runRect,
+                        new GUIContent("Run", $"Repeat the {categoryName} tests shown in this result set."),
+                        EditorStyles.miniButton))
                 {
-                    GUILayout.Label(
-                        $"{result.PropertyCasesExecuted:N0}/{result.PropertyCasesExpected:N0} cases",
-                        GUILayout.Width(112f));
+                    RunTests(results.Select(result => result.FullName).ToArray(), GenixTestPresetContext.Current);
                 }
-
-                GUILayout.Label($"{result.DurationSeconds * 1000d:0.###} ms", GUILayout.Width(82f));
             }
+
+            return expanded;
         }
 
-        private void DrawSelectedResult()
+        private void DrawTestRow(GenixTestResultRecord result)
         {
-            if (_selected == null)
-                return;
+            Rect rowRect = GUILayoutUtility.GetRect(
+                0f,
+                TestRowHeight,
+                GUIStyle.none,
+                GUILayout.ExpandWidth(true));
+            float left = rowRect.x + 22f;
+            Rect statusRect = new(left, rowRect.y + 4f, 10f, 10f);
+            EditorGUI.DrawRect(statusRect, GetResultColor(result));
+            left += 16f;
 
-            EditorGUILayout.Space(10f);
-            EditorGUILayout.LabelField("Test Details", EditorStyles.boldLabel);
-            EditorGUILayout.SelectableLabel(_selected.FullName, EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
-            EditorGUILayout.LabelField("Type", _selected.IsProperty ? "Property" : "NUnit");
+            float right = rowRect.xMax - TestRowRightPadding;
+            Rect openRect = TakeRightColumn(ref right, rowRect, TestActionWidth);
+            Rect runRect = TakeRightColumn(ref right, rowRect, TestActionWidth);
+            Rect durationRect = TakeRightColumn(ref right, rowRect, TestDurationWidth);
+            Rect casesRect = TakeRightColumn(ref right, rowRect, TestCasesWidth);
+            Rect typeRect = TakeRightColumn(ref right, rowRect, TestTypeWidth);
+            Rect nameRect = new(left, rowRect.y, Mathf.Max(0f, right - left), rowRect.height);
 
-            if (_selected.IsProperty)
+            _testNameStyle ??= new GUIStyle(EditorStyles.label)
             {
-                EditorGUILayout.LabelField(
-                    "Generated Cases",
-                    $"{_selected.PropertyCasesExecuted:N0} of {_selected.PropertyCasesExpected:N0}");
+                clipping = TextClipping.Ellipsis
+            };
+            EditorGUI.LabelField(
+                nameRect,
+                new GUIContent(result.Name, result.FullName),
+                _testNameStyle);
+            EditorGUI.LabelField(
+                typeRect,
+                result.IsProperty ? "Property" : "NUnit",
+                EditorStyles.centeredGreyMiniLabel);
+            if (result.IsProperty)
+            {
+                EditorGUI.LabelField(
+                    casesRect,
+                    $"{result.PropertyCasesExecuted:N0}/{result.PropertyCasesExpected:N0} cases",
+                    EditorStyles.miniLabel);
             }
 
-            using (new EditorGUILayout.HorizontalScope())
+            EditorGUI.LabelField(
+                durationRect,
+                $"{result.DurationSeconds * 1000d:0.###} ms",
+                EditorStyles.miniLabel);
+            using (new EditorGUI.DisabledScope(GenixTestDashboardState.instance.Running))
             {
-                using (new EditorGUI.DisabledScope(GenixTestDashboardState.instance.Running))
+                if (GUI.Button(
+                        runRect,
+                        new GUIContent("Run", $"Run only {result.FullName}."),
+                        EditorStyles.miniButton))
                 {
-                    if (GUILayout.Button("Run Test", GUILayout.Width(86f)))
-                        RunTests(new[] { _selected.FullName }, GenixTestPresetContext.Current);
+                    RunTests(new[] { result.FullName }, GenixTestPresetContext.Current);
                 }
-
-                if (GUILayout.Button("Open Source", GUILayout.Width(96f)))
-                    OpenSource(_selected.FullName);
             }
 
-            if (!string.IsNullOrWhiteSpace(_selected.Message))
-                EditorGUILayout.HelpBox(_selected.Message, _selected.Failed ? MessageType.Error : MessageType.Info);
+            if (GUI.Button(
+                    openRect,
+                    new GUIContent("Open", $"Open the source file for {result.FullName}."),
+                    EditorStyles.miniButton))
+                OpenSource(result.FullName);
+        }
 
-            if (!string.IsNullOrWhiteSpace(_selected.Output))
-            {
-                EditorGUILayout.LabelField("Output", EditorStyles.boldLabel);
-                EditorGUILayout.TextArea(_selected.Output, GUILayout.MinHeight(60f));
-            }
-
-            if (!string.IsNullOrWhiteSpace(_selected.StackTrace))
-            {
-                EditorGUILayout.LabelField("Stack Trace", EditorStyles.boldLabel);
-                EditorGUILayout.TextArea(_selected.StackTrace, GUILayout.MinHeight(90f));
-            }
+        private static Rect TakeRightColumn(ref float right, Rect rowRect, float width)
+        {
+            right -= width;
+            Rect column = new(right, rowRect.y, width, rowRect.height);
+            right -= TestColumnSpacing;
+            return column;
         }
 
         private void RunPreset(GenixTestPreset preset)
@@ -411,7 +528,6 @@ namespace Genix.Tests.Dashboard
 
         private void Run(Filter filter, GenixTestPreset preset)
         {
-            _selected = null;
             GenixTestPresetContext.Current = preset;
             GenixTestDashboardState state = GenixTestDashboardState.instance;
             state.Begin(preset);

@@ -5,7 +5,6 @@ using Genix.Editor.Utilities;
 using Genix.Assets;
 using Genix.Editor.Assets;
 using Genix.Editor.UI;
-using Genix.Extensions;
 using Genix.Semantics;
 using UnityEditor;
 using UnityEngine;
@@ -40,10 +39,10 @@ namespace Genix.Editor.Inspectors
 
         private static readonly GUIContent[] PoolModeLabels =
         {
-            new(AssetPoolMode.Static.ToDisplayName(),
-                "Use an explicit, manually curated asset list. Best when the pool must remain stable."),
-            new(AssetPoolMode.Dynamic.ToDisplayName(),
-                "Resolve matching assets from the catalog at generation time. Best for reusable semantic rules.")
+            new(DesignerTerminology.AssetPoolMode(AssetPoolMode.Static),
+                DesignerTerminology.AssetPoolModeTooltip(AssetPoolMode.Static)),
+            new(DesignerTerminology.AssetPoolMode(AssetPoolMode.Dynamic),
+                DesignerTerminology.AssetPoolModeTooltip(AssetPoolMode.Dynamic))
         };
 
         private bool _showPreview = true;
@@ -75,18 +74,6 @@ namespace Genix.Editor.Inspectors
 
             DrawModeField();
 
-            if (!DesignerUiPreferences.IsAdvanced &&
-                (_tagPlacementLimits.arraySize > 0 || _anchorGroupLimits.arraySize > 0))
-            {
-                using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
-                {
-                    GUILayout.FlexibleSpace();
-                    DesignerUiPreferences.DrawAdvancedActiveIndicator(
-                        true,
-                        "This pool contains advanced shared-count or per-anchor rules. They remain active in Basic mode.");
-                }
-            }
-
             EditorGUILayout.Space(6f);
 
             if (IsStaticPool())
@@ -111,7 +98,7 @@ namespace Genix.Editor.Inspectors
             {
                 EditorGUILayout.LabelField(new GUIContent(
                     "Per-Anchor Groups",
-                    "Constrains the combined count of an asset-tag group independently for every matching relation anchor. Member assets still use their own Asset Relation settings for distance, side, and facing."),
+                    "Set a separate combined count for a tagged asset group at every matching anchor. Member assets still use their own distance, side, and facing rules."),
                     EditorStyles.boldLabel);
                 GUILayout.FlexibleSpace();
 
@@ -158,8 +145,8 @@ namespace Genix.Editor.Inspectors
                     }
 
                     EditorGUILayout.PropertyField(source, new GUIContent(
-                        "Anchor Source",
-                        "Any accepts generated output and explicit scene anchors. The narrower options limit which anchors receive this group count."));
+                        "Anchor Objects",
+                        "Choose whether generated objects, scene anchors, or both may own this group count."));
                     EditorGUILayout.PropertyField(anchorScope, new GUIContent(
                         "Anchor Match",
                         "Choose one concrete anchor asset or every anchor carrying an asset-compatible tag."));
@@ -180,7 +167,7 @@ namespace Genix.Editor.Inspectors
                     DrawAnchorGroupTagField(i, memberTag, true, "Member Tag",
                         "All dependent assets carrying this tag share the count at each matched anchor.");
                     EditorGUILayout.PropertyField(mode, new GUIContent(
-                        "Cardinality",
+                        "Count Rule",
                         "At Most only limits. At Least actively fills a minimum. Exactly enforces one value. Between enforces an inclusive range."));
 
                     AssetRelativeCardinalityMode cardinality =
@@ -284,7 +271,7 @@ namespace Genix.Editor.Inspectors
             {
                 EditorGUILayout.LabelField(new GUIContent(
                     "Shared Tag Counts",
-                    "Set a combined minimum and maximum for all existing and newly generated assets carrying a tag. Counts apply across prefab variants sharing the tag and include existing generated output. Use 1 to 1 for exactly one variant; 0 to 0 blocks all variants."),
+                    "Set one combined count range for every asset carrying a tag, including existing generated output. Use 1 to 1 for exactly one variant."),
                     EditorStyles.boldLabel);
                 GUILayout.FlexibleSpace();
 
@@ -432,7 +419,7 @@ namespace Genix.Editor.Inspectors
                 currentIndex = 0;
 
             int selectedIndex = EditorGUILayout.Popup(
-                new GUIContent("Mode", "Static stores chosen assets; Dynamic resolves assets from catalog filters."),
+                new GUIContent("Pool Type", "Manual pools contain a chosen list. Rule-based pools include matching catalog assets."),
                 currentIndex,
                 PoolModeLabels);
 

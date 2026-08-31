@@ -4,6 +4,7 @@ using System.Linq;
 using Genix.Assets;
 using Genix.Core;
 using Genix.Editor.SceneConfiguration;
+using Genix.Editor.UI;
 using Genix.Extensions;
 using Genix.Layouts;
 using Genix.Placement;
@@ -52,19 +53,31 @@ namespace Genix.Editor.Windows
 
             DrawSectionHeader($"Scene Objects ({visibleEntries.Count})", () =>
             {
-                using (new EditorGUI.DisabledScope(visibleEntries.Count == 0))
+                if (position.width < SceneSetupMinimumTableWidth)
                 {
-                    if (GUILayout.Button("Select Visible", GUILayout.Width(94f)))
-                        SelectVisibleSceneObjects(visibleEntries);
+                    if (GUILayout.Button(
+                            new GUIContent("Actions", "Open scene-setup authoring and refresh actions."),
+                            GUILayout.Width(72f)))
+                    {
+                        ShowSceneSetupActionsMenu(
+                            catalog,
+                            visibleEntries,
+                            missingDescriptorCount,
+                            selectedAnchorTargets,
+                            selectedSupportTarget,
+                            configuredLayers);
+                    }
+
+                    return;
                 }
 
                 using (new EditorGUI.DisabledScope(missingDescriptorCount == 0))
                 {
                     if (GUILayout.Button(
                             new GUIContent(
-                                $"Add Descriptors ({missingDescriptorCount})",
-                                "Add an empty Placement Surface Descriptor to each visible surface that does not inherit one."),
-                            GUILayout.Width(132f)))
+                                $"Configure Surfaces ({missingDescriptorCount})",
+                                "Add default surface settings to every visible surface that does not inherit them."),
+                            GUILayout.Width(154f)))
                     {
                         AddMissingSurfaceDescriptors(visibleEntries);
                     }
@@ -78,7 +91,7 @@ namespace Genix.Editor.Windows
                     if (GUILayout.Button(
                             new GUIContent(
                                 label,
-                                "Add Asset Relation Anchors to the selected scene objects and optionally assign their represented asset."),
+                                "Mark the selected scene objects as fixed anchors for object-relative placement."),
                             GUILayout.Width(selectedAnchorTargets.Count == 1 ? 88f : 116f)))
                     {
                         ShowAddRelationAnchorMenu(catalog, selectedAnchorTargets);
@@ -90,9 +103,9 @@ namespace Genix.Editor.Windows
                 {
                     if (GUILayout.Button(
                             new GUIContent(
-                                "Add Support",
-                                "Create a thin, editable support-surface child under the selected object. Use this for internal shelf boards or other levels hidden inside one combined collider."),
-                            GUILayout.Width(88f)))
+                                "Add Support Surface",
+                                "Create an editable support surface under the selected object for an internal shelf or raised level."),
+                            GUILayout.Width(126f)))
                     {
                         SupportSurfaceRegionAuthoring.Create(
                             selectedSupportTarget,
@@ -101,8 +114,18 @@ namespace Genix.Editor.Windows
                     }
                 }
 
-                if (GUILayout.Button("Refresh", GUILayout.Width(68f)))
-                    RefreshSceneSetupEntries();
+                if (GUILayout.Button(
+                        new GUIContent("Actions", "Open scene-setup visualization and maintenance actions."),
+                        GUILayout.Width(72f)))
+                {
+                    ShowSceneSetupActionsMenu(
+                        catalog,
+                        visibleEntries,
+                        missingDescriptorCount,
+                        selectedAnchorTargets,
+                        selectedSupportTarget,
+                        configuredLayers);
+                }
             });
 
             if (issueCount > 0)
@@ -119,7 +142,10 @@ namespace Genix.Editor.Windows
         {
             DrawSectionHeader("Scene Filters", () =>
             {
-                if (GUILayout.Button("Clear", GUILayout.Width(60f)))
+                if ((!string.IsNullOrWhiteSpace(_sceneSetupSearch) ||
+                     _sceneSetupTypeFilter != SceneSetupTypeFilter.All ||
+                     _sceneSetupIssuesOnly) &&
+                    GUILayout.Button("Reset", GUILayout.Width(60f)))
                 {
                     _sceneSetupSearch = string.Empty;
                     _sceneSetupTypeFilter = SceneSetupTypeFilter.All;
@@ -147,6 +173,12 @@ namespace Genix.Editor.Windows
             IReadOnlyList<SceneSetupObjectEntry> entries,
             LayerMask configuredLayers)
         {
+            if (position.width < SceneSetupMinimumTableWidth)
+            {
+                DrawCompactSceneSetupList(entries, configuredLayers);
+                return;
+            }
+
             float tableHeight = Mathf.Clamp(48f + entries.Count * 24f, 110f, 420f);
             float tableWidth = Mathf.Max(SceneSetupMinimumTableWidth, position.width - 38f);
 
@@ -165,12 +197,7 @@ namespace Genix.Editor.Windows
                 DrawSceneSetupHeader(headerRect);
 
                 if (entries.Count == 0)
-                {
-                    GUILayoutUtility.GetRect(
-                        tableWidth,
-                        EditorGUIUtility.singleLineHeight,
-                        GUILayout.Width(tableWidth));
-                }
+                    DesignerTerminology.DrawEmptyState("No scene objects match the current filters.");
                 else
                 {
                     foreach (SceneSetupObjectEntry entry in entries)
@@ -197,8 +224,8 @@ namespace Genix.Editor.Windows
             EditorGUI.LabelField(columns.Object, "Object", EditorStyles.miniBoldLabel);
             EditorGUI.LabelField(columns.Layer, "Layer", EditorStyles.miniBoldLabel);
             EditorGUI.LabelField(columns.Tags, "Tags", EditorStyles.miniBoldLabel);
-            EditorGUI.LabelField(columns.Relation, "Relation Asset", EditorStyles.miniBoldLabel);
-            EditorGUI.LabelField(columns.Capacity, new GUIContent("Cap.", "Maximum placements supported by this surface."), EditorStyles.miniBoldLabel);
+            EditorGUI.LabelField(columns.Relation, "Represents", EditorStyles.miniBoldLabel);
+            EditorGUI.LabelField(columns.Capacity, new GUIContent("Max", "Maximum placements supported by this surface."), EditorStyles.miniBoldLabel);
             EditorGUI.LabelField(columns.Status, new GUIContent("", "Validation status. Select the row for the complete message."), EditorStyles.miniBoldLabel);
         }
 
@@ -246,6 +273,141 @@ namespace Genix.Editor.Windows
             EditorGUI.LabelField(columns.Tags, "Collider-free", EditorStyles.centeredGreyMiniLabel);
             EditorGUI.LabelField(columns.Relation, "-", EditorStyles.centeredGreyMiniLabel);
             EditorGUI.LabelField(columns.Capacity, "-", EditorStyles.centeredGreyMiniLabel);
+        }
+
+        private void DrawCompactSceneSetupList(
+            IReadOnlyList<SceneSetupObjectEntry> entries,
+            LayerMask configuredLayers)
+        {
+            float listHeight = Mathf.Clamp(42f + entries.Count * 58f, 110f, 420f);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                _sceneSetupScroll = EditorGUILayout.BeginScrollView(
+                    _sceneSetupScroll,
+                    GUILayout.Height(listHeight));
+
+                if (entries.Count == 0)
+                {
+                    DesignerTerminology.DrawEmptyState("No scene objects match the current filters.");
+                }
+                else
+                {
+                    foreach (SceneSetupObjectEntry entry in entries)
+                        DrawCompactSceneSetupEntry(entry, configuredLayers);
+                }
+
+                EditorGUILayout.EndScrollView();
+            }
+        }
+
+        private void DrawCompactSceneSetupEntry(
+            SceneSetupObjectEntry entry,
+            LayerMask configuredLayers)
+        {
+            if (entry?.GameObject == null)
+                return;
+
+            bool selected = entry.MatchesDetailTarget(_selectedSceneSetupObject);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUIStyle titleStyle = new(EditorStyles.miniButton)
+                    {
+                        alignment = TextAnchor.MiddleLeft,
+                        fontStyle = selected ? FontStyle.Bold : FontStyle.Normal
+                    };
+                    if (GUILayout.Button(
+                            new GUIContent(entry.GameObject.name, $"Select {entry.GameObject.name} in the scene."),
+                            titleStyle))
+                    {
+                        Selection.activeGameObject = entry.GameObject;
+                        EditorGUIUtility.PingObject(entry.GameObject);
+                        SelectObject(entry.DetailTarget);
+                    }
+
+                    string status = GetSceneSetupStatus(entry, configuredLayers, out MessageType statusType);
+                    GUILayout.Label(
+                        GetSceneSetupStatusContent(status, statusType),
+                        GUILayout.Width(20f),
+                        GUILayout.Height(18f));
+                }
+
+                EditorGUILayout.LabelField(
+                    GetCompactSceneSetupSummary(entry),
+                    EditorStyles.miniLabel);
+            }
+        }
+
+        private static string GetCompactSceneSetupSummary(SceneSetupObjectEntry entry)
+        {
+            if (entry.Type == SceneSetupObjectType.ExclusionRegion)
+                return $"Exclusion Region · {entry.ExclusionRegion.AffectedTargets.ToDisplayName()}";
+
+            if (entry.Type == SceneSetupObjectType.RelationAnchor)
+            {
+                string represented = entry.RelationAnchor.RepresentedAsset
+                    ? entry.RelationAnchor.RepresentedAsset.AssetName
+                    : "Tag identity";
+                return $"Relation Anchor · Represents {represented}";
+            }
+
+            string layer = LayerMask.LayerToName(entry.GameObject.layer);
+            string tags = entry.SurfaceDescriptor
+                ? GetSurfaceTagSummary(entry.SurfaceDescriptor)
+                : "Default settings";
+            string capacity = entry.SurfaceDescriptor
+                ? GetCapacitySummary(entry.SurfaceDescriptor)
+                : "Unlimited";
+            return $"Surface · {layer} · {tags} · Max {capacity}";
+        }
+
+        private void ShowSceneSetupActionsMenu(
+            AssetCatalog catalog,
+            IReadOnlyList<SceneSetupObjectEntry> visibleEntries,
+            int missingDescriptorCount,
+            IReadOnlyList<GameObject> selectedAnchorTargets,
+            GameObject selectedSupportTarget,
+            LayerMask configuredLayers)
+        {
+            GenericMenu menu = new();
+            menu.AddItem(
+                new GUIContent("Show Authoring Guides"),
+                DesignerUiPreferences.ShowAuthoringGuides,
+                () => DesignerUiPreferences.ShowAuthoringGuides = !DesignerUiPreferences.ShowAuthoringGuides);
+            menu.AddSeparator(string.Empty);
+
+            if (visibleEntries.Count > 0)
+                menu.AddItem(new GUIContent("Select Visible Objects"), false, () => SelectVisibleSceneObjects(visibleEntries));
+            else
+                menu.AddDisabledItem(new GUIContent("Select Visible Objects"));
+
+            if (missingDescriptorCount > 0)
+                menu.AddItem(new GUIContent($"Configure Surfaces ({missingDescriptorCount})"), false, () => AddMissingSurfaceDescriptors(visibleEntries));
+            else
+                menu.AddDisabledItem(new GUIContent("Configure Surfaces"));
+
+            if (selectedAnchorTargets.Count > 0)
+                menu.AddItem(new GUIContent("Add Relation Anchor"), false, () => ShowAddRelationAnchorMenu(catalog, selectedAnchorTargets));
+            else
+                menu.AddDisabledItem(new GUIContent("Add Relation Anchor"));
+
+            if (SupportSurfaceRegionAuthoring.CanCreate(selectedSupportTarget))
+            {
+                menu.AddItem(new GUIContent("Add Support Surface"), false, () =>
+                {
+                    SupportSurfaceRegionAuthoring.Create(selectedSupportTarget, configuredLayers);
+                    MarkSceneSetupDirty();
+                });
+            }
+            else
+            {
+                menu.AddDisabledItem(new GUIContent("Add Support Surface"));
+            }
+
+            menu.AddSeparator(string.Empty);
+            menu.AddItem(new GUIContent("Refresh"), false, RefreshSceneSetupEntries);
+            menu.ShowAsContext();
         }
 
         private List<SceneSetupObjectEntry> GetVisibleSceneSetupEntries(LayerMask configuredLayers)
@@ -370,7 +532,7 @@ namespace Genix.Editor.Windows
             if (!entry.SurfaceDescriptor)
             {
                 messageType = MessageType.Info;
-                return "No semantic descriptor";
+                return "Default surface settings";
             }
 
             if (entry.SurfaceDescriptor.LimitCapacity && entry.SurfaceDescriptor.MaxCapacity == 0)

@@ -204,6 +204,40 @@ namespace Genix.SpaceFoundation.Editor
             return delimiter;
         }
 
+        public static Delimiter CreateGridAlignedBoxDelimiter(
+            Vector3 requestedCenter,
+            Vector3Int cellCounts,
+            SpaceFoundationSystem.SpaceFoundation foundation,
+            Transform parent = null,
+            string name = "SFS Box Delimiter")
+        {
+            if (!foundation)
+            {
+                Debug.LogError("A Space Foundation is required to align the delimiter to its voxel grid.");
+                return null;
+            }
+
+            float voxelSize = Mathf.Max(0.001f, foundation.voxelSize);
+            cellCounts = new Vector3Int(
+                Mathf.Max(1, cellCounts.x),
+                Mathf.Max(1, cellCounts.y),
+                Mathf.Max(1, cellCounts.z));
+            Vector3 halfSpanInCells = (Vector3)(cellCounts - Vector3Int.one) * 0.5f;
+            Vector3 requestedCell = requestedCenter / voxelSize - halfSpanInCells;
+            Vector3Int minimumCell = new(
+                Mathf.RoundToInt(requestedCell.x),
+                Mathf.RoundToInt(requestedCell.y),
+                Mathf.RoundToInt(requestedCell.z));
+            Bounds bounds = new SfsAuthoringCellVolume(name, minimumCell, cellCounts).ToWorldBounds(voxelSize);
+            float clearance = Mathf.Max(0.0001f, voxelSize * 0.08f);
+            Vector3 colliderSize = new(
+                Mathf.Max(0.001f, bounds.size.x - clearance),
+                Mathf.Max(0.001f, bounds.size.y - clearance),
+                Mathf.Max(0.001f, bounds.size.z - clearance));
+
+            return CreateBoxDelimiter(bounds.center, colliderSize, foundation, parent, name);
+        }
+
         public static int ConvertSelectedColliders(
             SpaceFoundationSystem.SpaceFoundation foundation,
             out string error)

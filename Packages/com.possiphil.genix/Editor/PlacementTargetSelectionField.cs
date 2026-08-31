@@ -60,6 +60,7 @@ namespace Genix.Editor
 
         private sealed class PlacementTargetPopup : PopupWindowContent
         {
+            private const int RowCount = 6;
             private const float RowHeight = 20f;
             private const float VerticalPadding = 4f;
 
@@ -86,7 +87,10 @@ namespace Genix.Editor
 
             public override Vector2 GetWindowSize()
             {
-                return new Vector2(_width, VerticalPadding * 2f + RowHeight * 6f);
+                float rowSpacing = EditorGUIUtility.standardVerticalSpacing * (RowCount - 1);
+                return new Vector2(
+                    _width,
+                    VerticalPadding * 2f + RowHeight * RowCount + rowSpacing);
             }
 
             public override void OnGUI(Rect rect)

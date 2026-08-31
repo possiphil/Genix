@@ -49,19 +49,19 @@ namespace Genix.Editor.Inspectors
             "Prefab",
             "Prefab instantiated for accepted placements. Assigning it refreshes the placement bounds.");
         private static readonly GUIContent PrefabRotationOffsetLabel = new(
-            "Rotation Offset",
-            "Correct imported prefab axes without modifying or wrapping the prefab. Genix applies this local Euler rotation after surface alignment and uses it consistently for bounds, clearance, preview, and generation. For wall assets, adjust it until the visible front follows Genix +Z; Random Roll remains available for placement variation.");
+            "Prefab Rotation",
+            "Correct imported prefab axes without editing the prefab. For wall assets, make the visible front point along local +Z.");
         private static readonly GUIContent PlacementTypeLabel = new(
             "Placement Type",
             "Surface or volume target this asset can use: Floor, Wall, Ceiling, or Inside Space.");
         private static readonly GUIContent OrientationModeLabel = new(
             "Orientation",
-            "None keeps the sampled orientation. Face Target uses a relative-placement anchor. Match Support Forward automatically uses the support object's local Z direction, or local X when Z is perpendicular to the surface.");
+            "Choose whether the asset keeps its sampled rotation, faces a target, or follows its support object's forward direction.");
         private static readonly GUIContent BoundsSizeLabel = new(
-            "Size",
+            "Size (units)",
             "Source-prefab local bounds before Rotation Offset. Genix derives corrected placement dimensions for containment, spacing, overlap, and surface fit.");
         private static readonly GUIContent BoundsCenterLabel = new(
-            "Center Offset",
+            "Center Offset (units)",
             "Source-prefab local offset to the bounds center. Prefab scale and Rotation Offset are applied automatically during placement.");
         private static readonly string[] WallDepthModeLabels =
         {
@@ -154,17 +154,6 @@ namespace Genix.Editor.Inspectors
             DrawAssetNameField();
             DrawPrefabSection();
 
-            if (!DesignerUiPreferences.IsAdvanced && HasAdvancedSettings())
-            {
-                using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
-                {
-                    GUILayout.FlexibleSpace();
-                    DesignerUiPreferences.DrawAdvancedActiveIndicator(
-                        true,
-                        "This asset contains advanced placement constraints or fit settings. They remain active in Basic mode.");
-                }
-            }
-
             EditorGUILayout.Space(4f);
 
             DrawPlacementSection();
@@ -223,7 +212,7 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.PropertyField(_placementType, PlacementTypeLabel);
             EditorGUILayout.PropertyField(_limitPlacements, new GUIContent(
                 "Limit Placements",
-                "Restrict how often this asset may exist in the generated output across repeated runs."));
+                "Limit this asset across existing and newly planned Genix output in the target area."));
 
             if (_limitPlacements.boolValue)
             {
@@ -232,7 +221,7 @@ namespace Genix.Editor.Inspectors
                     EditorGUI.BeginChangeCheck();
                     int maximum = EditorGUILayout.IntField(new GUIContent(
                         "Max Placements",
-                        "Maximum accepted instances of this asset per generation run."),
+                        "Maximum instances across existing and newly planned Genix output."),
                         _maxPlacements.intValue);
                     if (EditorGUI.EndChangeCheck())
                         _maxPlacements.intValue = Mathf.Max(1, maximum);
@@ -282,31 +271,6 @@ namespace Genix.Editor.Inspectors
                         : "Inside Space has no supporting surface. Match Support Forward therefore cannot resolve a direction.",
                     MessageType.Warning);
             }
-        }
-
-        private bool HasAdvancedSettings()
-        {
-            bool relativePlacementEnabled =
-                _assetRelativePlacement.FindPropertyRelative("enabled").boolValue;
-            bool pathPlacementEnabled = _pathPlacement.FindPropertyRelative("enabled").boolValue;
-            bool customSupportRules =
-                _requiredSupportTags.arraySize > 0 ||
-                _forbiddenSupportTags.arraySize > 0 ||
-                _requiredSupportNoneCategories.arraySize > 0 ||
-                _forbiddenSupportAnyCategories.arraySize > 0;
-            bool customSurfaceFit =
-                (SurfaceFitMode)_surfaceFitMode.enumValueIndex != SurfaceFitMode.Strict ||
-                _surfaceSinkOffset.floatValue > 0.0001f;
-            bool customWallRelationship =
-                (WallProximityMode)_wallProximityMode.enumValueIndex != WallProximityMode.AnyDistance;
-
-            return _spacingRules.arraySize > 0 ||
-                   relativePlacementEnabled ||
-                   pathPlacementEnabled ||
-                   customSupportRules ||
-                   _reserveClearance.boolValue ||
-                   customSurfaceFit ||
-                   customWallRelationship;
         }
 
         private static void DrawSectionHeader(string title, Action drawButtons)

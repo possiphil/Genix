@@ -53,26 +53,12 @@ namespace Genix.Editor.Inspectors
                        !SupportSurfaceRegionAuthoring.CanCreate(descriptor.gameObject)))
             {
                 if (GUILayout.Button(new GUIContent(
-                        "Add Support Surface Region",
-                        "Create a thin child BoxCollider for an explicit horizontal support level, such as an internal shelf board. Move and resize the selected child to match the usable surface, then duplicate it for additional levels.")))
+                        "Add Support Surface",
+                        "Create an editable support-surface child for an internal shelf board or raised level.")))
                 {
                     SupportSurfaceRegionAuthoring.Create(
                         descriptor.gameObject,
                         GenixEditorWindow.GetConfiguredSurfaceLayerMask());
-                }
-            }
-
-            if (!DesignerUiPreferences.IsAdvanced &&
-                (_allowedAssetTags.arraySize > 0 ||
-                 _forbiddenAssetTags.arraySize > 0 ||
-                 _assetCapacityRules.arraySize > 0))
-            {
-                using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
-                {
-                    GUILayout.FlexibleSpace();
-                    DesignerUiPreferences.DrawAdvancedActiveIndicator(
-                        true,
-                        "This surface contains advanced asset filters or asset-specific capacity limits. They remain active in Basic mode.");
                 }
             }
 
@@ -119,17 +105,17 @@ namespace Genix.Editor.Inspectors
         {
             EditorGUILayout.Space(6f);
             EditorGUILayout.LabelField(new GUIContent(
-                    "Accepted Assets",
+                    "Asset Rules",
                     "Allowed defaults to Any. Forbidden defaults to None and takes precedence. These rules are configured on the surface, while an asset's Support Tags describe the surfaces that asset can use."),
                 EditorStyles.boldLabel);
 
             DrawAssetTagRule(
                 _allowedAssetTags,
-                "Allowed Tags",
+                "Required Asset Tags",
                 "At least one selected tag must belong to the asset. Leave empty to accept any asset.");
             DrawAssetTagRule(
                 _forbiddenAssetTags,
-                "Forbidden Tags",
+                "Blocked Asset Tags",
                 "Any selected tag rejects the asset, even when it is also allowed.");
 
             List<SemanticTag> conflicts = GetSerializedTags(_allowedAssetTags)
@@ -285,7 +271,7 @@ namespace Genix.Editor.Inspectors
                     }
 
                     EditorGUILayout.PropertyField(scope, new GUIContent(
-                        "Match By",
+                        "Applies To",
                         "Choose one concrete asset or every asset carrying a semantic tag."));
 
                     PlacementSurfaceCapacityRuleScope selectedScope =
@@ -474,7 +460,7 @@ namespace Genix.Editor.Inspectors
             serializedObject.Update();
         }
 
-        [MenuItem("GameObject/Genix/Add Placement Surface Descriptor", false, 29)]
+        [MenuItem("GameObject/Genix/Make Placement Surface", false, 29)]
         private static void AddPlacementSurfaceDescriptor(MenuCommand command)
         {
             GameObject gameObject = command.context as GameObject ?? Selection.activeGameObject;
@@ -486,14 +472,14 @@ namespace Genix.Editor.Inspectors
             Selection.activeGameObject = gameObject;
         }
 
-        [MenuItem("GameObject/Genix/Add Placement Surface Descriptor", true)]
+        [MenuItem("GameObject/Genix/Make Placement Surface", true)]
         private static bool CanAddPlacementSurfaceDescriptor()
         {
             GameObject gameObject = Selection.activeGameObject;
             return gameObject && !gameObject.GetComponent<PlacementSurfaceDescriptor>();
         }
 
-        [MenuItem("GameObject/Genix/Add Support Surface Region", false, 30)]
+        [MenuItem("GameObject/Genix/Add Support Surface", false, 30)]
         private static void AddSupportSurfaceRegion(MenuCommand command)
         {
             GameObject gameObject = command.context as GameObject ?? Selection.activeGameObject;
@@ -502,7 +488,7 @@ namespace Genix.Editor.Inspectors
                 GenixEditorWindow.GetConfiguredSurfaceLayerMask());
         }
 
-        [MenuItem("GameObject/Genix/Add Support Surface Region", true)]
+        [MenuItem("GameObject/Genix/Add Support Surface", true)]
         private static bool CanAddSupportSurfaceRegion() =>
             SupportSurfaceRegionAuthoring.CanCreate(Selection.activeGameObject);
     }

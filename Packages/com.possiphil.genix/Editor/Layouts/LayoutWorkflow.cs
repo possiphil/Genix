@@ -23,6 +23,14 @@ namespace Genix.Editor.Layouts
         /// <summary>Invalidates the editor-side saved-layout catalog after project asset changes.</summary>
         public static void InvalidateLayoutCache() => LayoutRepository.InvalidateCache();
 
+        internal static LayoutBrowserSnapshot BrowseLayouts() => LayoutBrowserIndex.BrowseAll();
+
+        internal static LayoutBrowserSnapshot BrowseLayoutsForArea(IAreaSource areaSource) =>
+            LayoutBrowserIndex.BrowseArea(areaSource);
+
+        internal static LayoutBrowserSnapshot BrowseLayoutsForCurrentScene() =>
+            LayoutBrowserIndex.BrowseCurrentScene();
+
         /// <summary>Determines whether a layout was captured for the specified target area.</summary>
         public static bool MatchesArea(SavedLayout layout, IAreaSource areaSource) =>
             LayoutRepository.MatchesArea(layout, areaSource);
@@ -55,15 +63,16 @@ namespace Genix.Editor.Layouts
         public static bool ApplyLayout(SavedLayout layout, IAreaSource areaSource, out string error) =>
             LayoutApplyService.Apply(layout, areaSource, out error);
 
-        /// <summary>Loads a saved layout into the selected preview slot.</summary>
-        public static bool PreviewLayout(SavedLayout layout, LayoutPreviewSlot slot, out string error) =>
-            LayoutPreviewService.Show(layout, slot, out error);
+        /// <summary>Loads a saved layout into the Scene view preview.</summary>
+        public static bool PreviewLayout(SavedLayout layout, out string error) =>
+            LayoutPreviewService.Show(layout, out error);
+
+        /// <summary>Indicates whether the supplied layout is currently previewed.</summary>
+        public static bool IsPreviewing(SavedLayout layout) =>
+            LayoutPreviewService.IsShowing(layout);
 
         /// <summary>Clears preview.</summary>
-        public static void ClearPreview() => LayoutPreviewService.ClearAll();
-
-        /// <summary>Clears preview.</summary>
-        public static void ClearPreview(LayoutPreviewSlot slot) => LayoutPreviewService.Clear(slot);
+        public static void ClearPreview() => LayoutPreviewService.Clear();
 
         /// <summary>Deletes a saved layout from the project.</summary>
         public static bool DeleteLayout(SavedLayout layout, out string error) =>

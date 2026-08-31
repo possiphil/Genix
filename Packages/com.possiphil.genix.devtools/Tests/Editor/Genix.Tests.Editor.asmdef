@@ -4,6 +4,7 @@
     "references": [
         "Genix.Runtime",
         "Genix.Editor",
+        "Genix.Editor.Common",
         "Genix.DevTools.Editor"
     ],
     "includePlatforms": [

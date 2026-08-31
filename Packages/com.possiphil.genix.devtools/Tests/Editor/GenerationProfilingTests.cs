@@ -333,7 +333,7 @@ namespace Genix.Tests
                 Assert.That(targetEntry.RaycastHits, Is.EqualTo(2));
                 Assert.That(targetEntry.RejectedAttempts, Is.EqualTo(1));
                 Assert.That(targetEntry.ValidationSteps.Single().Step, Is.EqualTo("SurfaceFit"));
-                Assert.That(targetEntry.Rejections.Single().Reason, Is.EqualTo("Outside Target Area"));
+                Assert.That(targetEntry.Rejections.Single().Reason, Is.EqualTo("Outside Target Surface"));
             }
             finally
             {

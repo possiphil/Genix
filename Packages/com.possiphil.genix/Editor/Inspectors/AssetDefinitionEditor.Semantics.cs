@@ -19,7 +19,7 @@ namespace Genix.Editor.Inspectors
             {
                 using (new EditorGUI.DisabledScope(_semanticTags.arraySize == 0 && _anyTagCategories.arraySize == 0))
                 {
-                    if (GUILayout.Button("Clear", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Reset", GUILayout.Width(60f)))
                         ClearAssignedSemanticTags();
                 }
             });

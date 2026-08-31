@@ -11,22 +11,16 @@ namespace Genix.Editor.Diagnostics
     /// <summary>Persists runtime diagnostics in Unity assets for later inspection.</summary>
     public static class DiagnosticsReportSaver
     {
-        /// <summary>Writes a compact diagnostics summary to a project asset.</summary>
-        public static void SaveSummary(GenerationDiagnostics diagnostics)
+        /// <summary>Writes the richest diagnostics data captured by the run to one project asset.</summary>
+        public static void SaveReport(GenerationDiagnostics diagnostics)
         {
-            Save(diagnostics, DiagnosticsMode.Summary, ProjectContentPaths.DiagnosticSummaries);
-        }
-
-        /// <summary>Writes the complete diagnostics report to a project asset.</summary>
-        public static void SaveDetailed(GenerationDiagnostics diagnostics)
-        {
-            if (diagnostics != null && diagnostics.CaptureMode != DiagnosticsMode.Detailed)
-            {
-                Debug.LogWarning("This run was captured in Summary mode. Enable Detailed Diagnostics before the run to save detailed candidate data.");
-                return;
-            }
-
-            Save(diagnostics, DiagnosticsMode.Detailed, ProjectContentPaths.DiagnosticDetails);
+            DiagnosticsMode mode = diagnostics?.CaptureMode == DiagnosticsMode.Detailed
+                ? DiagnosticsMode.Detailed
+                : DiagnosticsMode.Summary;
+            string folder = mode == DiagnosticsMode.Detailed
+                ? ProjectContentPaths.DiagnosticDetails
+                : ProjectContentPaths.DiagnosticSummaries;
+            Save(diagnostics, mode, folder);
         }
 
         private static void Save(GenerationDiagnostics diagnostics, DiagnosticsMode diagnosticsMode, string folderPath)

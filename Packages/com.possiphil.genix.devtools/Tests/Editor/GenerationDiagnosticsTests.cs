@@ -76,7 +76,7 @@ namespace Genix.Tests
                 "Obstacle"));
 
             Assert.That(diagnostics.HasCandidateOutcomeCounts, Is.False);
-            Assert.That(diagnostics.TopRejectionReason, Does.Contain("Overlaps Fixed"));
+            Assert.That(diagnostics.TopRejectionReason, Does.Contain("Overlaps Scene Object"));
         }
 
         [Test]

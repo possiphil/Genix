@@ -15,7 +15,7 @@ Genix plans and applies procedural object placements inside an SFS target area. 
 
 ## Interface modes
 
-The shared **Basic / Advanced** selector appears in Generator, Assets, and SFS Authoring. Basic contains the common generation and content-authoring workflow. Advanced exposes distribution policies, semantic relationships, geometry overrides, search budgets, and debugging controls. Switching modes changes only visibility: hidden values remain active and are never reset. A settings icon indicates hidden advanced configuration and explains it on hover.
+The shared **Advanced** toggle appears in Generator, Content, Diagnostics, and SFS Authoring. Leave it disabled for the common generation and content-authoring workflow; enable it for distribution policies, semantic relationships, geometry overrides, search budgets, and debugging controls. The toggle changes only visibility: hidden values remain active and are never reset.
 
 Automated tests, profiling, benchmarks, and evaluation campaigns belong to the optional **Genix DevTools** package. Installing it adds a separate **Tools > Genix Developer** menu without changing the designer workflow.
 

@@ -23,21 +23,21 @@ namespace Genix.Editor.Windows
         private enum ContentTab
         {
             Assets,
+            AssetPools,
             Tags,
             Locations,
-            AssetPools,
-            Layouts,
-            SceneSetup
+            SceneSetup,
+            Layouts
         }
 
         private static readonly GUIContent[] ContentTabOptions =
         {
             new("Assets", "Author prefab placement definitions."),
-            new("Tags", "Author semantic categories and tags."),
-            new("Locations", "Inspect and tag available target areas."),
-            new("Pools", "Build static or dynamic asset pools."),
-            new("Layouts", "Review, apply, and manage captured layouts."),
-            new("Scene", "Configure placement surfaces, anchors, paths, and exclusion regions in the current scene.")
+            new("Pools", "Choose assets manually or include them with reusable rules."),
+            new("Tags", "Define semantic categories and tags."),
+            new("Target Areas", "Inspect and tag available generation areas."),
+            new("Scene Setup", "Configure surfaces, anchors, paths, and exclusion regions in the current scene."),
+            new("Layouts", "Review, preview, and apply saved results.")
         };
 
         private enum AssetSortMode
@@ -47,33 +47,6 @@ namespace Genix.Editor.Windows
             SizeAscending,
             PlacementType,
             TagCountAscending
-        }
-
-        private enum CategorySortMode
-        {
-            AlphabeticalAscending,
-            TagCountAscending,
-            Mode
-        }
-
-        private enum TagSortMode
-        {
-            AlphabeticalAscending,
-            CategoryAscending
-        }
-
-        private enum PoolSortMode
-        {
-            AlphabeticalAscending,
-            AssetCountDescending,
-            Mode
-        }
-
-        private enum PoolAssetStateFilter
-        {
-            All,
-            HasAssets,
-            Empty
         }
 
         private enum LayoutSortMode
@@ -135,17 +108,10 @@ namespace Genix.Editor.Windows
         private readonly Dictionary<TagCategory, List<SemanticTag>> _assetCategoryFilters = new();
 
         private string _categorySearch = string.Empty;
-        private CategorySortMode _categorySortMode = CategorySortMode.AlphabeticalAscending;
-        private bool _filterCategoriesByMode;
-        private bool _categoryModeFilterAllowsMultiple = true;
-
-        private TagSortMode _tagSortMode = TagSortMode.CategoryAscending;
 
         private string _poolSearch = string.Empty;
-        private PoolSortMode _poolSortMode = PoolSortMode.AlphabeticalAscending;
         private bool _filterAssetPoolsByMode;
         private AssetPoolMode _poolModeFilter = AssetPoolMode.Static;
-        private PoolAssetStateFilter _poolAssetStateFilter = PoolAssetStateFilter.All;
 
         private string _layoutSearch = string.Empty;
         private LayoutSortMode _layoutSortMode = LayoutSortMode.NewestFirst;
@@ -157,10 +123,10 @@ namespace Genix.Editor.Windows
         private readonly TargetAreaSelectorHost _layoutTargetAreaSelector = new();
 
         /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
-        [MenuItem("Tools/Genix/Assets", false, 20)]
+        [MenuItem("Tools/Genix/Content", false, 10)]
         public static void Open()
         {
-            GenixWindowDocking.Open<GenixContentWindow>("Genix Assets");
+            GenixWindowDocking.Open<GenixContentWindow>("Genix Content");
         }
 
         private void OnEnable()
@@ -248,11 +214,21 @@ namespace Genix.Editor.Windows
             {
                 ContentTab previousTab = _tab;
 
-                _tab = (ContentTab)GUILayout.Toolbar(
-                    (int)_tab,
-                    ContentTabOptions,
-                    EditorStyles.toolbarButton,
-                    GUILayout.ExpandWidth(true));
+                if (position.width < 560f)
+                {
+                    _tab = (ContentTab)EditorGUILayout.Popup(
+                        (int)_tab,
+                        ContentTabOptions,
+                        EditorStyles.toolbarPopup);
+                }
+                else
+                {
+                    _tab = (ContentTab)GUILayout.Toolbar(
+                        (int)_tab,
+                        ContentTabOptions,
+                        EditorStyles.toolbarButton,
+                        GUILayout.ExpandWidth(true));
+                }
 
                 if (_tab != previousTab)
                 {
@@ -264,27 +240,71 @@ namespace Genix.Editor.Windows
 
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
-                DesignerUiPreferences.DrawToolbarSelector();
                 GUILayout.FlexibleSpace();
 
-                if (DesignerUiPreferences.IsAdvanced &&
-                    GUILayout.Button("Clear Catalog", EditorStyles.toolbarButton, GUILayout.Width(110f)))
-                {
-                    ClearCatalog();
-                }
+                if (DesignerUiPreferences.IsAdvanced && GUILayout.Button(
+                        new GUIContent("Actions", "Open content-library maintenance actions."),
+                        EditorStyles.toolbarDropDown,
+                        GUILayout.Width(72f)))
+                    ShowContentActionsMenu();
+
+                DesignerUiPreferences.DrawToolbarSelector();
             }
         }
 
-        private static void DrawSectionHeader(string title, Action drawButtons)
+        private void ShowContentActionsMenu()
+        {
+            GenericMenu menu = new();
+
+            switch (_tab)
+            {
+                case ContentTab.Assets:
+                    menu.AddItem(new GUIContent("Delete All Asset Definitions…"), false, ClearAssets);
+                    break;
+                case ContentTab.AssetPools:
+                    menu.AddItem(new GUIContent("Delete All Asset Pools…"), false, ClearAssetPools);
+                    break;
+                case ContentTab.Tags:
+                    if (_selectedTagCategory)
+                    {
+                        TagCategory category = _selectedTagCategory;
+                        menu.AddItem(
+                            new GUIContent($"Delete Tags in {category.DisplayName}…"),
+                            false,
+                            () => ClearTags(category));
+                    }
+
+                    menu.AddItem(new GUIContent("Delete All Tags…"), false, () => ClearTags(null));
+                    menu.AddItem(new GUIContent("Delete All Categories and Tags…"), false, ClearCategories);
+                    break;
+            }
+
+            if (menu.GetItemCount() > 0)
+                menu.AddSeparator(string.Empty);
+
+            menu.AddItem(new GUIContent("Delete All Genix Content…"), false, ClearCatalog);
+            menu.ShowAsContext();
+        }
+
+        private void DrawSectionHeader(string title, Action drawButtons)
         {
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.Label(title, EditorStyles.boldLabel, GUILayout.ExpandWidth(false));
 
-                GUILayout.Space(8f);
                 GUILayout.FlexibleSpace();
 
-                drawButtons?.Invoke();
+                if (position.width >= 520f)
+                    drawButtons?.Invoke();
+            }
+
+            if (position.width < 520f && drawButtons != null)
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.FlexibleSpace();
+                    drawButtons.Invoke();
+                }
             }
         }
     }

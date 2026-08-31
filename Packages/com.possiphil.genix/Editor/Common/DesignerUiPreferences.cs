@@ -1,4 +1,6 @@
 using System;
+using Genix.Authoring;
+using Genix.Assets;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -15,15 +17,20 @@ namespace Genix.Editor.UI
     }
 
     /// <summary>Stores and draws the shared Basic/Advanced interface mode.</summary>
+    [InitializeOnLoad]
     public static class DesignerUiPreferences
     {
         private const string ModeKey = "Genix.DesignerUiMode";
+        private const string ShowAuthoringGuidesKey = "Genix.ShowAuthoringGuides";
 
-        private static readonly GUIContent[] ModeOptions =
+        private static readonly GUIContent AdvancedToggle = new(
+            "Advanced",
+            "Show additional constraints, sampling controls, and authoring overrides.");
+
+        static DesignerUiPreferences()
         {
-            new("Basic", "Show the controls used by the common designer workflow."),
-            new("Advanced", "Show detailed constraints, sampling controls, and authoring overrides.")
-        };
+            AuthoringVisualization.ShowSceneGuides = EditorPrefs.GetBool(ShowAuthoringGuidesKey, false);
+        }
 
         /// <summary>Gets or sets the shared interface mode.</summary>
         public static DesignerUiMode Mode
@@ -48,45 +55,69 @@ namespace Genix.Editor.UI
         /// <summary>Indicates whether advanced designer controls should be shown.</summary>
         public static bool IsAdvanced => Mode == DesignerUiMode.Advanced;
 
-        /// <summary>Draws the shared mode selector inside an existing toolbar.</summary>
-        public static void DrawToolbarSelector(float width = 154f)
+        /// <summary>Gets or sets global Scene view visibility for Genix authoring guides.</summary>
+        public static bool ShowAuthoringGuides
         {
-            int selected = GUILayout.Toolbar(
-                (int)Mode,
-                ModeOptions,
-                EditorStyles.toolbarButton,
-                GUILayout.Width(width));
-            Mode = (DesignerUiMode)Mathf.Clamp(selected, 0, ModeOptions.Length - 1);
-        }
-
-        /// <summary>Draws a complete mode toolbar and optional hidden-state indicator.</summary>
-        public static void DrawWindowToolbar(
-            string title,
-            bool advancedSettingsActive,
-            string activeTooltip = null)
-        {
-            using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
+            get => AuthoringVisualization.ShowSceneGuides;
+            set
             {
-                GUILayout.Label(title, EditorStyles.miniBoldLabel);
-                GUILayout.FlexibleSpace();
+                if (AuthoringVisualization.ShowSceneGuides == value)
+                    return;
 
-                DrawAdvancedActiveIndicator(advancedSettingsActive, activeTooltip);
-                DrawToolbarSelector();
+                AuthoringVisualization.ShowSceneGuides = value;
+                EditorPrefs.SetBool(ShowAuthoringGuidesKey, value);
+                SceneView.RepaintAll();
             }
         }
 
-        /// <summary>Signals that hidden advanced values still affect the edited object.</summary>
-        public static void DrawAdvancedActiveIndicator(bool active, string tooltip = null)
+        /// <summary>Draws the shared mode selector inside an existing toolbar.</summary>
+        public static void DrawToolbarSelector(float width = 82f)
         {
-            if (IsAdvanced || !active)
-                return;
+            bool showAdvanced = GUILayout.Toggle(
+                IsAdvanced,
+                AdvancedToggle,
+                EditorStyles.toolbarButton,
+                GUILayout.Width(width));
+            Mode = showAdvanced ? DesignerUiMode.Advanced : DesignerUiMode.Basic;
+        }
 
-            GUIContent content = new(EditorGUIUtility.IconContent("SettingsIcon"));
-            content.tooltip = string.IsNullOrWhiteSpace(tooltip)
-                ? "This configuration contains advanced values. Switch to Advanced to inspect or edit them."
-                : tooltip;
-            GUILayout.Label(content, GUILayout.Width(20f), GUILayout.Height(18f));
-            GUILayout.Space(4f);
+        /// <summary>Draws the shared mode selector in a right-aligned toolbar.</summary>
+        public static void DrawWindowToolbar()
+        {
+            using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
+            {
+                GUILayout.FlexibleSpace();
+                DrawToolbarSelector();
+            }
+        }
+    }
+
+    /// <summary>Maps implementation terminology to consistent designer-facing language.</summary>
+    public static class DesignerTerminology
+    {
+        /// <summary>Returns the label used for an asset-pool mode throughout designer UI.</summary>
+        public static string AssetPoolMode(AssetPoolMode mode) => mode switch
+        {
+            Genix.Assets.AssetPoolMode.Static => "Manual List",
+            Genix.Assets.AssetPoolMode.Dynamic => "Rule-Based",
+            _ => mode.ToString()
+        };
+
+        /// <summary>Returns the concise explanation used for an asset-pool mode.</summary>
+        public static string AssetPoolModeTooltip(AssetPoolMode mode) => mode switch
+        {
+            Genix.Assets.AssetPoolMode.Static =>
+                "Use only the asset definitions explicitly added to this pool.",
+            Genix.Assets.AssetPoolMode.Dynamic =>
+                "Automatically include catalog assets that match this pool's filters.",
+            _ => string.Empty
+        };
+
+        /// <summary>Draws a quiet empty state without presenting instructions as a warning.</summary>
+        public static void DrawEmptyState(string message, float height = 34f)
+        {
+            Rect rect = EditorGUILayout.GetControlRect(false, height);
+            EditorGUI.LabelField(rect, message, EditorStyles.centeredGreyMiniLabel);
         }
     }
 }

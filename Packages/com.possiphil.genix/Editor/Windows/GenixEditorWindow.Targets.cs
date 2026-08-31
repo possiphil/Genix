@@ -4,6 +4,7 @@ using System.Linq;
 using Genix.Core;
 using Genix.Editor.Assets;
 using Genix.Editor.UI;
+using Genix.Editor.Utilities;
 using Genix.Semantics;
 using UnityEditor;
 using UnityEngine;
@@ -19,21 +20,16 @@ namespace Genix.Editor.Windows
             if (_placementTargets == PlacementTarget.None)
                 EditorGUILayout.HelpBox("Select at least one placement target: Floor, Wall, Ceiling, or Inside Space.", MessageType.Warning);
 
-            if (GetSelectedTargetCount(_placementTargets) > 1)
-            {
-                if (DesignerUiPreferences.IsAdvanced)
-                    DrawTargetDistributionSection();
-            }
-            else
-            {
+            if (GetSelectedTargetCount(_placementTargets) <= 1)
                 _targetDistributionMode = TargetDistributionMode.Random;
-            }
+        }
 
-            if (DesignerUiPreferences.IsAdvanced)
-            {
-                DrawSupportDistributionSection();
-                DrawRelativePlacementSection();
-            }
+        private void DrawAdvancedDistributionSettings()
+        {
+            if (GetSelectedTargetCount(_placementTargets) > 1)
+                DrawTargetDistributionSection();
+
+            DrawSupportDistributionSection();
         }
 
         private PlacementTarget GetEffectivePlacementTargets()
@@ -79,8 +75,8 @@ namespace Genix.Editor.Windows
             if (selectedIndex < 0)
                 selectedIndex = 0;
 
-            selectedIndex = EditorGUILayout.Popup(
-                new GUIContent("Target Distribution", "Controls how the requested object count is shared across the selected placement targets."),
+            selectedIndex = EditorGui.Popup(
+                new GUIContent("Target Distribution", "Choose how the requested count is divided across Floor, Wall, Ceiling, and Inside Space."),
                 selectedIndex,
                 TargetDistributionOptions);
             _targetDistributionMode = TargetDistributionModes[Mathf.Clamp(selectedIndex, 0, TargetDistributionModes.Length - 1)];
@@ -153,11 +149,26 @@ namespace Genix.Editor.Windows
         private void DrawSupportDistributionSection()
         {
             EditorGUILayout.Space(2f);
-            _supportDistributionEnabled = EditorGUILayout.Toggle(
-                new GUIContent(
-                    "Support Distribution",
-                    "Optionally allocate accepted placements across explicitly listed semantic support tags. Add only the support kinds you want to control. Exact counts are allocated first; the remaining object count is divided among weighted rules and Default / Other Surfaces. Every unlisted surface is handled by Default / Other Surfaces."),
-                _supportDistributionEnabled);
+            bool canAddSupportRule = GetFirstUnusedSupportTag();
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                _supportDistributionEnabled = EditorGUILayout.Toggle(
+                    new GUIContent(
+                        "Support Distribution",
+                        "Divide accepted placements across tagged support surfaces. Unlisted surfaces use the fallback weight below."),
+                    _supportDistributionEnabled);
+
+                using (new EditorGUI.DisabledScope(!_supportDistributionEnabled || !canAddSupportRule))
+                {
+                    if (GUILayout.Button(
+                            new GUIContent("Add Rule", "Control one tagged kind of support surface."),
+                            EditorStyles.miniButton,
+                            GUILayout.Width(70f)))
+                    {
+                        AddSupportDistributionRule();
+                    }
+                }
+            }
 
             if (!_supportDistributionEnabled)
                 return;
@@ -167,33 +178,57 @@ namespace Genix.Editor.Windows
             for (int i = 0; i < _supportDistributionRules.Count; i++)
             {
                 SupportDistributionRule rule = _supportDistributionRules[i];
-                using (new EditorGUILayout.HorizontalScope())
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
                 {
-                    SemanticTag selectedTag = DrawSupportRuleTag(rule?.SupportTag);
-                    SupportDistributionRuleMode mode = (SupportDistributionRuleMode)EditorGUILayout.EnumPopup(
-                        rule?.Mode ?? SupportDistributionRuleMode.Weight,
-                        GUILayout.Width(94f));
-                    int value = Mathf.Max(0, EditorGUILayout.IntField(
-                        rule?.Value ?? 1,
-                        GUILayout.Width(48f)));
+                    SemanticTag selectedTag;
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        selectedTag = DrawSupportRuleTag(rule?.SupportTag);
+                        if (GUILayout.Button(new GUIContent("×", "Remove this support rule."), EditorStyles.miniButton, GUILayout.Width(22f)))
+                            removeIndex = i;
+                    }
+
+                    if (!selectedTag)
+                    {
+                        EditorGUILayout.HelpBox(
+                            "Missing Support Tag. Remove this rule and add a replacement after creating an eligible support tag.",
+                            MessageType.Warning);
+                    }
+
+                    SupportDistributionRuleMode mode = rule?.Mode ?? SupportDistributionRuleMode.Weight;
+                    int value = rule?.Value ?? 1;
+                    int count = mode == SupportDistributionRuleMode.ExactCount ? value : 0;
+                    int weight = mode == SupportDistributionRuleMode.Weight ? value : 0;
+
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        EditorGUI.BeginChangeCheck();
+                        count = Mathf.Max(0, EditorGUILayout.IntField(
+                            new GUIContent("Count", "Reserve this exact number of placements for the selected support tag. Setting Count resets Weight."),
+                            count));
+                        if (EditorGUI.EndChangeCheck())
+                        {
+                            mode = SupportDistributionRuleMode.ExactCount;
+                            value = count;
+                            weight = 0;
+                        }
+
+                        EditorGUI.BeginChangeCheck();
+                        weight = Mathf.Max(0, EditorGUILayout.IntField(
+                            new GUIContent("Weight", "Set this support tag's relative share of remaining placements. Setting Weight resets Count."),
+                            weight));
+                        if (EditorGUI.EndChangeCheck())
+                        {
+                            mode = SupportDistributionRuleMode.Weight;
+                            value = weight;
+                        }
+                    }
 
                     if (selectedTag != rule?.SupportTag || mode != rule?.Mode || value != rule?.Value)
                     {
                         rule = new SupportDistributionRule(selectedTag, mode, value);
                         _supportDistributionRules[i] = rule;
                     }
-
-                    int weightSum = GetSupportWeightSum();
-                    string share = mode == SupportDistributionRuleMode.Weight && weightSum > 0
-                        ? $"{value * 100f / weightSum:0.#}%"
-                        : mode == SupportDistributionRuleMode.ExactCount
-                            ? $"{value} obj."
-                            : "0%";
-                    GUILayout.Label(share, EditorStyles.miniLabel, GUILayout.Width(48f));
-
-                    if (GUILayout.Button(new GUIContent("×", "Remove this support rule."), EditorStyles.miniButton, GUILayout.Width(22f)))
-                        removeIndex = i;
-
                 }
             }
 
@@ -204,8 +239,8 @@ namespace Genix.Editor.Windows
             {
                 EditorGUILayout.LabelField(
                     new GUIContent(
-                        "Default / Other Surfaces",
-                        "Relative share for every support surface that does not carry a tag listed above."));
+                        "All Unlisted Surfaces",
+                        "Relative share for support surfaces without a rule above."));
                 _defaultSupportWeight = Mathf.Max(0, EditorGUILayout.IntField(
                     _defaultSupportWeight,
                     GUILayout.Width(48f)));
@@ -214,20 +249,6 @@ namespace Genix.Editor.Windows
                     currentWeightSum > 0 ? $"{_defaultSupportWeight * 100f / currentWeightSum:0.#}%" : "0%",
                     EditorStyles.miniLabel,
                     GUILayout.Width(74f));
-            }
-
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button(
-                        new GUIContent("+ Add Support Rule", "Add one explicit surface-tag allocation. Unlisted tags continue to use Default."),
-                        GUILayout.Width(132f)))
-                {
-                    _supportDistributionRules.Add(new SupportDistributionRule(
-                        GetFirstUnusedSupportTag(),
-                        SupportDistributionRuleMode.Weight,
-                        1));
-                }
             }
 
             List<SemanticTag> duplicates = _supportDistributionRules
@@ -256,11 +277,24 @@ namespace Genix.Editor.Windows
             if (GetSupportWeightSum() <= 0 && exactTotal < _objectCount)
             {
                 EditorGUILayout.HelpBox(
-                    "Increase Default Weight or one explicit Weight rule so the remaining objects have a destination.",
+                    "Increase the fallback weight or a weighted support rule so remaining objects have a destination.",
                     MessageType.Warning);
             }
 
             EditorGUI.indentLevel--;
+        }
+
+        private void AddSupportDistributionRule()
+        {
+            SemanticTag supportTag = GetFirstUnusedSupportTag();
+
+            if (!supportTag)
+                return;
+
+            _supportDistributionRules.Add(new SupportDistributionRule(
+                supportTag,
+                SupportDistributionRuleMode.Weight,
+                1));
         }
 
         private int GetSupportWeightSum() => _supportDistributionRules
@@ -269,17 +303,34 @@ namespace Genix.Editor.Windows
 
         private static SemanticTag DrawSupportRuleTag(SemanticTag selected)
         {
-            List<SemanticTag> tags = AssetCatalogService.GetOrCreate().Tags
+            List<SemanticTag> tags = GetSupportTags();
+            int index = selected ? tags.IndexOf(selected) : -1;
+            GUIContent label = new(
+                "Support Tag",
+                "Choose the tagged support surfaces controlled by this rule.");
+
+            if (index < 0)
+            {
+                using (new EditorGUI.DisabledScope(true))
+                    EditorGui.Popup(label, 0, new[] { "Missing Support Tag" });
+
+                return null;
+            }
+
+            string[] options = tags
+                .Select(tag => $"{tag.Category.DisplayName} / {tag.DisplayName}")
+                .ToArray();
+            index = EditorGui.Popup(label, index, options);
+            return tags[Mathf.Clamp(index, 0, tags.Count - 1)];
+        }
+
+        private static List<SemanticTag> GetSupportTags()
+        {
+            return AssetCatalogService.GetOrCreate().Tags
                 .Where(tag => tag && tag.SupportsSurfaces)
                 .OrderBy(tag => tag.Category.DisplayName)
                 .ThenBy(tag => tag.DisplayName)
                 .ToList();
-            int index = selected ? tags.IndexOf(selected) + 1 : 0;
-            string[] options = new[] { "Select Support Tag" }
-                .Concat(tags.Select(tag => $"{tag.Category.DisplayName} / {tag.DisplayName}"))
-                .ToArray();
-            index = EditorGUILayout.Popup(Mathf.Max(0, index), options);
-            return index > 0 && index <= tags.Count ? tags[index - 1] : null;
         }
 
         private SemanticTag GetFirstUnusedSupportTag()
@@ -288,10 +339,8 @@ namespace Genix.Editor.Windows
                 .Where(rule => rule?.SupportTag)
                 .Select(rule => rule.SupportTag)
                 .ToHashSet();
-            return AssetCatalogService.GetOrCreate().Tags
-                .Where(tag => tag && tag.SupportsSurfaces && !used.Contains(tag))
-                .OrderBy(tag => tag.Category.DisplayName)
-                .ThenBy(tag => tag.DisplayName)
+            return GetSupportTags()
+                .Where(tag => !used.Contains(tag))
                 .FirstOrDefault();
         }
 
@@ -316,8 +365,8 @@ namespace Genix.Editor.Windows
             if (sourceIndex < 0)
                 sourceIndex = 0;
 
-            sourceIndex = EditorGUILayout.Popup(
-                new GUIContent("Relative To", "Optionally require each placement to be within a 3D radius of an anchor object's bounds."),
+            sourceIndex = EditorGui.Popup(
+                new GUIContent("Place Near", "Require every placement to stay near an eligible object's bounds."),
                 sourceIndex,
                 RelativeSourceOptions);
             _relativeSource = RelativeSources[Mathf.Clamp(sourceIndex, 0, RelativeSources.Length - 1)];
@@ -328,7 +377,7 @@ namespace Genix.Editor.Windows
             EditorGUI.indentLevel++;
 
             _relativeRadius = Mathf.Max(0.1f, EditorGUILayout.FloatField(
-                new GUIContent("Radius", "Maximum 3D world-space distance from the nearest point on an eligible anchor's bounds."),
+                new GUIContent("Maximum Distance", "Maximum 3D distance from the nearest point on an eligible object's bounds."),
                 _relativeRadius));
 
             if (_relativeSource is RelativePlacementSource.SceneObjects or RelativePlacementSource.Any)
@@ -383,9 +432,14 @@ namespace Genix.Editor.Windows
             Rect controlRect = EditorGUILayout.GetControlRect();
             Rect dropdownRect = EditorGUI.PrefixLabel(
                 controlRect,
-                new GUIContent("Placement Targets", "Surface and volume types that Genix may use. Assets must have a matching placement type."));
+                new GUIContent("Placement Targets", "Choose the surface and volume types Genix may use. Assets must support a selected target."));
 
-            if (!EditorGUI.DropdownButton(dropdownRect, new GUIContent(GetPlacementTargetLabel(_placementTargets)), FocusType.Keyboard))
+            string selectionLabel = GetPlacementTargetLabel(_placementTargets);
+            if (!EditorGUI.DropdownButton(
+                    dropdownRect,
+                    new GUIContent(selectionLabel, selectionLabel),
+                    FocusType.Keyboard,
+                    EditorGui.EllipsizedPopupStyle))
                 return;
 
             PlacementTargetSelectionField.Show(

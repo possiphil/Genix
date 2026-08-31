@@ -11,7 +11,7 @@ using SfsSpace = SpaceFoundationSystem.Space;
 namespace Genix.SpaceFoundation.Editor
 {
     /// <summary>Draws and maintains the editor selection of a Space Foundation System space.</summary>
-    public sealed class SfsLocationSelector : ITargetAreaSelector
+    public sealed class SfsLocationSelector : ITargetAreaSelector, ITargetAreaSelectorStatus
     {
         private SfsSpace[] _locations = Array.Empty<SfsSpace>();
         private string[] _options = Array.Empty<string>();
@@ -48,14 +48,20 @@ namespace Genix.SpaceFoundation.Editor
         public void Draw(GUIContent label)
         {
             if (_locations.Length == 0)
-            {
-                EditorGUILayout.HelpBox(
-                    "No Space Foundation locations were found. Rebuild the Space Foundation or open a scene with generated subspaces.",
-                    MessageType.Warning);
                 return;
-            }
 
             _selectedIndex = EditorGUILayout.Popup(label, _selectedIndex, _options);
+        }
+
+        /// <summary>Draws guidance when no selectable SFS location is available.</summary>
+        public void DrawStatus()
+        {
+            if (_locations.Length > 0)
+                return;
+
+            EditorGUILayout.HelpBox(
+                "No Space Foundation locations were found. Rebuild the Space Foundation or open a scene with generated subspaces.",
+                MessageType.Warning);
         }
 
         /// <summary>Creates area source.</summary>

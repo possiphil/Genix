@@ -29,7 +29,7 @@ Optional support distribution adds accepted-placement budgets above this compati
 planner first searches candidates belonging to underfilled explicit or default support groups.
 Filtered reads preserve candidates from every other group, allowing those positions to be consumed
 later rather than discarding them. Once requested budgets are satisfied or unavailable, remaining
-groups can absorb Best Effort overflow. With support distribution disabled, the normal sequential
+groups can absorb partial-result overflow. With support distribution disabled, the normal sequential
 candidate path is unchanged.
 
 In all-matching surface mode, floor sampling reserves part of the existing candidate budget for each physical semantic support that can host at least one selected asset. The remaining budget stays global. Small desktops and shelves therefore receive candidates even when they occupy only a tiny fraction of a large target volume, without multiplying the normal candidate budget for typical scenes. Candidate diagnostics expose both support coverage and attempts eliminated by the compatibility prefilter.

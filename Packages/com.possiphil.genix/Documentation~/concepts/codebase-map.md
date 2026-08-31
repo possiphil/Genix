@@ -16,7 +16,9 @@
 - `Editor/Windows`, `Editor/Inspectors`, and `Editor/Drawers` provide designer workflows and contextual explanations. Stateful IMGUI types use responsibility-named partial files when several views share one serialized selection and Undo context; for example, the asset inspector separates support rules, fit and bounds, relational constraints, and semantic tags.
 - `Editor/Integrations` adapts external spatial systems. The SFS integration is the current production area source.
 - `Editor/Diagnostics` visualizes and persists designer-facing run explanations.
-- `Editor/Layouts` captures, restores, and manages reusable layouts.
+- `Editor/Layouts` captures, restores, and manages reusable layouts. The Content browser reads searchable
+  list metadata from a project-local index and loads a `SavedLayout` asset only when the designer selects
+  it or starts an explicit layout action.
 - `Editor/Infrastructure` owns idempotent project-content construction. Starter Content separates taxonomy, persistent assets, and prefab geometry while retaining one transactional entry point.
 
 ## Optional DevTools package

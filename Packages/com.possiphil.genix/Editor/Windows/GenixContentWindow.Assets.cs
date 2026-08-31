@@ -5,6 +5,7 @@ using Genix.Assets;
 using Genix.Editor.Assets;
 using Genix.Editor.Common;
 using Genix.Editor.Infrastructure;
+using Genix.Editor.UI;
 using Genix.Editor.Utilities;
 using Genix.Extensions;
 using Genix.Orientation;
@@ -46,10 +47,10 @@ namespace Genix.Editor.Windows
             {
                 using (new EditorGUI.DisabledScope(!HasValidCreationPrefabs()))
                 {
-                    if (GUILayout.Button("Create", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Create Definitions", GUILayout.Width(116f)))
                         CreatePrefabAssetsFromCreationList();
 
-                    if (GUILayout.Button("Clear", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Reset", GUILayout.Width(60f)))
                     {
                         _prefabsToCreate.Clear();
                         NormalizePrefabCreationList();
@@ -446,7 +447,11 @@ namespace Genix.Editor.Windows
         {
             DrawSectionHeader("Filters", () =>
             {
-                if (GUILayout.Button("Clear", GUILayout.Width(60f)))
+                bool hasFilters = !string.IsNullOrWhiteSpace(_assetSearch) ||
+                                  _filterByPlacementType ||
+                                  _filterByOrientationMode ||
+                                  _assetCategoryFilters.Values.Any(tags => tags.Count > 0);
+                if (hasFilters && GUILayout.Button("Reset", GUILayout.Width(60f)))
                     ClearAssetFilters();
             });
 
@@ -456,32 +461,52 @@ namespace Genix.Editor.Windows
                     new GUIContent("Search", "Filter assets by display name."),
                     _assetSearch);
 
-                _filterByPlacementType = EditorGUILayout.Toggle(
-                    new GUIContent("Filter By Placement Type", "Show assets assigned to one surface or volume target."),
-                    _filterByPlacementType);
+                DrawPlacementTypeFilter();
 
-                if (_filterByPlacementType)
+                if (DesignerUiPreferences.IsAdvanced)
                 {
-                    using (new EditorGUI.IndentLevelScope())
-                        _placementTypeFilter = (PlacementType)EditorGUILayout.EnumPopup(
-                            new GUIContent("Placement Type", "Placement target assets must match."),
-                            _placementTypeFilter);
+                    DrawOrientationFilter();
+                    DrawCategoryAssetFilters(catalog);
                 }
-
-                _filterByOrientationMode = EditorGUILayout.Toggle(
-                    new GUIContent("Filter By Orientation", "Show assets with one relative-orientation behavior."),
-                    _filterByOrientationMode);
-
-                if (_filterByOrientationMode)
-                {
-                    using (new EditorGUI.IndentLevelScope())
-                        _orientationModeFilter = (OrientationMode)EditorGUILayout.EnumPopup(
-                            new GUIContent("Orientation", "Orientation behavior assets must match."),
-                            _orientationModeFilter);
-                }
-
-                DrawCategoryAssetFilters(catalog);
             }
+        }
+
+        private void DrawPlacementTypeFilter()
+        {
+            PlacementType[] values = (PlacementType[])Enum.GetValues(typeof(PlacementType));
+            string[] labels = new[] { "Any" }
+                .Concat(values.Select(value => value.ToDisplayName()))
+                .ToArray();
+            int selected = _filterByPlacementType
+                ? Array.IndexOf(values, _placementTypeFilter) + 1
+                : 0;
+            selected = EditorGUILayout.Popup(
+                new GUIContent("Placement Type", "Show assets for one placement target, or choose Any."),
+                Mathf.Max(0, selected),
+                labels);
+            _filterByPlacementType = selected > 0;
+
+            if (_filterByPlacementType)
+                _placementTypeFilter = values[selected - 1];
+        }
+
+        private void DrawOrientationFilter()
+        {
+            OrientationMode[] values = (OrientationMode[])Enum.GetValues(typeof(OrientationMode));
+            string[] labels = new[] { "Any" }
+                .Concat(values.Select(value => value.ToDisplayName()))
+                .ToArray();
+            int selected = _filterByOrientationMode
+                ? Array.IndexOf(values, _orientationModeFilter) + 1
+                : 0;
+            selected = EditorGUILayout.Popup(
+                new GUIContent("Orientation", "Show assets with one contextual facing behavior, or choose Any."),
+                Mathf.Max(0, selected),
+                labels);
+            _filterByOrientationMode = selected > 0;
+
+            if (_filterByOrientationMode)
+                _orientationModeFilter = values[selected - 1];
         }
 
         private void DrawCategoryAssetFilters(AssetCatalog catalog)
@@ -529,26 +554,42 @@ namespace Genix.Editor.Windows
 
         private void DrawStaticPoolAddSection(IReadOnlyList<AssetDefinition> filteredAssets)
         {
-            EditorGUILayout.LabelField("Add To Static Asset Pool", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Add to Manual Pool", EditorStyles.boldLabel);
 
-            using (new EditorGUILayout.HorizontalScope())
+            if (position.width < 520f)
             {
                 DrawStaticPoolTargetSelector();
 
-                using (new EditorGUI.DisabledScope(!_targetStaticPool || !_selectedAsset))
+                using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button("Add Selected", GUILayout.Width(110f)))
-                        AddSelectedAssetToTargetPool();
+                    DrawStaticPoolAddButtons(filteredAssets);
                 }
-
-                using (new EditorGUI.DisabledScope(!_targetStaticPool || filteredAssets.Count == 0))
+            }
+            else
+            {
+                using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button("Add Filtered", GUILayout.Width(100f)))
-                        AddFilteredAssetsToTargetPool(filteredAssets);
+                    DrawStaticPoolTargetSelector();
+                    DrawStaticPoolAddButtons(filteredAssets);
                 }
             }
 
             DrawStaticPoolMessage();
+        }
+
+        private void DrawStaticPoolAddButtons(IReadOnlyList<AssetDefinition> filteredAssets)
+        {
+            using (new EditorGUI.DisabledScope(!_targetStaticPool || !_selectedAsset))
+            {
+                if (GUILayout.Button("Add Selected", GUILayout.Width(110f)))
+                    AddSelectedAssetToTargetPool();
+            }
+
+            using (new EditorGUI.DisabledScope(!_targetStaticPool || filteredAssets.Count == 0))
+            {
+                if (GUILayout.Button("Add Filtered", GUILayout.Width(100f)))
+                    AddFilteredAssetsToTargetPool(filteredAssets);
+            }
         }
 
         private void ShowStaticPoolMessage(string message, MessageType messageType)
@@ -585,7 +626,7 @@ namespace Genix.Editor.Windows
             if (staticAssetPools.Count == 0)
             {
                 using (new EditorGUI.DisabledScope(true))
-                    EditorGUILayout.Popup(0, new[] { "No static asset pools available" }, GUILayout.Width(220f));
+                    EditorGUILayout.Popup(0, new[] { "No manual pools available" }, GUILayout.Width(220f));
 
                 _targetStaticPool = null;
                 return;
@@ -627,11 +668,6 @@ namespace Genix.Editor.Windows
                         DeleteSelectedAsset();
                 }
 
-                using (new EditorGUI.DisabledScope(assets.Count == 0))
-                {
-                    if (GUILayout.Button("Clear", GUILayout.Width(60f)))
-                        ClearAssets();
-                }
             });
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.Height(ListHeight)))
@@ -639,9 +675,7 @@ namespace Genix.Editor.Windows
                 _listScroll = EditorGUILayout.BeginScrollView(_listScroll);
 
                 if (assets.Count == 0)
-                {
-                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
-                }
+                    DesignerTerminology.DrawEmptyState("No assets match the current filters.");
                 else
                 {
                     foreach (AssetDefinition asset in assets)
@@ -690,7 +724,7 @@ namespace Genix.Editor.Windows
             selectedIndex = EditorGUILayout.Popup(
                 selectedIndex,
                 labels,
-                GUILayout.Width(width));
+                GUILayout.Width(Mathf.Clamp(EditorGUIUtility.currentViewWidth - 230f, 86f, width)));
 
             return modes[selectedIndex];
         }

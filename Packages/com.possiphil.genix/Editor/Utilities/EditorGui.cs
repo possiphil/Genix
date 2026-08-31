@@ -7,6 +7,78 @@ namespace Genix.Editor.Utilities
     public static class EditorGui
     {
         private const float FoldoutTextOffset = -4f;
+        private const int PopupTrailingPadding = 4;
+
+        private static GUIStyle _ellipsizedPopupStyle;
+
+        /// <summary>Gets the shared popup style that truncates long selections with an ellipsis.</summary>
+        public static GUIStyle EllipsizedPopupStyle
+        {
+            get
+            {
+                if (_ellipsizedPopupStyle != null)
+                    return _ellipsizedPopupStyle;
+
+                GUIStyle style = new(EditorStyles.popup)
+                {
+                    clipping = TextClipping.Ellipsis
+                };
+                RectOffset padding = style.padding;
+                style.padding = new RectOffset(
+                    padding.left,
+                    padding.right + PopupTrailingPadding,
+                    padding.top,
+                    padding.bottom);
+                _ellipsizedPopupStyle = style;
+                return _ellipsizedPopupStyle;
+            }
+        }
+
+        /// <summary>Draws a popup whose selected value ends with an ellipsis when space is limited.</summary>
+        public static int Popup(
+            GUIContent label,
+            int selectedIndex,
+            string[] displayedOptions,
+            params GUILayoutOption[] options)
+        {
+            Rect row = EditorGUILayout.GetControlRect(
+                true,
+                EditorGUIUtility.singleLineHeight,
+                EllipsizedPopupStyle,
+                options);
+            Rect field = EditorGUI.PrefixLabel(row, label);
+            return EditorGUI.Popup(field, selectedIndex, displayedOptions, EllipsizedPopupStyle);
+        }
+
+        /// <summary>Draws a popup with rich option content and ellipsized selected text.</summary>
+        public static int Popup(
+            GUIContent label,
+            int selectedIndex,
+            GUIContent[] displayedOptions,
+            params GUILayoutOption[] options)
+        {
+            Rect row = EditorGUILayout.GetControlRect(
+                true,
+                EditorGUIUtility.singleLineHeight,
+                EllipsizedPopupStyle,
+                options);
+            Rect field = EditorGUI.PrefixLabel(row, label);
+            return EditorGUI.Popup(field, selectedIndex, displayedOptions, EllipsizedPopupStyle);
+        }
+
+        /// <summary>Draws an unlabeled popup whose selected value ends with an ellipsis when space is limited.</summary>
+        public static int Popup(
+            int selectedIndex,
+            string[] displayedOptions,
+            params GUILayoutOption[] options)
+        {
+            Rect field = EditorGUILayout.GetControlRect(
+                false,
+                EditorGUIUtility.singleLineHeight,
+                EllipsizedPopupStyle,
+                options);
+            return EditorGUI.Popup(field, selectedIndex, displayedOptions, EllipsizedPopupStyle);
+        }
 
         /// <summary>Draws a shortcut that selects the supplied asset for editing.</summary>
         public static void DrawEditAssetButton(Object asset, float width = 48f)
@@ -14,6 +86,16 @@ namespace Genix.Editor.Utilities
             using (new EditorGUI.DisabledScope(!asset))
             {
                 if (GUILayout.Button("Edit", GUILayout.Width(width)))
+                    ShowObjectInInspector(asset);
+            }
+        }
+
+        /// <summary>Draws a styled Edit button for use inside a connected action group.</summary>
+        public static void DrawEditAssetButton(Object asset, GUIStyle style, float width, float height)
+        {
+            using (new EditorGUI.DisabledScope(!asset))
+            {
+                if (GUILayout.Button("Edit", style, GUILayout.Width(width), GUILayout.Height(height)))
                     ShowObjectInInspector(asset);
             }
         }

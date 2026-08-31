@@ -310,6 +310,45 @@ namespace Genix.Tests.SpaceFoundation
         }
 
         [Test]
+        public void QuickAddBoxDelimiterSnapsToVoxelGridAndOccupiesOnlyRequestedCells()
+        {
+            SpaceFoundationSystem.SpaceFoundation foundation = CreateFoundation(2f);
+            Delimiter delimiter = SfsAuthoringSceneBuilder.CreateGridAlignedBoxDelimiter(
+                new Vector3(0.9f, 1.1f, 0.8f),
+                new Vector3Int(4, 4, 1),
+                foundation);
+            _objects.Add(delimiter.gameObject);
+            Physics.SyncTransforms();
+
+            BoxCollider collider = delimiter.GetComponent<BoxCollider>();
+            Assert.That(delimiter.transform.position, Is.EqualTo(new Vector3(1f, 1f, 0f)));
+            Assert.That(collider.size, Is.EqualTo(new Vector3(7.84f, 7.84f, 1.84f)));
+
+            int mask = 1 << LayerMask.NameToLayer(SfsAuthoringSceneBuilder.DelimiterLayerName);
+            Vector3 halfVoxel = Vector3.one * foundation.voxelSize * 0.5f;
+            Collider[] buffer = new Collider[4];
+            for (int y = -1; y <= 2; y++)
+            for (int x = -1; x <= 2; x++)
+            {
+                int hits = Physics.OverlapBoxNonAlloc(
+                    new Vector3(x * 2f, y * 2f, 0f),
+                    halfVoxel,
+                    buffer,
+                    Quaternion.identity,
+                    mask);
+                Assert.That(hits, Is.GreaterThan(0), $"Expected delimiter cell ({x}, {y}, 0) was not blocked.");
+            }
+
+            int adjacentHits = Physics.OverlapBoxNonAlloc(
+                new Vector3(0f, 0f, 2f),
+                halfVoxel,
+                buffer,
+                Quaternion.identity,
+                mask);
+            Assert.That(adjacentHits, Is.Zero, "The one-cell wall also blocked an adjacent depth layer.");
+        }
+
+        [Test]
         public void AdjacentGridMatchesSfsVoxelOverlapContract()
         {
             SpaceFoundationSystem.SpaceFoundation foundation = CreateFoundation(2f);

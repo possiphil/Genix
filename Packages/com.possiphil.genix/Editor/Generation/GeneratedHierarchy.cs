@@ -49,6 +49,12 @@ namespace Genix.Editor.Generation
             return group;
         }
 
+        /// <summary>Returns whether the area currently contains generated scene objects.</summary>
+        public static bool HasObjects(IAreaSource areaSource)
+        {
+            return TryGet(areaSource, out Transform group) && group.childCount > 0;
+        }
+
         /// <summary>Removes the generated-object group for an area through Unity Undo.</summary>
         public static bool Clear(IAreaSource areaSource)
         {

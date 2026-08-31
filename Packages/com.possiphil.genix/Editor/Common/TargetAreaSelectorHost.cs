@@ -44,6 +44,18 @@ namespace Genix.Editor.TargetAreas
         public void Draw(GUIContent label)
         {
             if (_providers.Count == 0)
+                return;
+
+            DrawProviderDropdownIfNeeded();
+
+            ITargetAreaSelector selector = GetOrCreateSelector(GetSelectedProvider());
+            selector?.Draw(label);
+        }
+
+        /// <summary>Draws status feedback for the active target selector.</summary>
+        public void DrawStatus()
+        {
+            if (_providers.Count == 0)
             {
                 EditorGUILayout.HelpBox(
                     "No target area provider is available. Install or enable a Genix integration such as Space Foundation.",
@@ -51,10 +63,8 @@ namespace Genix.Editor.TargetAreas
                 return;
             }
 
-            DrawProviderDropdownIfNeeded();
-
-            ITargetAreaSelector selector = GetOrCreateSelector(GetSelectedProvider());
-            selector?.Draw(label);
+            if (GetOrCreateSelector(GetSelectedProvider()) is ITargetAreaSelectorStatus status)
+                status.DrawStatus();
         }
 
         /// <summary>Creates the runtime area adapter for the current target selection.</summary>

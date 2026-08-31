@@ -27,13 +27,13 @@ namespace Genix.Tests.Integration
         {
             _rootExisted = GameObject.Find("Genix");
             _scene = new GenerationTestScene(sourceName: "Layout Test " + System.Guid.NewGuid().ToString("N"));
-            LayoutPreviewService.ClearAll();
+            LayoutPreviewService.Clear();
         }
 
         [TearDown]
         public void TearDown()
         {
-            LayoutPreviewService.ClearAll();
+            LayoutPreviewService.Clear();
             GeneratedHierarchy.Clear(_scene.AreaSource);
             _scene.Dispose();
 
@@ -78,7 +78,7 @@ namespace Genix.Tests.Integration
         }
 
         [Test]
-        public void PreviewCreatesIsolatedNonPersistentSlotAndDisablesPhysics()
+        public void PreviewCreatesNonPersistentScenePreviewAndDisablesPhysics()
         {
             GameObject prefab = CreateLayoutPrefab();
             prefab.transform.GetChild(0).gameObject.AddComponent<BoxCollider>();
@@ -86,17 +86,19 @@ namespace Genix.Tests.Integration
             Object[] previousSelection = { _scene.AreaRoot };
             Selection.objects = previousSelection;
 
-            bool shown = LayoutPreviewService.Show(layout, LayoutPreviewSlot.A, out string error);
+            bool shown = LayoutPreviewService.Show(layout, out string error);
 
             Assert.That(shown, Is.True, error);
-            GameObject root = GameObject.Find("Genix Layout Preview A");
+            GameObject root = GameObject.Find("Genix Layout Preview");
             Assert.That(root, Is.Not.Null);
             Assert.That((root.hideFlags & HideFlags.DontSave) != 0, Is.True);
             Assert.That(root.GetComponentInChildren<Collider>(true).enabled, Is.False);
             Assert.That(Selection.objects, Is.EqualTo(previousSelection));
+            Assert.That(LayoutPreviewService.IsShowing(layout), Is.True);
 
-            LayoutPreviewService.Clear(LayoutPreviewSlot.A);
-            Assert.That(GameObject.Find("Genix Layout Preview A"), Is.Null);
+            LayoutPreviewService.Clear();
+            Assert.That(GameObject.Find("Genix Layout Preview"), Is.Null);
+            Assert.That(LayoutPreviewService.IsShowing(layout), Is.False);
         }
 
         [Test]
@@ -107,6 +109,54 @@ namespace Genix.Tests.Integration
             Assert.That(LayoutRepository.MatchesCurrentScene(layout), Is.True);
             Assert.That(LayoutRepository.MatchesArea(layout, _scene.AreaSource), Is.True);
             Assert.That(LayoutRepository.MatchesArea(layout, null), Is.False);
+        }
+
+        [Test]
+        public void BrowserIndexMatchesSceneWithoutLoadingUnrelatedLayouts()
+        {
+            SavedLayout layout = CreateLayout(CreateLayoutPrefab());
+            LayoutBrowserIndexEntry entry = LayoutBrowserIndexEntry.FromLayout(layout, "Assets/Test Layout.asset");
+
+            Assert.That(entry.MatchesScene(layout.ScenePath), Is.True);
+            Assert.That(entry.MatchesScene("Assets/Scenes/Another Scene.unity"), Is.False);
+        }
+
+        [Test]
+        public void BrowserIndexPrefersStableAreaIdAndFallsBackToAreaName()
+        {
+            SavedLayout layout = CreateLayout(CreateLayoutPrefab());
+            LayoutBrowserIndexEntry entry = LayoutBrowserIndexEntry.FromLayout(layout, "Assets/Test Layout.asset");
+
+            Assert.That(
+                entry.MatchesArea(layout.ScenePath, layout.TargetAreaId, "Different Display Name"),
+                Is.True);
+            Assert.That(
+                entry.MatchesArea(layout.ScenePath, "different-id", layout.TargetAreaName),
+                Is.False);
+            Assert.That(
+                entry.MatchesArea(layout.ScenePath, string.Empty, layout.TargetAreaName.ToUpperInvariant()),
+                Is.True);
+        }
+
+        [Test]
+        public void BrowserIndexCopiesListMetadataWithoutKeepingLayoutReference()
+        {
+            SavedLayout layout = CreateLayout(CreateLayoutPrefab());
+            layout.SetDesignerMetadata("Readable Layout", "Searchable notes", true, true);
+
+            LayoutBrowserIndexEntry entry = LayoutBrowserIndexEntry.FromLayout(
+                layout,
+                "Assets/Test Layout.asset");
+
+            Assert.That(entry.DisplayName, Is.EqualTo("Readable Layout"));
+            Assert.That(entry.Notes, Is.EqualTo("Searchable notes"));
+            Assert.That(entry.Favorite, Is.True);
+            Assert.That(entry.Locked, Is.True);
+            Assert.That(entry.SceneName, Is.EqualTo(layout.SceneName));
+            Assert.That(entry.TargetAreaName, Is.EqualTo(layout.TargetAreaName));
+            Assert.That(entry.StyleName, Is.EqualTo(layout.StyleName));
+            Assert.That(entry.ObjectCount, Is.EqualTo(layout.ObjectCount));
+            Assert.That(entry.CreatedAt, Is.EqualTo(layout.CreatedAt));
         }
 
         [Test]

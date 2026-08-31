@@ -87,7 +87,7 @@ namespace Genix.Editor.Generation
                 return context.BestEffort && context.Plan.Count > 0
                     ? GenerationOutcome.Partial(
                         context.Plan.Count,
-                        $"Best Effort planned {context.Plan.Count} of {context.Count} requested objects. {reason}")
+                        $"Partial result planned {context.Plan.Count} of {context.Count} requested objects. {reason}")
                     : GenerationOutcome.Failed(context.Plan.Count, reason);
             }
 
@@ -96,4 +96,3 @@ namespace Genix.Editor.Generation
         }
     }
 }
-

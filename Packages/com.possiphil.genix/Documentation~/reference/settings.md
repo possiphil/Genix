@@ -1,6 +1,6 @@
 # Settings reference
 
-The shared **Basic / Advanced** selector controls presentation, not behavior. Basic shows the common designer workflow. Advanced adds surface discovery and classification, deterministic seeds, distribution and relationship rules, fit and bounds overrides, candidate budgets, and other specialist controls. Values hidden by Basic remain active. A settings icon with a tooltip identifies configurations that contain hidden advanced values.
+The shared **Advanced** toggle controls presentation, not behavior. With the toggle disabled, Genix shows the common designer workflow. Enabling it adds surface discovery and classification, deterministic seeds, distribution and relationship rules, fit and bounds overrides, candidate budgets, and other specialist controls. Hidden values remain active.
 
 ## Generation presets
 
@@ -11,15 +11,15 @@ They capture the settings that define a generation request:
 - Placement Targets, target distribution, weighted shares, and optional support-surface distribution
 - Surface discovery, boundary decomposition, surface layers, and classification angles
 - Relative-placement source, radius, and scene layers
-- Use Seed, Seed, and Best Effort
+- Fixed Seed, Seed, and Allow Partial Results
 
-**Save New** creates a preset from the current fields. **Update** writes current fields back to the
-selected preset. **Reload** restores the asset. The `Custom` entry keeps the current fields without
+**Save as New** creates a preset from the current fields. **Update** writes current fields back to the
+selected preset. **Revert** restores the asset. The `Custom` entry keeps the current fields without
 binding them to an asset. A notice appears when bound settings differ from the selected preset.
 
-**Default on Startup** stores the preset asset GUID per project and editor user, so moving or
-renaming the asset does not break startup loading. Target Area and Detailed Diagnostics are not
-captured because they are scene- or run-specific.
+The Generator remembers the last selected preset asset by GUID per project and editor user, so moving
+or renaming it does not break startup loading. Choosing `Custom` clears the remembered preset. Target
+Area and Record Detailed Diagnostics are not captured because they are scene- or run-specific.
 
 ## Surface discovery
 
@@ -29,9 +29,9 @@ captured because they are scene- or run-specific.
 | Near SFS Boundaries | Searches matching physics surfaces near voxel-derived boundary regions. | Spaces where only boundary-adjacent geometry should receive objects. |
 | SFS Boundaries | Uses voxel-derived SFS regions without physics projection. | Fully voxel-defined spaces or scenes without suitable surface colliders. |
 
-**Boundary Regions** appears only for boundary-based floor or ceiling generation. **Layer Bounds** is faster but approximates irregular layers. **Cell-Preserving** keeps holes and outlines more accurately.
+**Voxel Boundary Detail** appears only for boundary-based floor or ceiling generation. **Layer Bounds** is faster but approximates irregular layers. **Cell-Preserving** keeps holes and outlines more accurately.
 
-Floor and Ceiling Angle define the maximum slope from upward and downward horizontal. Normals between the thresholds are walls.
+Maximum Floor Slope and Maximum Ceiling Slope define the accepted slope from upward and downward horizontal. Normals between the thresholds are walls.
 
 ## Placement targets
 
@@ -44,15 +44,15 @@ When multiple targets are selected, **Random** uses any available target, **Bala
 
 ### Support distribution
 
-**Support Distribution** optionally controls how many accepted objects land on semantic support
+**Support Surface Distribution** optionally controls how many accepted objects land on semantic support
 types such as Desktop, Shelf, Path, or Rock. Add rules only for the support tags that need explicit
 control. Every surface that matches no listed rule belongs to **Default / Other Surfaces**, so an
 office setup can list only Desktop and Shelf without maintaining zero-weight entries for unrelated
-environment tags.
+environment tags. Unlisted surfaces appear as **All Unlisted Surfaces** in the Generator.
 
 - **Exact Count** reserves a concrete number of accepted placements for the selected support tag.
 - **Weight** assigns a relative share of the object count remaining after exact rules.
-- **Default / Other Surfaces Weight** assigns the corresponding share to all unlisted surfaces.
+- **All Unlisted Surfaces** assigns the corresponding weighted share to unlisted surfaces.
 
 Exact rules are allocated first. Weighted rules and the default group then divide the remainder by
 their relative weights; the displayed percentages update from the current weight sum. A weight of
@@ -71,14 +71,14 @@ and the default group.
 | Cluster | Candidates grouped around centers. | Cluster count, radius, optional center spacing. |
 | Bridson Poisson Disk | Even organic spacing with a minimum distance. | Minimum distance, attempts. |
 
-Candidate multiplier and minimum candidate count trade additional search coverage for generation time. The hard candidate budget is `max(Object Count x Candidate Multiplier, Minimum Candidates)` and is shown as **Maximum Candidates** in the generator. Candidates are created lazily, so successful runs stop before reaching that maximum. If an impossible request consumes the complete budget, diagnostics identify budget exhaustion explicitly instead of allowing a provider-specific oversampling path to continue beyond it. Poisson attempts control how thoroughly the sampler fills difficult regions; they do not replace the minimum-distance validation. Minimum distance is measured horizontally for floor and ceiling placement, and in full 3D for wall and inside-space placement.
+Candidates per Object and Minimum Candidate Count trade additional search coverage for generation time. The hard candidate budget is `max(Object Count x Candidates per Object, Minimum Candidate Count)`. Candidates are created lazily, so successful runs stop before reaching that maximum. If an impossible request consumes the complete budget, diagnostics identify budget exhaustion explicitly instead of allowing a provider-specific oversampling path to continue beyond it. Poisson attempts control how thoroughly the sampler fills difficult regions; they do not replace the minimum-distance validation. Minimum distance is measured horizontally for floor and ceiling placement, and in full 3D for wall and inside-space placement.
 
 ## Asset placement
 
 | Setting | Behavior |
 |---|---|
 | Placement Type | Restricts the asset to Floor, Wall, Ceiling, or Inside Space seeds. |
-| Rotation Offset | Corrects prefab-local import axes after Genix computes surface alignment. Use this instead of rotating the prefab root; wall-asset fronts should resolve to Genix local +Z. |
+| Prefab Rotation | Corrects prefab-local import axes after Genix computes surface alignment. Use this instead of rotating the prefab root; wall-asset fronts should resolve to Genix local +Z. |
 | Strict Surface Fit | Requires the asset footprint to fit the discovered surface directly. |
 | Adaptive Surface Fit | Probes the footprint and derives a supported height and normal. |
 | Align To Surface | Tilts the asset with the fitted surface normal. |
@@ -91,9 +91,9 @@ Candidate multiplier and minimum candidate count trade additional search coverag
 | Wall Placement Height | Adds clearance between a wall asset's rotated lower bound and the wall baseline. Zero places it flush. |
 | Wall Random Roll | Tries deterministic rotations around the wall normal without tilting the asset away from the wall. |
 | Face Target | Rotates the asset toward the nearest active relative-placement anchor. |
-| Asset-Relative Placement | Constrains this asset to a semantic anchor, local side, 3D distance interval, and optional facing policy. |
+| Placement Relative to Objects | Constrains this asset to a semantic anchor, local side, 3D distance interval, and optional facing policy. |
 | Near Path | Constrains this asset by horizontal distance and side relative to a semantic path, with optional along/across-path facing. |
-| Wall Relationship | Near Wall enforces a maximum horizontal bounds gap; Away From Wall reserves a minimum gap. Scene walls and steep terrain classified with the current Floor/Ceiling Angle thresholds participate. |
+| Wall Relationship | Near Wall enforces a maximum horizontal bounds gap; Away From Wall reserves a minimum gap. Scene walls and steep terrain classified with the current Maximum Floor/Ceiling Slope thresholds participate. |
 
 Rotation Offset is an asset-specific correction, not random variation. Genix rotates the prefab
 bounds, center offset, and reserved clearance into the corrected placement frame once and caches
@@ -104,8 +104,8 @@ prefab orientation and all existing placement behavior.
 
 ## Asset pools and semantics
 
-- **Static** pools contain an explicit curated asset list. Use them when membership must remain stable.
-- **Dynamic** pools resolve current catalog assets through placement, orientation, and semantic-tag filters. Use them for reusable content rules.
+- **Manual List** pools contain an explicit curated asset list. Use them when membership must remain stable.
+- **Rule-Based** pools resolve current catalog assets through placement, orientation, and semantic-tag filters. Use them for reusable content rules.
 - **Shared Tag Counts** constrain the combined count of every pool asset carrying an asset tag. `Minimum 1 / Maximum 1` requires exactly one valid variant, such as either a standing or wall-mounted coat rack. Existing generated output participates across runs; an unmet minimum is reported when no matching variant can be placed.
 - **Per-Anchor Groups** combine several dependent assets under one tag-based count for every matching anchor. For example, a `Display` group can require one to two total monitor or laptop variants per `Desk`, while each member keeps its own distance, side, and facing rule. Minimums are planned locally, maximums are enforced during normal candidate validation, and existing generated output participates across runs.
 - Concrete target-area tags require an asset to match at least one tag in each tagged category. **Any** on an asset accepts every target tag in that category; **Any** on the area removes the concrete requirement for that category.
@@ -115,10 +115,10 @@ prefab orientation and all existing placement behavior.
 - **None** disables anchor proximity.
 - **Generated Objects** uses placements already accepted by Genix.
 - **Scene Objects** uses existing objects on the selected layers.
-- **Any** combines generated and matching scene objects.
+- **Generated + Scene Objects** combines generated and matching scene objects.
 - **Selected Objects** uses the current editor selection captured when the run starts.
 
-Radius is the maximum three-dimensional world-space distance from the nearest point on an
+Maximum Distance is the maximum three-dimensional world-space distance from the nearest point on an
 anchor's bounds. This prevents objects on different floors from qualifying only because their
 horizontal positions overlap. `Face Target` uses the same active anchor source for orientation.
 
@@ -126,19 +126,19 @@ horizontal positions overlap. `Face Target` uses the same active anchor source f
 
 Asset definitions can additionally require a relationship to one exact asset or an
 asset-compatible semantic tag. The rule can use objects accepted in the current run, existing
-Genix output carrying generated metadata, explicit scene anchors, or both. **Required Sides** is a
+Genix output carrying generated metadata, explicit scene anchors, or both. **Place On Sides** is a
 multi-selection evaluated in the anchor's local horizontal frame: Front is local +Z, Back -Z,
 Left -X, and Right +X. Any disables the side restriction. Minimum and maximum distances are
 three-dimensional distances from the nearest point on the anchor bounds.
 
-**Require Same Support Surface** additionally requires both objects to reference the same
+**Same Support Surface** additionally requires both objects to reference the same
 `PlacementSurfaceDescriptor` instance. This keeps related objects such as a monitor, keyboard,
 and mouse on one desk even when another matching workstation is nearby. Candidates without a
 descriptor cannot satisfy the option. Fixed `Asset Relation Anchor` components therefore expose
 an explicit **Support Surface** reference; a descriptor on the anchor GameObject is detected
 automatically.
 
-**Require Inside Anchor Bounds** treats an anchor as a semantic placement region and requires the
+**Stay Inside Anchor Area** treats an anchor as a semantic placement region and requires the
 complete oriented asset bounds to fit inside it. Use broad bounds to constrain a vehicle to a
 parking area or furniture to a rest area while retaining normal terrain projection. Bounds may be
 tall when only horizontal containment matters; the physical support still determines height.
@@ -147,11 +147,11 @@ tall when only horizontal containment matters; the physical support still determ
 +Z direction. Asset-relative facing takes precedence over the global `Face Target` orientation.
 Wall assets remain flush with their wall; their side and distance rule still applies, but their
 asset-relative facing choice is ignored.
-**Max Facing Deviation** adds a deterministic yaw variation in either direction from that resolved
+**Facing Variation** adds a deterministic yaw variation in either direction from that resolved
 facing. Zero is exact alignment; 45 permits angles from -45 to +45 degrees without losing the
 semantic target direction.
 
-**Per Anchor Count** defines the cardinality of this dependent asset for every matching anchor.
+**Instances per Anchor** defines the cardinality of this dependent asset for every matching anchor.
 **Unlimited** adds no count constraint. **At Most** keeps the relation optional while limiting its
 instances. **At Least** and **Exactly** make the configured count mandatory. **Between** requires
 the configured minimum while permitting optional instances up to its separate maximum. Required dependents are
@@ -164,7 +164,7 @@ additional optional instances. The policy is independent of the asset's global *
 
 Pool-level **Per-Anchor Groups** complement this asset-specific count. Select the anchor source and
 one concrete anchor asset or anchor tag, then select a member asset tag and cardinality. Every
-member must still define a compatible Asset-Relative Placement rule so Genix can assign it to a
+member must still define a compatible Placement Relative to Objects rule so Genix can assign it to a
 concrete anchor. Use the asset-level count when one exact asset needs a quota; use a pool group when
 several interchangeable or related assets must share one quota.
 
@@ -172,13 +172,16 @@ For a fixed scene object, select one or more scene roots and use **Scene Setup >
 menu can assign their represented Asset Definition during creation, and a single descriptor below
 each selected root is adopted automatically as its Support Surface. Existing anchors appear under
 the **Relation Anchors** filter, where represented assets and tags can be edited directly. The
-equivalent hierarchy command is **GameObject > Genix > Add Asset Relation Anchor**. Renderer and
+equivalent hierarchy command is **GameObject > Genix > Add Relation Anchor**. Renderer and
 collider bounds are derived automatically; custom bounds are available for logical anchors without
 geometry. The cyan arrow visualizes local Front.
-**Front Yaw Offset** rotates this semantic frame without rotating the visible scene object. Use it
+**Front Direction Offset** rotates this semantic frame without rotating the visible scene object. Use it
 when a model's local +Z axis does not point toward the side that should be treated as Front.
 `Match Support Forward` uses this corrected semantic frame when the sampled support belongs to the
 anchor, keeping supported assets and their dependent relationship chains in one coordinate frame.
+Use **Scene Setup > Actions > Show Authoring Guides** to show all relation anchors, paths, and exclusion
+regions at once. Individual objects remain visible while selected without storing a separate visibility
+flag on every scene component.
 
 Asset-relative dependencies are resolved during the same generation run. Genix first places an
 asset that has no unresolved relation, then makes it immediately available as an anchor for later
@@ -199,13 +202,13 @@ entrances, exits, junctions, and geometry transitions. A value of zero leaves th
 available. Facing directions are interpolated across adjacent polyline segments so curved paths do
 not introduce abrupt orientation changes at individual authored points.
 
-**Regular Path Stations** is available on tag-based Asset-Relative Placement rules that accept
+**Create Regular Path Stations** is available on tag-based Placement Relative to Objects rules that accept
 scene anchors. Genix derives virtual anchors at the configured spacing and lateral offset; it does
 not create one scene object or semantic region per placement. **Both Sides** creates an atomic pair
 for each usable station, so an exact per-anchor count produces symmetric roadside furniture.
 Endpoint Margin omits stations near path ends, while Maximum Stations bounds both object count and
 work. Station projection, support compatibility, and exclusion checks are resolved once per asset
-and cached for the generation run. Cardinality still controls whether every station is mandatory,
+and cached for the generation run. The count rule still controls whether every station is mandatory,
 optional, or bounded.
 
 ### Exclusion regions
@@ -213,14 +216,18 @@ optional, or bounded.
 Exclusion regions reserve space independently from Unity gameplay physics. **Box** and **Sphere**
 define collider-free primitive volumes. **Child Colliders** reuses the enabled colliders below the
 region object as exact authored exclusion geometry, which is useful for curved paths and bridges.
-**Affected Targets** limits which placement types are rejected. **Exempt Asset Tags** permits
+**Blocks Placement On** limits which placement types are rejected. **Ignored Asset Tags** permits
 explicit path furniture or markers to overlap that geometry while ordinary rocks and vegetation
 remain excluded.
 
 ## Workflow controls
 
-- **Best Effort** keeps a valid partial plan when the requested count cannot be reached.
-- **Use Seed** makes random decisions reproducible and enables candidate-cache reuse.
-- **Detailed Diagnostics** stores per-attempt geometry and should be enabled only while investigating a run.
+- **Generate** adds another batch to the selected target area. Existing generated objects remain and participate in overlap, spacing, relation, and count constraints.
+- **Regenerate** replaces all generated objects owned by the selected target area with one newly planned result. If replacement generation fails, Genix restores the previous result.
+- **Allow Partial Results** keeps valid placements when the requested count cannot be reached.
+- **Fixed Seed** makes random decisions reproducible and enables candidate-cache reuse.
+- **Record Detailed Diagnostics** stores per-attempt geometry and should be enabled only while investigating a run.
+- **More > Save Layout** captures the current generated hierarchy. Preview, apply, edit, and delete saved layouts under **Genix Content > Layouts**.
+- **More > Clear SFS Cache** and **Clear Last Run** keep maintenance actions out of the primary generation workflow.
 
 Profiling is intentionally not a Generator setting. Install the optional Genix DevTools package and use **Tools > Genix Developer > Profiler** when an instrumented run is required.

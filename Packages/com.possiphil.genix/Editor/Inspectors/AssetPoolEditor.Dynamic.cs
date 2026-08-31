@@ -15,12 +15,9 @@ namespace Genix.Editor.Inspectors
     {
         private void DrawDynamicPool()
         {
-            EditorGUILayout.LabelField("Placement Filters", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Inclusion Rules", EditorStyles.boldLabel);
 
             DrawPlacementTypeFilter();
-
-            EditorGUILayout.Space(4f);
-
             DrawOrientationModeFilter();
 
             EditorGUILayout.Space(4f);
@@ -35,7 +32,7 @@ namespace Genix.Editor.Inspectors
         private void DrawPlacementTypeFilter()
         {
             EditorGUILayout.PropertyField(_filterByPlacementType, new GUIContent(
-                "Filter By Placement Type",
+                "Limit by Placement Type",
                 "Include only assets assigned to one surface or volume placement type."));
 
             if (_filterByPlacementType.boolValue)
@@ -47,7 +44,7 @@ namespace Genix.Editor.Inspectors
         private void DrawOrientationModeFilter()
         {
             EditorGUILayout.PropertyField(_filterByOrientationMode, new GUIContent(
-                "Filter By Orientation",
+                "Limit by Orientation",
                 "Include only assets with the selected relative-orientation behavior."));
 
             if (_filterByOrientationMode.boolValue)
@@ -78,7 +75,7 @@ namespace Genix.Editor.Inspectors
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                GUILayout.Label("Semantic Tag Filters", EditorStyles.boldLabel, GUILayout.ExpandWidth(false));
+                GUILayout.Label("Semantic Tag Rules", EditorStyles.boldLabel, GUILayout.ExpandWidth(false));
 
                 GUILayout.Space(8f);
                 GUILayout.FlexibleSpace();
@@ -230,7 +227,7 @@ namespace Genix.Editor.Inspectors
 
             _showPreview = EditorGUILayout.Foldout(
                 _showPreview,
-                $"Dynamic Assets ({assets.Count})",
+                $"Matching Assets ({assets.Count})",
                 true);
 
             if (!_showPreview)

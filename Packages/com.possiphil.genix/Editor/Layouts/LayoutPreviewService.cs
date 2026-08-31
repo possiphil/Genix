@@ -6,14 +6,15 @@ using Object = UnityEngine.Object;
 
 namespace Genix.Editor.Layouts
 {
-    /// <summary>Manages non-persistent scene previews for saved layouts in isolated comparison slots.</summary>
+    /// <summary>Manages the non-persistent Scene view preview for one saved layout.</summary>
     internal static class LayoutPreviewService
     {
         private const string RootName = "Genix Layout Preview";
-        private static readonly Color PreviewAColor = new(0f, 0.75f, 1f, 0.28f);
-        private static readonly Color PreviewBColor = new(1f, 0.25f, 0.75f, 0.28f);
+        private static readonly string[] LegacyRootNames = { "Genix Layout Preview A", "Genix Layout Preview B" };
+        private static readonly Color PreviewColor = new(0f, 0.75f, 1f, 0.28f);
+        private static SavedLayout _currentLayout;
 
-        public static bool Show(SavedLayout layout, LayoutPreviewSlot slot, out string error)
+        public static bool Show(SavedLayout layout, out string error)
         {
             if (!layout)
             {
@@ -28,38 +29,42 @@ namespace Genix.Editor.Layouts
             }
 
             Object[] previousSelection = Selection.objects;
-            Clear(slot);
-            GameObject root = new(GetRootName(slot)) { hideFlags = HideFlags.DontSave };
+            Clear();
+            GameObject root = new(RootName) { hideFlags = HideFlags.DontSave };
             GameObject preview = LayoutApplyService.Instantiate(layout.Prefab);
             preview.name = layout.DisplayName;
             preview.transform.SetParent(root.transform, false);
             preview.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             preview.transform.localScale = Vector3.one;
-            Prepare(preview, slot == LayoutPreviewSlot.A ? PreviewAColor : PreviewBColor);
+            Prepare(preview, PreviewColor);
             SetHideFlags(root, HideFlags.DontSave);
+            _currentLayout = layout;
             Selection.objects = previousSelection.Where(item => item).ToArray();
             SceneView.RepaintAll();
             error = string.Empty;
             return true;
         }
 
-        public static void ClearAll()
-        {
-            Clear(LayoutPreviewSlot.A);
-            Clear(LayoutPreviewSlot.B);
-        }
+        public static bool IsShowing(SavedLayout layout) =>
+            layout && _currentLayout == layout && GameObject.Find(RootName);
 
-        public static void Clear(LayoutPreviewSlot slot)
+        public static void Clear()
         {
-            GameObject root = GameObject.Find(GetRootName(slot));
+            GameObject root = GameObject.Find(RootName);
 
             if (root)
                 Object.DestroyImmediate(root);
 
+            foreach (string legacyRootName in LegacyRootNames)
+            {
+                GameObject legacyRoot = GameObject.Find(legacyRootName);
+                if (legacyRoot)
+                    Object.DestroyImmediate(legacyRoot);
+            }
+
+            _currentLayout = null;
             SceneView.RepaintAll();
         }
-
-        private static string GetRootName(LayoutPreviewSlot slot) => $"{RootName} {slot}";
 
         private static void Prepare(GameObject preview, Color color)
         {

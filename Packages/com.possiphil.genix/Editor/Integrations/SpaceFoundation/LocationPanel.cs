@@ -4,6 +4,7 @@ using System.Linq;
 using Genix.Assets;
 using Genix.Editor.Common;
 using Genix.Editor.TargetAreas;
+using Genix.Editor.UI;
 using Genix.Semantics;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -54,7 +55,7 @@ namespace Genix.SpaceFoundation.Editor
         {
             DrawSectionHeader("Filters", () =>
             {
-                if (GUILayout.Button("Clear", GUILayout.Width(60f)))
+                if (GUILayout.Button("Reset", GUILayout.Width(60f)))
                     ClearFilters();
             });
 
@@ -136,19 +137,19 @@ namespace Genix.SpaceFoundation.Editor
 
         private void DrawLocationList(IReadOnlyList<SfsAnchor> anchors)
         {
-            DrawSectionHeader($"Locations ({anchors.Count})", () =>
+            DrawSectionHeader($"Target Areas ({anchors.Count})", () =>
             {
                 DrawLocationSortDropdown();
 
                 using (new EditorGUI.DisabledScope(!_selectedAnchor))
                 {
-                    if (GUILayout.Button("Delete", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Delete…", GUILayout.Width(64f)))
                         DeleteSelectedLocation();
                 }
 
                 using (new EditorGUI.DisabledScope(anchors.Count == 0))
                 {
-                    if (GUILayout.Button("Clear", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Delete Filtered…", GUILayout.Width(108f)))
                         DeleteLocations(anchors);
                 }
             });
@@ -158,9 +159,7 @@ namespace Genix.SpaceFoundation.Editor
                 _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
                 if (anchors.Count == 0)
-                {
-                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
-                }
+                    DesignerTerminology.DrawEmptyState("No target areas match the current filters.");
                 else
                 {
                     foreach (SfsAnchor anchor in anchors)
@@ -197,7 +196,7 @@ namespace Genix.SpaceFoundation.Editor
             selectedIndex = EditorGUILayout.Popup(
                 selectedIndex,
                 labels,
-                GUILayout.Width(180f));
+                GUILayout.Width(Mathf.Clamp(EditorGUIUtility.currentViewWidth - 250f, 70f, 180f)));
 
             _locationSortMode = modes[selectedIndex];
         }
@@ -239,7 +238,7 @@ namespace Genix.SpaceFoundation.Editor
             if (!_selectedAnchor)
                 return;
 
-            DrawSectionHeader("Location Details", null);
+            DrawSectionHeader("Target Area Details", null);
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -276,7 +275,7 @@ namespace Genix.SpaceFoundation.Editor
             {
                 using (new EditorGUI.DisabledScope(!GetTagSet(anchor)))
                 {
-                    if (GUILayout.Button("Clear", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Reset", GUILayout.Width(60f)))
                         ClearTags(anchor);
                 }
             });
@@ -377,9 +376,9 @@ namespace Genix.SpaceFoundation.Editor
                 return;
 
             bool confirmed = EditorUtility.DisplayDialog(
-                "Clear Locations",
-                $"Delete {validAnchors.Count} filtered location{(validAnchors.Count == 1 ? string.Empty : "s")} from the scene?\n\nThis will delete the source GameObjects.",
-                "Clear",
+                "Delete Filtered Target Areas",
+                $"Delete {validAnchors.Count} filtered target area{(validAnchors.Count == 1 ? string.Empty : "s")} from the scene?\n\nThis will delete the source GameObjects.",
+                "Delete",
                 "Cancel");
 
             if (!confirmed)
@@ -591,9 +590,18 @@ namespace Genix.SpaceFoundation.Editor
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.Label(title, EditorStyles.boldLabel, GUILayout.ExpandWidth(false));
-                GUILayout.Space(8f);
                 GUILayout.FlexibleSpace();
-                drawButtons?.Invoke();
+                if (EditorGUIUtility.currentViewWidth >= 520f)
+                    drawButtons?.Invoke();
+            }
+
+            if (EditorGUIUtility.currentViewWidth < 520f && drawButtons != null)
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.FlexibleSpace();
+                    drawButtons.Invoke();
+                }
             }
         }
     }

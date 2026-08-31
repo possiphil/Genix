@@ -1,5 +1,6 @@
 using Genix.Assets;
 using Genix.Editor.Drawers;
+using Genix.Editor.UI;
 using Genix.Extensions;
 using Genix.Layouts;
 using Genix.Semantics;
@@ -15,7 +16,11 @@ namespace Genix.Editor.Windows
         private void DrawSelectedObjectDetails()
         {
             if (!HasDetailsSelection())
+            {
+                if (_tab != ContentTab.Locations)
+                    DesignerTerminology.DrawEmptyState(GetEmptyDetailsMessage());
                 return;
+            }
 
             EditorGUILayout.LabelField("Details", EditorStyles.boldLabel);
 
@@ -59,34 +64,40 @@ namespace Genix.Editor.Windows
         {
             EditorGUILayout.LabelField("Placement Preview", EditorStyles.boldLabel);
 
-            using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
+            if (EditorGUIUtility.currentViewWidth < 520f)
             {
-                DrawAssetThumbnail(asset);
-
-                using (new EditorGUILayout.VerticalScope())
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
                 {
-                    DrawAssetPreviewStat("Prefab", asset.Prefab ? asset.Prefab.name : "Missing");
-                    DrawAssetPreviewStat("Placement", asset.PlacementType.ToDisplayName());
-                    DrawAssetPreviewStat("Rotation Offset", FormatVector(asset.PrefabRotationOffset));
-                    DrawAssetPreviewStat("Bounds", FormatVector(asset.BoundsSize));
-                    DrawAssetPreviewStat("Center Offset", FormatVector(asset.BoundsCenterOffset));
-                    DrawAssetPreviewStat("Surface Fit", asset.SurfaceFitMode.ToDisplayName());
-                    if (asset.PlacementType == PlacementType.Wall)
-                        DrawAssetPreviewStat("Random Roll", asset.RandomRollRotation ? "On" : "Off");
-                    else
-                        DrawAssetPreviewStat("Random Yaw", asset.RandomYawRotation ? "On" : "Off");
-
-                    if (asset.PlacementType == PlacementType.InsideSpace)
+                    using (new EditorGUILayout.HorizontalScope())
                     {
-                        DrawAssetPreviewStat("Random Pitch", asset.RandomPitchRotation ? "On" : "Off");
-                        DrawAssetPreviewStat("Random Roll", asset.RandomRollRotation ? "On" : "Off");
+                        DrawAssetThumbnail(asset);
+                        DrawAssetFootprintPreview(asset);
                     }
-                }
 
-                DrawAssetFootprintPreview(asset);
+                    DrawAssetPreviewStats(asset);
+                }
+            }
+            else
+            {
+                using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
+                {
+                    DrawAssetThumbnail(asset);
+
+                    using (new EditorGUILayout.VerticalScope())
+                        DrawAssetPreviewStats(asset);
+
+                    DrawAssetFootprintPreview(asset);
+                }
             }
 
             EditorGUILayout.Space(4f);
+        }
+
+        private static void DrawAssetPreviewStats(AssetDefinition asset)
+        {
+            DrawAssetPreviewStat("Prefab", asset.Prefab ? asset.Prefab.name : "Missing");
+            DrawAssetPreviewStat("Placement", asset.PlacementType.ToDisplayName());
+            DrawAssetPreviewStat("Bounds", FormatVector(asset.BoundsSize));
         }
 
         private static void DrawAssetThumbnail(AssetDefinition asset)
@@ -181,10 +192,10 @@ namespace Genix.Editor.Windows
             {
                 ContentTab.Assets => "Select an asset.",
                 ContentTab.Tags => "Select a tag or category.",
-                ContentTab.Locations => "Select a location.",
+                ContentTab.Locations => "Select a target area.",
                 ContentTab.AssetPools => "Select an asset pool.",
                 ContentTab.Layouts => "Select a layout.",
-                ContentTab.SceneSetup => "Select a scene surface, relation anchor, or exclusion region.",
+                ContentTab.SceneSetup => "Select a surface, anchor, path, or exclusion region to edit it.",
                 _ => "Select an item."
             };
         }

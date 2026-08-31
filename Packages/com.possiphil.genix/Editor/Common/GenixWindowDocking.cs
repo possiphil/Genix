@@ -6,13 +6,12 @@ using UnityEngine;
 namespace Genix.Editor.Utilities
 {
     /// <summary>Opens Genix workflow windows beside an existing Unity Inspector when possible.</summary>
-    internal static class GenixWindowDocking
+    public static class GenixWindowDocking
     {
         private const string InspectorWindowTypeName = "UnityEditor.InspectorWindow";
+        private const string GenixTitlePrefix = "Genix ";
 
-        /// <summary>
-        /// Focuses an existing window without moving it, or creates it beside an open Inspector.
-        /// </summary>
+        /// <summary>Focuses an existing window without moving it, or creates it beside an open Inspector.</summary>
         public static T Open<T>(string title) where T : EditorWindow
         {
             T existing = FindOpenWindow<T>();
@@ -28,9 +27,9 @@ namespace Genix.Editor.Utilities
 
         private static T Create<T>(string title) where T : EditorWindow
         {
-            Type inspectorType = GetOpenInspectorType();
-            T window = inspectorType != null
-                ? EditorWindow.GetWindow<T>(title, true, inspectorType)
+            Type dockingTargetType = GetOpenInspectorType() ?? GetOpenGenixWindowType(typeof(T));
+            T window = dockingTargetType != null
+                ? EditorWindow.GetWindow<T>(title, true, dockingTargetType)
                 : EditorWindow.GetWindow<T>(title);
             ShowAndFocus(window, title);
             return window;
@@ -45,6 +44,17 @@ namespace Genix.Editor.Utilities
             return inspectorType != null && Resources.FindObjectsOfTypeAll(inspectorType).Length > 0
                 ? inspectorType
                 : null;
+        }
+
+        private static Type GetOpenGenixWindowType(Type requestedType)
+        {
+            EditorWindow host = Resources.FindObjectsOfTypeAll<EditorWindow>()
+                .FirstOrDefault(window =>
+                    window &&
+                    window.GetType() != requestedType &&
+                    window.titleContent != null &&
+                    window.titleContent.text.StartsWith(GenixTitlePrefix, StringComparison.Ordinal));
+            return host ? host.GetType() : null;
         }
 
         private static void ShowAndFocus(EditorWindow window, string title)

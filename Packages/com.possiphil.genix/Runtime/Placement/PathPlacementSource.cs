@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Genix.Areas;
 using Genix.Assets;
+using Genix.Authoring;
 using Genix.Core;
 using Genix.Profiling;
 using Genix.Semantics;
@@ -21,7 +22,6 @@ namespace Genix.Placement
 
         [SerializeField] private List<SemanticTag> pathTags = new();
         [SerializeField] private List<Vector3> localPoints = new();
-        [SerializeField] private bool alwaysShowPath = false;
 
         /// <summary>Gets asset-compatible semantic tags exposed by this path.</summary>
         public IReadOnlyList<SemanticTag> PathTags => pathTags;
@@ -426,7 +426,7 @@ namespace Genix.Placement
 
         private void OnDrawGizmos()
         {
-            if (alwaysShowPath)
+            if (AuthoringVisualization.ShowSceneGuides)
                 DrawPath(0.5f);
         }
 

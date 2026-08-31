@@ -77,7 +77,7 @@ namespace Genix.Editor.Windows
                     columns.Relation,
                     new GUIContent(
                         anchor.RepresentedAsset ? anchor.RepresentedAsset.AssetName : "None",
-                        "Concrete Asset Definition represented by this fixed scene object. Front starts at local +Z and may be corrected through Front Yaw Offset in Details."),
+                        "Concrete asset represented by this fixed scene object. Front starts at local +Z and can be corrected with Front Direction Offset in Details."),
                     EditorStyles.miniButton))
             {
                 ShowRelationAnchorAssetMenu(catalog, anchor);
@@ -133,8 +133,8 @@ namespace Genix.Editor.Windows
             Undo.IncrementCurrentGroup();
             int undoGroup = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName(targets.Count == 1
-                ? "Add Asset Relation Anchor"
-                : "Add Asset Relation Anchors");
+                ? "Add Relation Anchor"
+                : "Add Relation Anchors");
             AssetRelationAnchor firstAnchor = null;
 
             foreach (GameObject targetObject in targets)
@@ -280,4 +280,3 @@ namespace Genix.Editor.Windows
         }
     }
 }
-

@@ -22,7 +22,6 @@ namespace Genix.Editor.Inspectors
         private SerializedProperty _useCustomBounds;
         private SerializedProperty _boundsCenter;
         private SerializedProperty _boundsSize;
-        private SerializedProperty _alwaysShowAnchor;
 
         private void OnEnable()
         {
@@ -33,7 +32,6 @@ namespace Genix.Editor.Inspectors
             _useCustomBounds = serializedObject.FindProperty("useCustomBounds");
             _boundsCenter = serializedObject.FindProperty("boundsCenter");
             _boundsSize = serializedObject.FindProperty("boundsSize");
-            _alwaysShowAnchor = serializedObject.FindProperty("alwaysShowAnchor");
         }
 
         /// <summary>Draws semantic identity, derived bounds, and forward-direction controls.</summary>
@@ -42,32 +40,18 @@ namespace Genix.Editor.Inspectors
             serializedObject.Update();
 
             EditorGUILayout.PropertyField(_representedAsset, new GUIContent(
-                "Represented Asset",
-                "Makes this fixed scene object available to asset-specific Relative Placement. Assign the optional concrete Asset Definition used by rules that match one exact asset."));
+                "Represents",
+                "Identify this fixed scene object as a concrete asset for object-relative placement."));
             DrawAssetTags();
             EditorGUILayout.PropertyField(_forwardYawOffset, new GUIContent(
-                "Front Yaw Offset",
-                $"Front starts at local +Z; Left and Right rotate with it. Rotate semantic Front around local Y without rotating the visible scene object. Current semantic Front points along world {((AssetRelationAnchor)target).Forward:F2}. Enable Always Show Anchor to inspect the cyan arrow in the Scene view."));
-
-            if (!DesignerUiPreferences.IsAdvanced &&
-                (_supportSurface.objectReferenceValue != null ||
-                 _useCustomBounds.boolValue ||
-                 _alwaysShowAnchor.boolValue))
-            {
-                using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
-                {
-                    GUILayout.FlexibleSpace();
-                    DesignerUiPreferences.DrawAdvancedActiveIndicator(
-                        true,
-                        "This anchor contains advanced support, bounds, or visualization settings. They remain active in Basic mode.");
-                }
-            }
+                "Front Direction Offset (deg)",
+                $"Correct the semantic front without rotating the scene object. Front starts at local +Z and currently points along world {((AssetRelationAnchor)target).Forward:F2}."));
 
             if (DesignerUiPreferences.IsAdvanced)
             {
                 EditorGUILayout.PropertyField(_supportSurface, new GUIContent(
                     "Support Surface",
-                    "Placement Surface Descriptor shared with dependent objects when Require Same Support Surface is enabled. A descriptor on this GameObject is used automatically."));
+                    "Configured surface shared with dependent objects when Same Support Surface is enabled. Surface settings on this GameObject are used automatically."));
 
                 EditorGUILayout.Space(4f);
                 EditorGUILayout.PropertyField(_useCustomBounds, new GUIContent(
@@ -78,9 +62,9 @@ namespace Genix.Editor.Inspectors
                 {
                     using (new EditorGUI.IndentLevelScope())
                     {
-                        EditorGUILayout.PropertyField(_boundsCenter, new GUIContent("Local Center"));
+                        EditorGUILayout.PropertyField(_boundsCenter, new GUIContent("Local Center (units)"));
                         EditorGUI.BeginChangeCheck();
-                        Vector3 size = EditorGUILayout.Vector3Field(new GUIContent("Local Size"), _boundsSize.vector3Value);
+                        Vector3 size = EditorGUILayout.Vector3Field(new GUIContent("Local Size (units)"), _boundsSize.vector3Value);
                         if (EditorGUI.EndChangeCheck())
                         {
                             _boundsSize.vector3Value = new Vector3(
@@ -90,10 +74,6 @@ namespace Genix.Editor.Inspectors
                         }
                     }
                 }
-
-                EditorGUILayout.PropertyField(_alwaysShowAnchor, new GUIContent(
-                    "Always Show Anchor",
-                    "Keep the cyan bounds and forward arrow visible when another object is selected."));
             }
 
             if (!_representedAsset.objectReferenceValue && _assetTags.arraySize == 0)
@@ -181,7 +161,7 @@ namespace Genix.Editor.Inspectors
             EditorUtility.SetDirty(target);
         }
 
-        [MenuItem("GameObject/Genix/Add Asset Relation Anchor", false, 24)]
+        [MenuItem("GameObject/Genix/Add Relation Anchor", false, 24)]
         private static void AddAnchor(MenuCommand command)
         {
             GameObject targetObject = command.context as GameObject ?? Selection.activeGameObject;

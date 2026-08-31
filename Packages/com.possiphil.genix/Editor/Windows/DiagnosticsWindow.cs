@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Editor.Diagnostics;
+using Genix.Editor.UI;
+using Genix.Editor.Utilities;
 using Genix.Diagnostics;
 using Genix.Extensions;
 using UnityEditor;
@@ -12,25 +14,8 @@ namespace Genix.Editor.Windows
     /// <summary>Provides the diagnostics editor window.</summary>
     public sealed class DiagnosticsWindow : EditorWindow
     {
-        private enum ReportFilter
-        {
-            Summary,
-            Detailed
-        }
-
-        private enum ReportSortMode
-        {
-            NewestFirst,
-            OldestFirst,
-            TargetAscending,
-            PlacedCountAscending,
-            Style
-        }
-
         private const float ReportListHeight = 180f;
 
-        private ReportFilter _filter = ReportFilter.Summary;
-        private ReportSortMode _sortMode = ReportSortMode.NewestFirst;
         private DiagnosticsReport _selectedReport;
         private UnityEditor.Editor _selectedReportEditor;
 
@@ -38,13 +23,10 @@ namespace Genix.Editor.Windows
         private Vector2 _detailsScroll;
 
         /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
-        [MenuItem("Tools/Genix/Diagnostics", false, 10)]
+        [MenuItem("Tools/Genix/Diagnostics", false, 30)]
         public static void Open()
         {
-            DiagnosticsWindow window = GetWindow<DiagnosticsWindow>("Genix Diagnostics");
-
-            window.Show();
-            window.Focus();
+            GenixWindowDocking.Open<DiagnosticsWindow>("Genix Diagnostics");
         }
 
         private void OnEnable()
@@ -75,58 +57,40 @@ namespace Genix.Editor.Windows
         {
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
-                _filter = (ReportFilter)DrawToolbarTabsWithRightBorder(
-                    (int)_filter,
-                    new[] { "Summary", "Detailed" },
-                    180f);
-
                 GUILayout.FlexibleSpace();
 
-                if (GUILayout.Button("Clear Catalog", EditorStyles.toolbarButton, GUILayout.Width(110f)))
-                    ClearCatalog();
+                if (GUILayout.Button(
+                        new GUIContent("Actions", "Delete saved diagnostics reports."),
+                        EditorStyles.toolbarDropDown,
+                        GUILayout.Width(72f)))
+                    ShowDiagnosticsActionsMenu();
+
+                DesignerUiPreferences.DrawToolbarSelector();
             }
         }
 
-        private static int DrawToolbarTabsWithRightBorder(
-            int selectedIndex,
-            string[] labels,
-            float width)
+        private void ShowDiagnosticsActionsMenu()
         {
-            Rect toolbarRect = GUILayoutUtility.GetRect(
-                width,
-                width,
-                EditorGUIUtility.singleLineHeight,
-                EditorGUIUtility.singleLineHeight,
-                EditorStyles.toolbarButton);
-
-            selectedIndex = GUI.Toolbar(
-                toolbarRect,
-                selectedIndex,
-                labels,
-                EditorStyles.toolbarButton);
-
-            DrawToolbarRightBorder(toolbarRect);
-
-            return selectedIndex;
-        }
-
-        private static void DrawToolbarRightBorder(Rect toolbarRect)
-        {
-            Rect lineRect = new(
-                toolbarRect.xMax - 1f,
-                toolbarRect.y - 1f,
-                1f,
-                toolbarRect.height + 3f);
-
-            EditorGUI.DrawRect(lineRect, new Color(0f, 0f, 0f, 0.55f));
+            GenericMenu menu = new();
+            menu.AddItem(
+                new GUIContent("Delete All Summary Reports…"),
+                false,
+                () => ClearReports(DiagnosticsMode.Summary));
+            menu.AddItem(
+                new GUIContent("Delete All Detailed Reports…"),
+                false,
+                () => ClearReports(DiagnosticsMode.Detailed));
+            menu.AddSeparator(string.Empty);
+            menu.AddItem(new GUIContent("Delete All Reports…"), false, ClearCatalog);
+            menu.ShowAsContext();
         }
 
         private void ClearCatalog()
         {
             bool confirmed = EditorUtility.DisplayDialog(
-                "Clear Diagnostics Catalog",
+                "Delete All Diagnostics Reports",
                 "Delete all diagnostics reports?\n\nThis cannot be undone.",
-                "Clear Catalog",
+                "Delete All",
                 "Cancel");
 
             if (!confirmed)
@@ -142,7 +106,7 @@ namespace Genix.Editor.Windows
         private void DrawReportList()
         {
             DiagnosticsCatalog catalog = DiagnosticsCatalogService.GetOrCreate();
-            List<DiagnosticsReport> reports = GetFilteredReports(catalog);
+            List<DiagnosticsReport> reports = GetReports(catalog);
 
             DrawReportsHeader(reports);
 
@@ -151,9 +115,7 @@ namespace Genix.Editor.Windows
                 _listScroll = EditorGUILayout.BeginScrollView(_listScroll);
 
                 if (reports.Count == 0)
-                {
-                    GUILayout.Space(EditorGUIUtility.singleLineHeight);
-                }
+                    DesignerTerminology.DrawEmptyState("No diagnostics reports yet.");
                 else
                 {
                     foreach (DiagnosticsReport report in reports)
@@ -169,71 +131,24 @@ namespace Genix.Editor.Windows
             using (new EditorGUILayout.HorizontalScope())
             {
                 EditorGUILayout.LabelField($"Reports ({reports.Count})", EditorStyles.boldLabel);
-
                 GUILayout.FlexibleSpace();
-
-                DrawReportSortDropdown();
 
                 using (new EditorGUI.DisabledScope(!_selectedReport))
                 {
-                    if (GUILayout.Button("Delete", GUILayout.Width(60f)))
+                    if (GUILayout.Button("Delete…", GUILayout.Width(64f)))
                         DeleteSelectedReport();
-                }
-
-                using (new EditorGUI.DisabledScope(reports.Count == 0))
-                {
-                    if (GUILayout.Button("Clear", GUILayout.Width(60f)))
-                        ClearCurrentModeReports();
                 }
             }
         }
 
-        private void DrawReportSortDropdown()
+        private void ClearReports(DiagnosticsMode mode)
         {
-            ReportSortMode[] modes =
-            {
-                ReportSortMode.NewestFirst,
-                ReportSortMode.OldestFirst,
-                ReportSortMode.TargetAscending,
-                ReportSortMode.PlacedCountAscending,
-                ReportSortMode.Style
-            };
-
-            string[] labels =
-            {
-                "Newest First",
-                "Oldest First",
-                "Target (A-Z)",
-                "Fewest Placed First",
-                "Style"
-            };
-
-            int selectedIndex = Array.IndexOf(modes, _sortMode);
-
-            if (selectedIndex < 0)
-                selectedIndex = 0;
-
-            GUILayout.Label(
-                new GUIContent("Sort by", "Choose how reports in this list are ordered."),
-                EditorStyles.label,
-                GUILayout.Width(42f));
-
-            selectedIndex = EditorGUILayout.Popup(
-                selectedIndex,
-                labels,
-                GUILayout.Width(180f));
-
-            _sortMode = modes[selectedIndex];
-        }
-
-        private void ClearCurrentModeReports()
-        {
-            DiagnosticsMode mode = GetSelectedDiagnosticsMode();
+            string label = mode == DiagnosticsMode.Detailed ? "detailed" : "summary";
 
             bool confirmed = EditorUtility.DisplayDialog(
-                "Clear Diagnostic Reports",
-                $"Delete all {_filter.ToDisplayName()} diagnostic reports?\n\nThis cannot be undone.",
-                "Clear",
+                "Delete Diagnostic Reports",
+                $"Delete all {label} diagnostic reports?\n\nThis cannot be undone.",
+                "Delete All",
                 "Cancel");
 
             if (!confirmed)
@@ -246,13 +161,6 @@ namespace Genix.Editor.Windows
             DiagnosticsCatalogService.Refresh();
 
             Repaint();
-        }
-
-        private DiagnosticsMode GetSelectedDiagnosticsMode()
-        {
-            return _filter == ReportFilter.Summary
-                ? DiagnosticsMode.Summary
-                : DiagnosticsMode.Detailed;
         }
 
         private void DeleteSelectedReport()
@@ -315,12 +223,15 @@ namespace Genix.Editor.Windows
 
         private void DrawSelectedReport()
         {
-            EditorGUILayout.LabelField("Selected Report", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Report Details", EditorStyles.boldLabel);
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 if (!_selectedReport)
+                {
+                    DesignerTerminology.DrawEmptyState("Select a report to inspect its result.");
                     return;
+                }
 
                 _detailsScroll = EditorGUILayout.BeginScrollView(_detailsScroll);
 
@@ -345,46 +256,12 @@ namespace Genix.Editor.Windows
             Repaint();
         }
 
-        private List<DiagnosticsReport> GetFilteredReports(DiagnosticsCatalog catalog)
+        private static List<DiagnosticsReport> GetReports(DiagnosticsCatalog catalog)
         {
-            DiagnosticsMode mode = _filter == ReportFilter.Summary
-                ? DiagnosticsMode.Summary
-                : DiagnosticsMode.Detailed;
-
-            IEnumerable<DiagnosticsReport> reports = catalog.Reports
-                .Where(report => report && report.Mode == mode)
+            return catalog.Reports
+                .Where(report => report)
+                .OrderByDescending(report => report.CreatedAt, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-
-            return SortReports(reports);
-        }
-
-        private List<DiagnosticsReport> SortReports(IEnumerable<DiagnosticsReport> reports)
-        {
-            return _sortMode switch
-            {
-                ReportSortMode.OldestFirst => reports
-                    .OrderBy(report => report.CreatedAt, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                ReportSortMode.TargetAscending => reports
-                    .OrderBy(report => report.TargetName, StringComparer.OrdinalIgnoreCase)
-                    .ThenByDescending(report => report.CreatedAt, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                ReportSortMode.PlacedCountAscending => reports
-                    .OrderBy(report => report.PlacedObjectCount)
-                    .ThenByDescending(report => report.CreatedAt, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                ReportSortMode.Style => reports
-                    .OrderBy(report => report.StyleName, StringComparer.OrdinalIgnoreCase)
-                    .ThenByDescending(report => report.CreatedAt, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-
-                _ => reports
-                    .OrderByDescending(report => report.CreatedAt, StringComparer.OrdinalIgnoreCase)
-                    .ToList()
-            };
         }
 
         private static string GetReportListTitle(DiagnosticsReport report)
@@ -394,7 +271,7 @@ namespace Genix.Editor.Windows
                 : report.CreatedAt;
 
             string target = string.IsNullOrWhiteSpace(report.TargetName)
-                ? "Unknown Target"
+                ? "Unknown Target Area"
                 : report.TargetName;
 
             return $"{createdAt} - {target}";
@@ -406,7 +283,9 @@ namespace Genix.Editor.Windows
                 ? "Unknown Style"
                 : report.StyleName;
 
-            return $"Placed: {report.PlacedObjectCount}/{report.RequestedObjectCount}    Seed: {report.RandomSeed}    Style: {style}";
+            string mode = report.IsDetailed ? "Detailed" : "Summary";
+            string resultLabel = report.DryRun ? "Planned" : "Placed";
+            return $"{mode}    {resultLabel}: {report.PlacedObjectCount}/{report.RequestedObjectCount}    Seed: {report.RandomSeed}    Style: {style}";
         }
 
         private void DestroySelectedReportEditor()

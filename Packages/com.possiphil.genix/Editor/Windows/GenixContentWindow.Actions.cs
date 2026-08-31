@@ -441,9 +441,9 @@ namespace Genix.Editor.Windows
         private void ClearAssets()
         {
             bool confirmed = EditorUtility.DisplayDialog(
-                "Clear Genix Assets",
+                "Delete All Asset Definitions",
                 "Delete all asset definitions?\n\nThis will also remove them from static asset pools.",
-                "Clear",
+                "Delete All",
                 "Cancel");
 
             if (!confirmed)
@@ -510,9 +510,9 @@ namespace Genix.Editor.Windows
         private void ClearAssetPools()
         {
             bool confirmed = EditorUtility.DisplayDialog(
-                "Clear Asset Pools",
-                "Delete all asset pools?",
-                "Clear",
+                "Delete All Asset Pools",
+                "Delete every asset pool? This cannot be undone.",
+                "Delete All",
                 "Cancel");
 
             if (!confirmed)
@@ -529,9 +529,9 @@ namespace Genix.Editor.Windows
         private void ClearCatalog()
         {
             bool confirmed = EditorUtility.DisplayDialog(
-                "Clear Asset Catalog",
+                "Delete All Genix Content",
                 "Delete all assets, tags, categories, and asset pools?\n\nThis cannot be undone.",
-                "Clear",
+                "Delete All",
                 "Cancel");
 
             if (!confirmed)

@@ -60,7 +60,7 @@ namespace Genix.Editor.TargetAreas
 
             EditorGUI.BeginChangeCheck();
             int selectedIndex = EditorGUILayout.Popup(
-                new GUIContent("Location Provider", "Spatial-system integration whose locations are managed in this panel."),
+                new GUIContent("Target Area Provider", "Spatial-system integration whose target areas are managed in this panel."),
                 _selectedProviderIndex,
                 options);
 
