@@ -27,6 +27,51 @@ namespace Genix.Tests
         private const string OutdoorPresetPath = "Assets/Genix/Generation Presets/OutdoorEval.asset";
 
         [Test]
+        public void PackageEvaluationSceneOpensFromWritableWorkspaceCopy()
+        {
+            string expectedPath = EvaluationSceneWorkspace.GetWritableScenePath(OutdoorScenePath);
+            bool copyAlreadyExisted = AssetDatabase.LoadAssetAtPath<SceneAsset>(expectedPath);
+            Scene openedScene = default;
+
+            try
+            {
+                bool prepared = EvaluationSceneWorkspace.TryPrepare(
+                    OutdoorScenePath,
+                    out string writablePath,
+                    out string error);
+
+                Assert.That(prepared, Is.True, error);
+                Assert.That(writablePath, Is.EqualTo(expectedPath));
+                Assert.That(writablePath, Does.StartWith(DevToolsContentPaths.EvaluationWorkspace));
+                Assert.That(AssetDatabase.LoadAssetAtPath<SceneAsset>(writablePath), Is.Not.Null);
+                Assert.That(EvaluationSceneWorkspace.MatchesSource(writablePath, OutdoorScenePath), Is.True);
+
+                openedScene = EditorSceneManager.OpenScene(writablePath, OpenSceneMode.Additive);
+                Assert.That(openedScene.IsValid(), Is.True);
+            }
+            finally
+            {
+                if (openedScene.IsValid())
+                    EditorSceneManager.CloseScene(openedScene, true);
+                if (!copyAlreadyExisted)
+                    AssetDatabase.DeleteAsset(expectedPath);
+            }
+        }
+
+        [Test]
+        public void ProjectEvaluationSceneDoesNotNeedWorkspaceCopy()
+        {
+            const string projectScenePath = "Assets/Genix/Scenes/TestScene.unity";
+
+            Assert.That(
+                EvaluationSceneWorkspace.GetWritableScenePath(projectScenePath),
+                Is.EqualTo(projectScenePath));
+            Assert.That(
+                EvaluationSceneWorkspace.MatchesSource(projectScenePath, projectScenePath),
+                Is.True);
+        }
+
+        [Test]
         public void SuiteCreatesStableDistinctTwentySeedSample()
         {
             GenerationEvaluationSuite first = ScriptableObject.CreateInstance<GenerationEvaluationSuite>();

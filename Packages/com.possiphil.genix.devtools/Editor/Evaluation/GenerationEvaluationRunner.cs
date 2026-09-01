@@ -52,6 +52,7 @@ namespace Genix.Editor.Evaluation
         private static GenerationEvaluationCampaignResult _campaign;
         private static int _workIndex;
         private static int _settleFramesRemaining;
+        private static string _loadedSourceScenePath = string.Empty;
         private static string _loadedScenePath = string.Empty;
         private static readonly EditorCampaignAreaContext AreaContext = new();
         private static bool _cancelRequested;
@@ -140,6 +141,7 @@ namespace Genix.Editor.Evaluation
             }
 
             _workIndex = 0;
+            _loadedSourceScenePath = string.Empty;
             _loadedScenePath = string.Empty;
             AreaContext.BeginScene();
             _cancelRequested = false;
@@ -267,8 +269,8 @@ namespace Genix.Editor.Evaluation
             }
 
             GenerationEvaluationScenario scenario = WorkItems[_workIndex].Scenario;
-            string scenePath = AssetDatabase.GetAssetPath(scenario.Scene);
-            if (string.Equals(scenePath, _loadedScenePath, StringComparison.Ordinal))
+            string sourceScenePath = AssetDatabase.GetAssetPath(scenario.Scene);
+            if (string.Equals(sourceScenePath, _loadedSourceScenePath, StringComparison.Ordinal))
             {
                 _settleFramesRemaining = 0;
                 AreaContext.ClearTarget();
@@ -276,8 +278,17 @@ namespace Genix.Editor.Evaluation
                 return;
             }
 
-            EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
-            _loadedScenePath = scenePath;
+            if (!EvaluationSceneWorkspace.TryPrepare(
+                    sourceScenePath,
+                    out string writableScenePath,
+                    out string error))
+            {
+                throw new InvalidOperationException(error);
+            }
+
+            EditorSceneManager.OpenScene(writableScenePath, OpenSceneMode.Single);
+            _loadedSourceScenePath = sourceScenePath;
+            _loadedScenePath = writableScenePath;
             _settleFramesRemaining = _suite.SettleFrames;
             AreaContext.BeginScene();
             _status = $"Loading {scenario.DisplayName}";
@@ -312,7 +323,10 @@ namespace Genix.Editor.Evaluation
             }
 
             GenerationEvaluationWorkItem item = WorkItems[_workIndex];
-            if (!string.Equals(AssetDatabase.GetAssetPath(item.Scenario.Scene), _loadedScenePath, StringComparison.Ordinal))
+            if (!string.Equals(
+                    AssetDatabase.GetAssetPath(item.Scenario.Scene),
+                    _loadedSourceScenePath,
+                    StringComparison.Ordinal))
             {
                 _state = RunnerState.LoadScene;
                 return;
@@ -390,7 +404,7 @@ namespace Genix.Editor.Evaluation
             {
                 scenario = item.Scenario.DisplayName,
                 scenarioKind = item.Scenario.Kind.ToString(),
-                scene = _loadedScenePath,
+                scene = AssetDatabase.GetAssetPath(item.Scenario.Scene),
                 areaProviderId = item.Scenario.AreaProviderId,
                 targetId = AreaContext.TargetId,
                 preset = item.Scenario.GenerationPreset.name,
@@ -544,7 +558,8 @@ namespace Genix.Editor.Evaluation
                     out string error,
                     name,
                     notes,
-                    lockLayout: true))
+                    lockLayout: true,
+                    scenePathOverride: AssetDatabase.GetAssetPath(item.Scenario.Scene)))
             {
                 record.checks.Add(new GenerationEvaluationCheckRecord
                 {

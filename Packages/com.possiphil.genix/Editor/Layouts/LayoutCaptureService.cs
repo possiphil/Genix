@@ -30,7 +30,8 @@ namespace Genix.Editor.Layouts
             out string error,
             string displayNameOverride = null,
             string notes = null,
-            bool lockLayout = false)
+            bool lockLayout = false,
+            string scenePathOverride = null)
         {
             layout = null;
 
@@ -60,7 +61,9 @@ namespace Genix.Editor.Layouts
             string areaName = areaSource.SourceInfo.SourceName;
             Scene scene = SceneManager.GetActiveScene();
             string sceneName = string.IsNullOrWhiteSpace(scene.name) ? "Unsaved Scene" : scene.name;
-            string scenePath = scene.path ?? string.Empty;
+            string scenePath = string.IsNullOrWhiteSpace(scenePathOverride)
+                ? scene.path ?? string.Empty
+                : scenePathOverride;
             string safeAreaName = AssetFileService.SanitizeName(AreaName.ToUnitySafeDisplayName(areaName), "Target Area");
             string displayName = string.IsNullOrWhiteSpace(displayNameOverride)
                 ? $"{areaName} Layout {timestamp}"

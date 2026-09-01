@@ -1048,7 +1048,16 @@ namespace Genix.Editor.Evaluation
                 if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
                     return;
 
-                scene = EditorSceneManager.OpenScene(run.scene, OpenSceneMode.Single);
+                if (!EvaluationSceneWorkspace.TryPrepare(
+                        run.scene,
+                        out string writableScenePath,
+                        out string workspaceError))
+                {
+                    _validationMessage = workspaceError;
+                    return;
+                }
+
+                scene = EditorSceneManager.OpenScene(writableScenePath, OpenSceneMode.Single);
             }
 
             IBenchmarkAreaResolver resolver = BenchmarkAreaResolverRegistry.CreateResolvers()
@@ -1074,7 +1083,7 @@ namespace Genix.Editor.Evaluation
 
             Scene activeScene = SceneManager.GetActiveScene();
             return activeScene.IsValid() &&
-                   string.Equals(activeScene.path, run.scene, StringComparison.OrdinalIgnoreCase);
+                   EvaluationSceneWorkspace.MatchesSource(activeScene.path, run.scene);
         }
 
         private void ExportReport()

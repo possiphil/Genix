@@ -10,5 +10,6 @@ namespace Genix.Editor.Infrastructure
         private const string Evaluations = Root + "/Evaluations";
         public const string EvaluationSuites = Evaluations + "/Suites";
         public const string EvaluationReports = Evaluations + "/Reports";
+        public const string EvaluationWorkspace = Evaluations + "/Workspace";
     }
 }
