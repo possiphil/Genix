@@ -38,6 +38,8 @@ namespace Genix.Editor.Inspectors
         private bool _showUnusedCandidates;
         private bool _showSupportCandidates;
 
+        internal bool? TechnicalDetailsOverride { private get; set; }
+
         /// <summary>Draws and applies the custom Inspector interface.</summary>
         public override void OnInspectorGUI()
         {
@@ -65,7 +67,7 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.LabelField(GetReportTitle(report), EditorStyles.boldLabel);
             EditorGUILayout.Space(4f);
 
-            if (DesignerUiPreferences.IsAdvanced)
+            if (TechnicalDetailsOverride ?? DesignerUiPreferences.IsAdvanced)
             {
                 DrawRunSummary(report);
                 DrawCandidateSummary(report);
@@ -110,14 +112,19 @@ namespace Genix.Editor.Inspectors
                     report.DryRun ? "No objects were planned." : "No objects were placed.");
 
             if (hasRecordedIssue)
-                DrawDesignerIssueSummary(report);
+                DrawDesignerIssueSummary(report, TechnicalDetailsOverride.HasValue);
         }
 
-        private static void DrawDesignerIssueSummary(DiagnosticsReport report)
+        private static void DrawDesignerIssueSummary(
+            DiagnosticsReport report,
+            bool usesLocalTechnicalDetails)
         {
+            string detailsAction = usesLocalTechnicalDetails
+                ? "enable Technical Details"
+                : "enable Advanced";
             string message = report.PlacedObjectCount >= report.RequestedObjectCount
-                ? "The requested number of objects was placed, but one or more placement requirements could not be completed. Check Main Placement Issue or enable Advanced for technical details."
-                : "Genix could not place every requested object. Check Main Placement Issue or enable Advanced for technical details.";
+                ? $"The requested number of objects was placed, but one or more placement requirements could not be completed. Check Main Placement Issue or {detailsAction} for technical details."
+                : $"Genix could not place every requested object. Check Main Placement Issue or {detailsAction} for technical details.";
             EditorGUILayout.HelpBox(message, MessageType.Warning);
         }
 

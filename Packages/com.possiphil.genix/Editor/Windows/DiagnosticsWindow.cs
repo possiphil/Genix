@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Editor.Diagnostics;
+using Genix.Editor.Inspectors;
 using Genix.Editor.UI;
 using Genix.Editor.Utilities;
 using Genix.Diagnostics;
@@ -21,6 +22,7 @@ namespace Genix.Editor.Windows
 
         private Vector2 _listScroll;
         private Vector2 _detailsScroll;
+        private bool _showTechnicalDetails;
 
         /// <summary>Opens or focuses the corresponding Genix editor window.</summary>
         [MenuItem("Tools/Genix/Diagnostics", false, 30)]
@@ -42,9 +44,7 @@ namespace Genix.Editor.Windows
 
         private void OnGUI()
         {
-            DrawToolbar();
-
-            EditorGUILayout.Space(6f);
+            EditorGUILayout.Space(4f);
 
             DrawReportList();
 
@@ -53,36 +53,39 @@ namespace Genix.Editor.Windows
             DrawSelectedReport();
         }
 
-        private void DrawToolbar()
-        {
-            using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
-            {
-                GUILayout.FlexibleSpace();
-
-                if (GUILayout.Button(
-                        new GUIContent("Actions", "Delete saved diagnostics reports."),
-                        EditorStyles.toolbarDropDown,
-                        GUILayout.Width(72f)))
-                    ShowDiagnosticsActionsMenu();
-
-                DesignerUiPreferences.DrawToolbarSelector();
-            }
-        }
-
-        private void ShowDiagnosticsActionsMenu()
+        private void ShowBulkDeleteMenu(IReadOnlyList<DiagnosticsReport> reports)
         {
             GenericMenu menu = new();
-            menu.AddItem(
-                new GUIContent("Delete All Summary Reports…"),
-                false,
+            AddBulkDeleteMenuItem(
+                menu,
+                "Delete All Summary Reports…",
+                reports.Any(report => report && report.Mode == DiagnosticsMode.Summary),
                 () => ClearReports(DiagnosticsMode.Summary));
-            menu.AddItem(
-                new GUIContent("Delete All Detailed Reports…"),
-                false,
+            AddBulkDeleteMenuItem(
+                menu,
+                "Delete All Detailed Reports…",
+                reports.Any(report => report && report.Mode == DiagnosticsMode.Detailed),
                 () => ClearReports(DiagnosticsMode.Detailed));
             menu.AddSeparator(string.Empty);
-            menu.AddItem(new GUIContent("Delete All Reports…"), false, ClearCatalog);
+            AddBulkDeleteMenuItem(
+                menu,
+                "Delete All Reports…",
+                reports.Count > 0,
+                ClearCatalog);
             menu.ShowAsContext();
+        }
+
+        private static void AddBulkDeleteMenuItem(
+            GenericMenu menu,
+            string label,
+            bool enabled,
+            GenericMenu.MenuFunction action)
+        {
+            GUIContent content = new(label);
+            if (enabled)
+                menu.AddItem(content, false, action);
+            else
+                menu.AddDisabledItem(content);
         }
 
         private void ClearCatalog()
@@ -135,8 +138,19 @@ namespace Genix.Editor.Windows
 
                 using (new EditorGUI.DisabledScope(!_selectedReport))
                 {
-                    if (GUILayout.Button("Delete…", GUILayout.Width(64f)))
+                    if (GUILayout.Button(
+                            "Delete Selected…",
+                            EditorStyles.miniButtonLeft,
+                            GUILayout.Width(112f)))
                         DeleteSelectedReport();
+                }
+
+                if (GUILayout.Button(
+                        new GUIContent("▾", "Delete groups of saved diagnostics reports."),
+                        EditorStyles.miniButtonRight,
+                        GUILayout.Width(22f)))
+                {
+                    ShowBulkDeleteMenu(reports);
                 }
             }
         }
@@ -223,7 +237,24 @@ namespace Genix.Editor.Windows
 
         private void DrawSelectedReport()
         {
-            EditorGUILayout.LabelField("Report Details", EditorStyles.boldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField("Report Details", EditorStyles.boldLabel);
+                GUILayout.FlexibleSpace();
+
+                using (new EditorGUI.DisabledScope(!_selectedReport))
+                {
+                    _showTechnicalDetails = GUILayout.Toggle(
+                        _showTechnicalDetails,
+                        new GUIContent(
+                            "Technical Details",
+                            "Show run configuration, placement-search statistics, candidate data, and Scene View options. Available detail depends on how the report was recorded."),
+                        EditorStyles.miniButton,
+                        GUILayout.Width(112f));
+                }
+
+                GUILayout.Space(2f);
+            }
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -236,6 +267,8 @@ namespace Genix.Editor.Windows
                 _detailsScroll = EditorGUILayout.BeginScrollView(_detailsScroll);
 
                 _selectedReportEditor ??= UnityEditor.Editor.CreateEditor(_selectedReport);
+                if (_selectedReportEditor is DiagnosticsReportEditor reportEditor)
+                    reportEditor.TechnicalDetailsOverride = _showTechnicalDetails;
                 _selectedReportEditor.OnInspectorGUI();
 
                 EditorGUILayout.EndScrollView();
