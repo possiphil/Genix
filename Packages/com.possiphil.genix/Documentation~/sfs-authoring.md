@@ -1,6 +1,6 @@
-# SFS authoring
+# Space setup
 
-Genix includes an editor workflow for creating voxel-aligned Space Foundation System (SFS) inputs. Open it through **Tools > Genix > SFS Authoring**. Individual elements are also available from **GameObject > Genix > Space Foundation**.
+Genix includes a **Space Setup** workflow for creating voxel-aligned Space Foundation System (SFS) inputs. Open it through **Tools > Genix > Space Setup**. Individual elements are also available from **GameObject > Genix > Space Foundation**.
 
 ## Basic elements
 
@@ -9,7 +9,7 @@ Genix includes an editor workflow for creating voxel-aligned Space Foundation Sy
 - **Box Delimiter** creates a `4 x 4 x 1`-cell wall on the Foundation's voxel grid. It is a blocked SFS volume, not a container that generates a location inside itself.
 - **Convert Selected** adds delimiter components and layer configuration to selected collider objects without duplicating existing components.
 
-Opening SFS Authoring, selecting a Foundation, or creating delimiters automatically adds the SFS
+Opening Space Setup, selecting a Foundation, or creating delimiters automatically adds the SFS
 Delimiter layer to the Foundation's delimiting mask. No separate layer-configuration action is required.
 
 Anchors and delimiters must not be children of the `SpaceFoundation` GameObject. SFS clears that object's children before computing. The authoring commands therefore place such elements beside the Foundation when a Foundation hierarchy is used as their context.
@@ -19,6 +19,8 @@ Anchors and delimiters must not be children of the `SpaceFoundation` GameObject.
 ### Bounded Location
 
 Creates one rectangular location, six boundary volumes, and one anchor. Use world units for designer-facing dimensions, exact voxel counts for reproducible grid tests, or Fit Selection to derive the center and size from selected colliders and renderers.
+
+`Position Source` accepts a manual center, the current Scene view pivot, or the center of selected geometry. `Fit Selection` derives both position and size from the selection, so it replaces the separate position source. Basic mode offers world-space sizing and Fit Selection; Advanced mode additionally exposes exact voxel counts.
 
 ### Location Grid
 
@@ -34,7 +36,7 @@ Creates one connected non-rectangular location by extruding a two-dimensional oc
 
 ## Voxel alignment
 
-World-space sizes always round up to whole voxel cells and never become smaller than requested. The preview reports both requested and actual center and size. The center can move by up to half a voxel per axis because SFS voxel centers lie on integer multiples of the Foundation's voxel size.
+World-space sizes always round up to whole voxel cells and never become smaller than requested. In Advanced mode, the voxel-aligned position and size appear directly below their corresponding inputs. The position can move by up to half a voxel per axis because SFS voxel centers lie on integer multiples of the Foundation's voxel size.
 
 Generated colliders occupy the planned blocked cells with a small inset. This leaves a numerical gap to neighbouring free cells while retaining overlap with the voxel probe used by SFS. SFS classifies these volumes through physics overlap checks, so imported mesh normals do not affect a Box Delimiter.
 

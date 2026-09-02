@@ -11,7 +11,7 @@ using SfsSpace = SpaceFoundationSystem.Space;
 namespace Genix.SpaceFoundation.Editor
 {
     /// <summary>Adapts a Space Foundation System space to the Genix spatial-area contract.</summary>
-    public sealed class SfsAreaSource : IAreaSource, IAreaCacheControl, IAreaSourceEvaluationStatus
+    public sealed class SfsAreaSource : IAreaSource, IAreaCacheControl, IAreaSourceIntegrityStatus
     {
         private readonly SfsSpace _space;
         private bool _usedAuthoritativeSpatialData;
@@ -33,13 +33,6 @@ namespace Genix.SpaceFoundation.Editor
 
         /// <inheritdoc />
         public string SpatialDataStatusMessage => _spatialDataStatusMessage;
-
-        /// <summary>Gets clear cache label.</summary>
-        public string ClearCacheLabel => "Clear SFS Cache";
-
-        /// <summary>Gets clear cache tooltip.</summary>
-        public string ClearCacheTooltip =>
-            "Clear Genix's cached Space Foundation subspaces and derived placement areas.";
 
         /// <summary>Gets source info.</summary>
         public SpatialSourceInfo SourceInfo => new(

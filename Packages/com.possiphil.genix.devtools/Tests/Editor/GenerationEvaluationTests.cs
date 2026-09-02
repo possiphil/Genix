@@ -21,22 +21,22 @@ namespace Genix.Tests
     [Category(GenixTestCategories.WorkflowArea)]
     public sealed class GenerationEvaluationTests
     {
-        private const string OutdoorScenePath =
-            "Packages/com.possiphil.genix.devtools/Evaluation/Scenes/RealWorld/OutdoorEnvironment.unity";
-        private const string OutdoorPoolPath = "Assets/Genix/Assets/Pools/EvalOutdoorPool.asset";
-        private const string OutdoorPresetPath = "Assets/Genix/Generation Presets/OutdoorEval.asset";
+        private const string PackageFixtureScenePath =
+            "Packages/com.possiphil.genix.devtools/Tests/Fixtures/ReadOnlyEvaluationScene.unity";
 
         [Test]
         public void PackageEvaluationSceneOpensFromWritableWorkspaceCopy()
         {
-            string expectedPath = EvaluationSceneWorkspace.GetWritableScenePath(OutdoorScenePath);
+            string expectedPath = EvaluationSceneWorkspace.GetWritableScenePath(PackageFixtureScenePath);
             bool copyAlreadyExisted = AssetDatabase.LoadAssetAtPath<SceneAsset>(expectedPath);
+            bool workspaceAlreadyExisted =
+                AssetDatabase.IsValidFolder(DevToolsContentPaths.EvaluationWorkspace);
             Scene openedScene = default;
 
             try
             {
                 bool prepared = EvaluationSceneWorkspace.TryPrepare(
-                    OutdoorScenePath,
+                    PackageFixtureScenePath,
                     out string writablePath,
                     out string error);
 
@@ -44,7 +44,9 @@ namespace Genix.Tests
                 Assert.That(writablePath, Is.EqualTo(expectedPath));
                 Assert.That(writablePath, Does.StartWith(DevToolsContentPaths.EvaluationWorkspace));
                 Assert.That(AssetDatabase.LoadAssetAtPath<SceneAsset>(writablePath), Is.Not.Null);
-                Assert.That(EvaluationSceneWorkspace.MatchesSource(writablePath, OutdoorScenePath), Is.True);
+                Assert.That(
+                    EvaluationSceneWorkspace.MatchesSource(writablePath, PackageFixtureScenePath),
+                    Is.True);
 
                 openedScene = EditorSceneManager.OpenScene(writablePath, OpenSceneMode.Additive);
                 Assert.That(openedScene.IsValid(), Is.True);
@@ -55,13 +57,15 @@ namespace Genix.Tests
                     EditorSceneManager.CloseScene(openedScene, true);
                 if (!copyAlreadyExisted)
                     AssetDatabase.DeleteAsset(expectedPath);
+                if (!workspaceAlreadyExisted)
+                    AssetDatabase.DeleteAsset(DevToolsContentPaths.EvaluationWorkspace);
             }
         }
 
         [Test]
         public void ProjectEvaluationSceneDoesNotNeedWorkspaceCopy()
         {
-            const string projectScenePath = "Assets/Genix/Scenes/TestScene.unity";
+            const string projectScenePath = "Assets/Genix/Tests/Fixtures/ProjectEvaluationScene.unity";
 
             Assert.That(
                 EvaluationSceneWorkspace.GetWritableScenePath(projectScenePath),
@@ -160,7 +164,7 @@ namespace Genix.Tests
             {
                 report.Initialize(new GenerationEvaluationCampaignResult
                 {
-                    suiteName = "Thesis",
+                    suiteName = "ExampleSuite",
                     suiteDependencyHash = "dependency-hash",
                     runScope = "RunAll",
                     selectedScenarioIndex = -1,
@@ -171,7 +175,7 @@ namespace Genix.Tests
                 });
 
                 GenerationEvaluationCampaignResult restored = report.ToCampaign();
-                Assert.That(restored.suiteName, Is.EqualTo("Thesis"));
+                Assert.That(restored.suiteName, Is.EqualTo("ExampleSuite"));
                 Assert.That(restored.suiteDependencyHash, Is.EqualTo("dependency-hash"));
                 Assert.That(restored.runScope, Is.EqualTo("RunAll"));
                 Assert.That(restored.selectedScenarioIndex, Is.EqualTo(-1));
@@ -198,16 +202,16 @@ namespace Genix.Tests
         public void CleanupKeepsLatestCampaignAndNewerScenarioReruns()
         {
             GenerationEvaluationReport oldFull = CreateReport(
-                "Thesis",
-                "Assets/Thesis.asset",
+                "ExampleSuite",
+                "Assets/ExampleSuite.asset",
                 "2026-08-25T10:00:00Z",
                 "RunAll",
                 -1,
                 true,
                 "Assets/Old Full.asset");
             GenerationEvaluationReport baseline = CreateReport(
-                "Thesis",
-                "Assets/Thesis.asset",
+                "ExampleSuite",
+                "Assets/ExampleSuite.asset",
                 "2026-08-27T18:00:00Z",
                 "RunAll",
                 -1,
@@ -215,32 +219,32 @@ namespace Genix.Tests
                 "Assets/Baseline Office.asset",
                 "Assets/Baseline Outdoor.asset");
             GenerationEvaluationReport olderOfficeRerun = CreateReport(
-                "Thesis",
-                "Assets/Thesis.asset",
+                "ExampleSuite",
+                "Assets/ExampleSuite.asset",
                 "2026-08-27T18:05:00Z",
                 "SelectedScenario",
                 23,
                 true,
                 "Assets/Older Office.asset");
             GenerationEvaluationReport latestOfficeRerun = CreateReport(
-                "Thesis",
-                "Assets/Thesis.asset",
+                "ExampleSuite",
+                "Assets/ExampleSuite.asset",
                 "2026-08-27T18:08:00Z",
                 "SelectedScenario",
                 23,
                 true,
                 "Assets/Latest Office.asset");
             GenerationEvaluationReport partialOutdoorRerun = CreateReport(
-                "Thesis",
-                "Assets/Thesis.asset",
+                "ExampleSuite",
+                "Assets/ExampleSuite.asset",
                 "2026-08-27T18:09:00Z",
                 "SelectedScenario",
                 24,
                 false,
                 "Assets/Partial Outdoor.asset");
             GenerationEvaluationReport latestOutdoorRerun = CreateReport(
-                "Thesis",
-                "Assets/Thesis.asset",
+                "ExampleSuite",
+                "Assets/ExampleSuite.asset",
                 "2026-08-27T18:10:00Z",
                 "SelectedScenario",
                 24,
@@ -270,8 +274,8 @@ namespace Genix.Tests
                 GenerationEvaluationLayoutCleanupPlan plan =
                     GenerationEvaluationLayoutCleanupService.BuildPlan(
                         reports,
-                        "Thesis",
-                        "Assets/Thesis.asset",
+                        "ExampleSuite",
+                        "Assets/ExampleSuite.asset",
                         _ => true);
 
                 Assert.That(plan.IsValid, Is.True, plan.Error);
@@ -300,8 +304,8 @@ namespace Genix.Tests
         public void LayoutCleanupRequiresCompletedFullCampaign()
         {
             GenerationEvaluationReport partial = CreateReport(
-                "Thesis",
-                "Assets/Thesis.asset",
+                "ExampleSuite",
+                "Assets/ExampleSuite.asset",
                 "2026-08-27T18:00:00Z",
                 "RunAll",
                 -1,
@@ -313,8 +317,8 @@ namespace Genix.Tests
                 GenerationEvaluationLayoutCleanupPlan plan =
                     GenerationEvaluationLayoutCleanupService.BuildPlan(
                         new[] { partial },
-                        "Thesis",
-                        "Assets/Thesis.asset",
+                        "ExampleSuite",
+                        "Assets/ExampleSuite.asset",
                         _ => true);
 
                 Assert.That(plan.IsValid, Is.False);
@@ -351,48 +355,6 @@ namespace Genix.Tests
             Assert.That(plan.BaselineReport.RunScope, Is.EqualTo("RunAll"));
             Assert.That(plan.ProtectedLayoutPaths, Is.Not.Empty);
             Assert.That(plan.MissingProtectedLayouts, Is.Zero);
-        }
-
-        [Test]
-        public void ReportMigrationRepairsOnlyLegacyMissingScriptHeader()
-        {
-            const string guid = "82f4641c484e4fe09c56e3baf063380f";
-            const string legacy =
-                "MonoBehaviour:\n" +
-                "  m_Script: {fileID: 0}\n" +
-                "  m_EditorClassIdentifier: Genix.DevTools.Editor:Genix.Editor.Evaluation:GenerationEvaluationReport\n" +
-                "  suiteName: Thesis\n";
-
-            bool changed = GenerationEvaluationReportMigration.TryRewriteLegacyYaml(
-                legacy,
-                guid,
-                out string rewritten);
-
-            Assert.That(changed, Is.True);
-            Assert.That(rewritten, Does.Contain($"m_Script: {{fileID: 11500000, guid: {guid}, type: 3}}"));
-            Assert.That(
-                rewritten,
-                Does.Contain("Genix.DevTools.Editor::Genix.Editor.Evaluation.GenerationEvaluationReport"));
-            Assert.That(rewritten, Does.Contain("suiteName: Thesis"));
-            Assert.That(
-                GenerationEvaluationReportMigration.TryRewriteLegacyYaml(
-                    rewritten,
-                    guid,
-                    out string unchanged),
-                Is.False);
-            Assert.That(unchanged, Is.EqualTo(rewritten));
-
-            string preSplit = legacy.Replace(
-                "Genix.DevTools.Editor:Genix.Editor.Evaluation:GenerationEvaluationReport",
-                "Genix.Editor:Genix.Editor.Evaluation:GenerationEvaluationReport");
-            Assert.That(
-                GenerationEvaluationReportMigration.TryRewriteLegacyYaml(
-                    preSplit,
-                    guid,
-                    out string migratedPreSplit),
-                Is.True);
-            Assert.That(migratedPreSplit, Does.Contain($"guid: {guid}"));
-            Assert.That(migratedPreSplit, Does.Contain("Genix.DevTools.Editor::"));
         }
 
         [Test]
@@ -616,195 +578,6 @@ namespace Genix.Tests
                 maximumCompletion: 0.2f);
 
             Assert.That(scenario.MaximumCompletionRatio, Is.EqualTo(0.7f).Within(0.0001f));
-        }
-
-        [Test]
-        public void OutdoorSceneUsesBroadSemanticRegionsAndReusablePathSources()
-        {
-            Scene scene = SceneManager.GetSceneByPath(OutdoorScenePath);
-            bool closeAfterTest = !scene.IsValid() || !scene.isLoaded;
-            if (closeAfterTest)
-            {
-                scene = EditorSceneManager.OpenScene(
-                    OutdoorScenePath,
-                    OpenSceneMode.Additive);
-            }
-
-            try
-            {
-                Transform[] transforms = scene.GetRootGameObjects()
-                    .SelectMany(root => root.GetComponentsInChildren<Transform>(true))
-                    .ToArray();
-                Transform semanticRoot = transforms.Single(item => item.name == "Genix Outdoor Semantics");
-                Transform[] semanticObjects = semanticRoot.GetComponentsInChildren<Transform>(true);
-
-                Assert.That(
-                    semanticObjects.Any(item => item.name.StartsWith("Trail Direction Anchor")),
-                    Is.False);
-                Assert.That(
-                    semanticObjects.Any(item => item.name.StartsWith("Trail Bollard Anchor")),
-                    Is.False);
-                Assert.That(
-                    semanticObjects.Any(item => item.name.StartsWith("Trail Marker Support")),
-                    Is.False);
-                Assert.That(
-                    semanticObjects.Any(item => item.name.StartsWith("Path Side Support")),
-                    Is.False);
-                Assert.That(
-                    semanticObjects.Any(item => item.name.StartsWith("Water Support")),
-                    Is.False);
-
-                Transform restArea = semanticObjects.Single(item => item.name == "Rest Area Region");
-                AssetRelationAnchor restAreaAnchor = restArea.GetComponent<AssetRelationAnchor>();
-                Assert.That(restArea.GetComponent<Collider>(), Is.Null);
-                Assert.That(restArea.GetComponent<PlacementSurfaceDescriptor>(), Is.Null);
-                Assert.That(restAreaAnchor, Is.Not.Null);
-                Assert.That(restAreaAnchor.TryGetBounds(out Bounds restBounds), Is.True);
-                Assert.That(restBounds.size.x, Is.GreaterThanOrEqualTo(6f));
-                Assert.That(restBounds.size.y, Is.GreaterThanOrEqualTo(15f));
-                Assert.That(restBounds.size.z, Is.GreaterThanOrEqualTo(2f));
-                Assert.That(
-                    semanticObjects.Count(item => item.name.StartsWith("Rest Bench Anchor")),
-                    Is.Zero);
-
-                Transform bridgeExclusion = semanticObjects.Single(item => item.name == "Bridge Exclusion Region");
-                PlacementExclusionRegion bridgeRegion = bridgeExclusion.GetComponent<PlacementExclusionRegion>();
-                Assert.That(bridgeRegion, Is.Not.Null);
-                Assert.That(bridgeRegion.Shape, Is.EqualTo(ExclusionRegionShape.Box));
-                Assert.That(bridgeRegion.AffectedTargets & (PlacementTarget.Floor | PlacementTarget.Wall),
-                    Is.EqualTo(PlacementTarget.Floor | PlacementTarget.Wall));
-                Assert.That(bridgeRegion.Size.x, Is.GreaterThan(1f));
-                Assert.That(bridgeRegion.Size.z, Is.GreaterThan(1f));
-
-                Transform waterRegion = semanticObjects.Single(item => item.name == "Water Placement Region");
-                MeshCollider waterCollider = waterRegion.GetComponent<MeshCollider>();
-                PlacementSurfaceDescriptor waterDescriptor =
-                    waterRegion.GetComponent<PlacementSurfaceDescriptor>();
-                Assert.That(waterCollider, Is.Not.Null);
-                Assert.That(waterCollider.sharedMesh, Is.Not.Null);
-                Assert.That(waterCollider.sharedMesh.triangles.Length, Is.GreaterThan(6));
-                Assert.That(waterDescriptor.LimitCapacity, Is.False);
-
-                Transform originalWater = transforms.Single(item => item.name == "Water");
-                Assert.That(originalWater.GetComponent<PlacementSurfaceDescriptor>(), Is.Null);
-
-                Transform parking = semanticObjects.Single(item => item.name == "Parking Region");
-                Assert.That(parking.GetComponent<Collider>(), Is.Null);
-                Assert.That(parking.GetComponent<PlacementSurfaceDescriptor>(), Is.Null);
-                AssetRelationAnchor parkingAnchor = parking.GetComponent<AssetRelationAnchor>();
-                Assert.That(parkingAnchor, Is.Not.Null);
-                Assert.That(parkingAnchor.TryGetBounds(out Bounds parkingBounds), Is.True);
-                Assert.That(parkingBounds.size.y, Is.GreaterThanOrEqualTo(15f));
-
-                Transform path = transforms.Single(item => item.name == "Path");
-                Assert.That(path.GetComponent<PlacementSurfaceDescriptor>(), Is.Null);
-                Assert.That(path.GetComponent<PlacementExclusionRegion>(), Is.Null);
-                Transform[] pathSegments = path.Cast<Transform>()
-                    .Where(item => item.name.StartsWith("Spline"))
-                    .ToArray();
-                Assert.That(pathSegments, Has.Length.EqualTo(2));
-                Assert.That(pathSegments.All(item => item.GetComponent<PlacementSurfaceDescriptor>()), Is.True);
-                Assert.That(pathSegments.All(item =>
-                {
-                    PathPlacementSource source = item.GetComponent<PathPlacementSource>();
-                    return source && source.IsConfigured && source.PointCount > 2 &&
-                           source.PathTags.Any(tag => tag.DisplayName == "Path");
-                }), Is.True);
-                Assert.That(pathSegments.All(item =>
-                {
-                    PlacementExclusionRegion exclusion = item.GetComponent<PlacementExclusionRegion>();
-                    return exclusion &&
-                           exclusion.Shape == ExclusionRegionShape.ChildColliders &&
-                           exclusion.ExemptAssetTags.Any(tag => tag.DisplayName == "Path");
-                }), Is.True);
-            }
-            finally
-            {
-                if (closeAfterTest)
-                    EditorSceneManager.CloseScene(scene, true);
-            }
-        }
-
-        [Test]
-        public void OutdoorPresetUsesGlobalMarkerCountsAndRegionalDistribution()
-        {
-            AssetDefinition trailSign = AssetDatabase.LoadAssetAtPath<AssetDefinition>(
-                "Assets/Genix/Assets/Definitions/Trail Sign.asset");
-            AssetDefinition cliffRock = AssetDatabase.LoadAssetAtPath<AssetDefinition>(
-                "Assets/Genix/Assets/Definitions/Cliff Rock.asset");
-            AssetDefinition bollard = AssetDatabase.LoadAssetAtPath<AssetDefinition>(
-                "Assets/Genix/Assets/Definitions/Bollard.asset");
-            AssetDefinition bench = AssetDatabase.LoadAssetAtPath<AssetDefinition>(
-                "Assets/Genix/Assets/Definitions/Bench.asset");
-            AssetDefinition car = AssetDatabase.LoadAssetAtPath<AssetDefinition>(
-                "Assets/Genix/Assets/Definitions/Peugeot.asset");
-            SemanticTag terrain = AssetDatabase.LoadAssetAtPath<SemanticTag>(
-                "Assets/Genix/Assets/Tags/Values/Support Type/Terrain.asset");
-            SemanticTag path = AssetDatabase.LoadAssetAtPath<SemanticTag>(
-                "Assets/Genix/Assets/Tags/Values/Function/Path.asset");
-            SemanticTag restArea = AssetDatabase.LoadAssetAtPath<SemanticTag>(
-                "Assets/Genix/Assets/Tags/Values/Function/Rest Area.asset");
-            SemanticTag signage = AssetDatabase.LoadAssetAtPath<SemanticTag>(
-                "Assets/Genix/Assets/Tags/Values/Role/Signage.asset");
-            AssetPool pool = AssetDatabase.LoadAssetAtPath<AssetPool>(OutdoorPoolPath);
-            GenerationPreset preset = AssetDatabase.LoadAssetAtPath<GenerationPreset>(
-                OutdoorPresetPath);
-
-            Assert.That(trailSign, Is.Not.Null);
-            Assert.That(cliffRock, Is.Not.Null);
-            Assert.That(bollard, Is.Not.Null);
-            Assert.That(bench, Is.Not.Null);
-            Assert.That(car, Is.Not.Null);
-            Assert.That(pool, Is.Not.Null);
-            Assert.That(preset, Is.Not.Null);
-            Assert.That(trailSign.RequiredSupportTags, Is.EquivalentTo(new[] { terrain }));
-            Assert.That(bollard.RequiredSupportTags, Is.EquivalentTo(new[] { terrain }));
-
-            Assert.That(trailSign.AssetRelativePlacement.IsConfigured, Is.False);
-            Assert.That(trailSign.PathPlacement.PathTag, Is.SameAs(path));
-            Assert.That(trailSign.PathPlacement.Side, Is.EqualTo(PathPlacementSide.Right));
-            Assert.That(trailSign.PathPlacement.Facing, Is.EqualTo(PathPlacementFacing.AlongPath));
-            Assert.That(trailSign.PathPlacement.MinimumDistance, Is.EqualTo(1.5f));
-            Assert.That(trailSign.PathPlacement.MaximumDistance, Is.EqualTo(3f));
-            Assert.That(trailSign.GetMinimumSpacingTo(trailSign), Is.EqualTo(5f));
-            Assert.That(trailSign.LimitPlacements, Is.True);
-            Assert.That(trailSign.MaxPlacements, Is.EqualTo(3));
-            Assert.That(cliffRock.SurfaceHeightMode, Is.EqualTo(SurfaceHeightMode.Lowest));
-            Assert.That(bollard.AssetRelativePlacement.Source,
-                Is.EqualTo(AssetRelativeAnchorSource.SceneAnchors));
-            Assert.That(bollard.AssetRelativePlacement.TargetTag, Is.SameAs(path));
-            Assert.That(bollard.AssetRelativePlacement.UsesPathStations, Is.True);
-            Assert.That(bollard.AssetRelativePlacement.PathStationSides,
-                Is.EqualTo(PathPlacementSide.BothSides));
-            Assert.That(bollard.AssetRelativePlacement.MaximumPerAnchor, Is.EqualTo(1));
-
-            Assert.That(bollard.AssetRelativePlacement.CardinalityMode,
-                Is.EqualTo(AssetRelativeCardinalityMode.Exactly));
-            Assert.That(bench.RequiredSupportTags, Is.EquivalentTo(new[] { terrain }));
-            Assert.That(car.RequiredSupportTags, Is.EquivalentTo(new[] { terrain }));
-            Assert.That(bench.AssetRelativePlacement.TargetTag, Is.SameAs(restArea));
-            Assert.That(bench.AssetRelativePlacement.CardinalityMode,
-                Is.EqualTo(AssetRelativeCardinalityMode.AtMost));
-            Assert.That(bench.AssetRelativePlacement.RequireInsideAnchorBounds, Is.True);
-            Assert.That(bench.PathPlacement.PathTag, Is.SameAs(path));
-            Assert.That(bench.PathPlacement.MaximumDistance, Is.EqualTo(5f));
-            Assert.That(bench.PathPlacement.Facing, Is.EqualTo(PathPlacementFacing.TowardPath));
-            Assert.That(car.AssetRelativePlacement.RequireInsideAnchorBounds, Is.True);
-
-            Assert.That(
-                bollard.AssetRelativePlacement.Facing,
-                Is.EqualTo(AssetRelativeFacing.Any));
-
-            AssetPoolTagLimit signLimit = pool.TagPlacementLimits.Single(limit =>
-                limit.AssetTag == signage);
-            Assert.That((signLimit.MinPlacements, signLimit.MaxPlacements), Is.EqualTo((3, 3)));
-
-            SupportDistributionSettings distribution = preset.Settings.SupportDistribution;
-            Dictionary<string, SupportDistributionRule> rules = distribution.Rules.ToDictionary(
-                rule => rule.SupportTag.DisplayName);
-            Assert.That(distribution.IsEnabled, Is.True);
-            Assert.That(rules.Keys, Is.EquivalentTo(new[] { "Water" }));
-            Assert.That(rules["Water"].Value, Is.EqualTo(8));
         }
 
         private static GenerationEvaluationReport CreateReport(

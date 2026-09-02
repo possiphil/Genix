@@ -1,4 +1,5 @@
 using Genix.Editor.Assets;
+using Genix.Editor.Utilities;
 using Genix.Semantics;
 using UnityEditor;
 using UnityEngine;
@@ -46,6 +47,7 @@ namespace Genix.Editor.Inspectors
         {
             EditorGUI.BeginChangeCheck();
 
+            GUI.SetNextControlName(EditorGui.DisplayNameControlName);
             string displayName = EditorGUILayout.DelayedTextField(
                 new GUIContent("Display Name", "Designer-facing category name shown in tag selectors and filters."),
                 target.name);

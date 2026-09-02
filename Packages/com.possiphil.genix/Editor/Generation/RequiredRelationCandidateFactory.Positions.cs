@@ -51,6 +51,9 @@ namespace Genix.Editor.Generation
         {
             List<Vector3> positions = new();
             HashSet<PositionIdentity> identities = new();
+            if (rule.UsesPathStations)
+                AddPosition(positions, identities, bounds, anchor.Position);
+
             AddCompatibleSupportCenters(context, positions, identities, bounds, asset);
             AddSidePositions(positions, identities, bounds, asset, anchor, rule);
 
@@ -142,4 +145,3 @@ namespace Genix.Editor.Generation
         }
     }
 }
-

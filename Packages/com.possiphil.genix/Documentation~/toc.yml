@@ -2,7 +2,9 @@
   href: index.md
 - name: Getting started
   href: getting-started.md
-- name: SFS authoring
+- name: Interface guide
+  href: interface-guide.md
+- name: Space setup
   href: sfs-authoring.md
 - name: Concepts
   items:

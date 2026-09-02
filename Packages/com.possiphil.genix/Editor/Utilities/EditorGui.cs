@@ -6,6 +6,9 @@ namespace Genix.Editor.Utilities
     /// <summary>Provides shared IMGUI controls and layout helpers for Genix editor interfaces.</summary>
     public static class EditorGui
     {
+        /// <summary>Identifies the shared display-name text control used by Genix inspectors.</summary>
+        public const string DisplayNameControlName = "GenixDisplayName";
+
         private const float FoldoutTextOffset = -4f;
         private const int PopupTrailingPadding = 4;
 
@@ -157,6 +160,16 @@ namespace Genix.Editor.Utilities
         public static GUIContent ChangedLabel(string label, bool hasChanged)
         {
             return new GUIContent(hasChanged ? $"{label} *" : label);
+        }
+
+        /// <summary>Converts a percentage to a whole-item count, rounding halfway values up.</summary>
+        public static int RoundPercentageToCount(int totalCount, float percentage)
+        {
+            if (totalCount <= 0)
+                return 0;
+
+            float exactCount = totalCount * Mathf.Clamp(percentage, 0f, 100f) / 100f;
+            return Mathf.FloorToInt(exactCount + 0.5f);
         }
 
         /// <summary>Clears text field focus.</summary>

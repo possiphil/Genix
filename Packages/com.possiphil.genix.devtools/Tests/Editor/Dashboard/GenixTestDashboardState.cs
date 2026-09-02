@@ -331,12 +331,6 @@ namespace Genix.Tests.Dashboard
         private const string ActiveRunSessionKey = "Genix.OpenEditorTestBridge.ActiveRun";
         private const double PollIntervalSeconds = 0.25d;
 
-        private static readonly string[] KnownTestAssemblies =
-        {
-            "Genix.Tests.Editor",
-            "Genix.Tests.SpaceFoundation.Editor"
-        };
-
         private static TestRunnerApi _runner;
         private static bool _ownsActiveRun;
         private static double _nextPollTime;
@@ -423,10 +417,7 @@ namespace Genix.Tests.Dashboard
                 GenixTestPreset.Stress => new[] { GenixTestCategories.Full, GenixTestCategories.Stress },
                 _ => Array.Empty<string>()
             };
-            string[] assemblies = KnownTestAssemblies
-                .Where(name => AppDomain.CurrentDomain.GetAssemblies()
-                    .Any(assembly => assembly.GetName().Name == name))
-                .ToArray();
+            string[] assemblies = GenixTestAssemblyDiscovery.GetLoadedAssemblyNames();
             GenixTestPresetContext.Current = preset;
             GenixTestDashboardState state = GenixTestDashboardState.instance;
             state.Begin(preset);

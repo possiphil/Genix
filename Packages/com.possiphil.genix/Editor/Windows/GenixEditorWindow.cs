@@ -209,9 +209,6 @@ namespace Genix.Editor.Windows
             StarterContentInstaller.DrawSetupButton();
 
             DrawGenerationPresetSection();
-            EditorGUILayout.Space(6f);
-
-            EditorGUILayout.LabelField("Content", EditorStyles.boldLabel);
             DrawInputSection();
             DrawPlacementSettingsSection();
             DrawStylePresetSection();
@@ -371,7 +368,7 @@ namespace Genix.Editor.Windows
 
             EditorGUI.BeginChangeCheck();
             selectedIndex = EditorGui.Popup(
-                new GUIContent("Surface Search Mode", "Choose how Genix finds floor, wall, and ceiling candidates."),
+                new GUIContent("Search Mode", "Choose how Genix finds floor, wall, and ceiling candidates."),
                 selectedIndex,
                 SurfaceDiscoveryModeOptions);
 
@@ -424,12 +421,12 @@ namespace Genix.Editor.Windows
             EditorGUI.BeginChangeCheck();
 
             float floorAngle = EditorGUILayout.Slider(
-                new GUIContent("Maximum Floor Slope", "Steeper surfaces no longer count as floors."),
+                new GUIContent("Floor Slope Limit", "Maximum slope that still counts as a floor."),
                 _floorSurfaceAngleDegrees,
                 0f,
                 89.9f);
             float ceilingAngle = EditorGUILayout.Slider(
-                new GUIContent("Maximum Ceiling Slope", "Steeper downward-facing surfaces no longer count as ceilings."),
+                new GUIContent("Ceiling Slope Limit", "Maximum downward-facing slope that still counts as a ceiling."),
                 _ceilingSurfaceAngleDegrees,
                 0f,
                 89.9f);
@@ -446,15 +443,36 @@ namespace Genix.Editor.Windows
 
         private void DrawGenerationButtons()
         {
-            using (new EditorGUILayout.HorizontalScope())
+            Rect headerRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
+            const float validateWidth = 90f;
+            const float moreWidth = 54f;
+            Rect moreRect = new(
+                headerRect.xMax - moreWidth,
+                headerRect.y,
+                moreWidth,
+                headerRect.height);
+            Rect validateRect = new(
+                moreRect.x - RunButtonGap - validateWidth,
+                headerRect.y,
+                validateWidth,
+                headerRect.height);
+            Rect labelRect = new(
+                headerRect.x,
+                headerRect.y,
+                Mathf.Max(0f, validateRect.x - RunButtonGap - headerRect.x),
+                headerRect.height);
+
+            EditorGUI.LabelField(labelRect, "Run", EditorStyles.boldLabel);
+
+            if (GUI.Button(validateRect, ValidateSetupButtonContent, EditorStyles.miniButton))
+                ValidateSceneSetup();
+
+            if (GUI.Button(
+                    moreRect,
+                    new GUIContent("More", "Open less common generation actions."),
+                    EditorStyles.miniButton))
             {
-                EditorGUILayout.LabelField("Run", EditorStyles.boldLabel);
-
-                if (GUILayout.Button(ValidateSetupButtonContent, EditorStyles.miniButton, GUILayout.Width(90f)))
-                    ValidateSceneSetup();
-
-                if (GUILayout.Button(new GUIContent("More", "Open less common generation actions."), EditorStyles.miniButton, GUILayout.Width(54f)))
-                    ShowGenerationActionsMenu();
+                ShowGenerationActionsMenu();
             }
 
             GUIStyle primaryButton = new(GUI.skin.button)
@@ -517,14 +535,6 @@ namespace Genix.Editor.Windows
             GenericMenu menu = new();
             menu.AddItem(SaveLayoutButtonContent, false, SaveCurrentLayout);
 
-            if (CreateAreaSource() is IAreaCacheControl cacheControl)
-            {
-                menu.AddItem(
-                    new GUIContent(cacheControl.ClearCacheLabel, cacheControl.ClearCacheTooltip),
-                    false,
-                    () => ClearAreaCache(cacheControl));
-            }
-
             if (DiagnosticsStore.LastDiagnostics != null)
             {
                 menu.AddItem(
@@ -536,14 +546,6 @@ namespace Genix.Editor.Windows
             menu.AddSeparator(string.Empty);
             menu.AddItem(ClearGeneratedButtonContent, false, ClearGeneratedObjects);
             menu.ShowAsContext();
-        }
-
-        private static void ClearAreaCache(IAreaCacheControl cacheControl)
-        {
-            cacheControl.ClearCache();
-            PlacementSolver.ClearCandidateCache();
-            PlacementSolver.ClearSceneObjectCache();
-            Debug.Log($"Genix cache cleared via {cacheControl.ClearCacheLabel}.");
         }
 
         private static void ClearLastRun()

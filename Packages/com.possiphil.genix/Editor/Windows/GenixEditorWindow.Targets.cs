@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Genix.Core;
 using Genix.Editor.Assets;
+using Genix.Editor.Generation;
 using Genix.Editor.UI;
 using Genix.Editor.Utilities;
 using Genix.Semantics;
@@ -13,6 +14,13 @@ namespace Genix.Editor.Windows
 {
     public sealed partial class GenixEditorWindow
     {
+        private static GUIStyle _supportPercentageStyle;
+
+        private static GUIStyle SupportPercentageStyle => _supportPercentageStyle ??= new GUIStyle(EditorStyles.label)
+        {
+            alignment = TextAnchor.MiddleRight
+        };
+
         private void DrawPlacementSettingsSection()
         {
             DrawPlacementTargetDropdown();
@@ -148,25 +156,35 @@ namespace Genix.Editor.Windows
 
         private void DrawSupportDistributionSection()
         {
-            EditorGUILayout.Space(2f);
             bool canAddSupportRule = GetFirstUnusedSupportTag();
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                _supportDistributionEnabled = EditorGUILayout.Toggle(
-                    new GUIContent(
-                        "Support Distribution",
-                        "Divide accepted placements across tagged support surfaces. Unlisted surfaces use the fallback weight below."),
-                    _supportDistributionEnabled);
+            Rect rowRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
+            const float addRuleWidth = 70f;
+            Rect addRuleRect = new(
+                rowRect.xMax - addRuleWidth,
+                rowRect.y,
+                addRuleWidth,
+                rowRect.height);
+            Rect toggleRect = new(
+                rowRect.x,
+                rowRect.y,
+                Mathf.Max(0f, addRuleRect.x - RunButtonGap - rowRect.x),
+                rowRect.height);
 
-                using (new EditorGUI.DisabledScope(!_supportDistributionEnabled || !canAddSupportRule))
+            _supportDistributionEnabled = EditorGUI.Toggle(
+                toggleRect,
+                new GUIContent(
+                    "Support Distribution",
+                    "Divide accepted placements across tagged support surfaces. Unlisted surfaces use the fallback weight below."),
+                _supportDistributionEnabled);
+
+            using (new EditorGUI.DisabledScope(!_supportDistributionEnabled || !canAddSupportRule))
+            {
+                if (GUI.Button(
+                        addRuleRect,
+                        new GUIContent("Add Rule", "Control one tagged kind of support surface."),
+                        EditorStyles.miniButton))
                 {
-                    if (GUILayout.Button(
-                            new GUIContent("Add Rule", "Control one tagged kind of support surface."),
-                            EditorStyles.miniButton,
-                            GUILayout.Width(70f)))
-                    {
-                        AddSupportDistributionRule();
-                    }
+                    AddSupportDistributionRule();
                 }
             }
 
@@ -175,6 +193,7 @@ namespace Genix.Editor.Windows
 
             EditorGUI.indentLevel++;
             int removeIndex = -1;
+            int[] allocatedTargets = GetSupportDistributionTargets();
             for (int i = 0; i < _supportDistributionRules.Count; i++)
             {
                 SupportDistributionRule rule = _supportDistributionRules[i];
@@ -195,38 +214,39 @@ namespace Genix.Editor.Windows
                             MessageType.Warning);
                     }
 
-                    SupportDistributionRuleMode mode = rule?.Mode ?? SupportDistributionRuleMode.Weight;
-                    int value = rule?.Value ?? 1;
-                    int count = mode == SupportDistributionRuleMode.ExactCount ? value : 0;
-                    int weight = mode == SupportDistributionRuleMode.Weight ? value : 0;
+                    int count = rule?.Mode == SupportDistributionRuleMode.ExactCount
+                        ? rule.Value
+                        : allocatedTargets[i];
 
                     using (new EditorGUILayout.HorizontalScope())
                     {
                         EditorGUI.BeginChangeCheck();
                         count = Mathf.Max(0, EditorGUILayout.IntField(
-                            new GUIContent("Count", "Reserve this exact number of placements for the selected support tag. Setting Count resets Weight."),
+                            new GUIContent("Count", "Number of requested placements assigned to this support tag."),
                             count));
-                        if (EditorGUI.EndChangeCheck())
-                        {
-                            mode = SupportDistributionRuleMode.ExactCount;
-                            value = count;
-                            weight = 0;
-                        }
+                        bool countChanged = EditorGUI.EndChangeCheck();
 
+                        float share = GetSupportShare(count);
                         EditorGUI.BeginChangeCheck();
-                        weight = Mathf.Max(0, EditorGUILayout.IntField(
-                            new GUIContent("Weight", "Set this support tag's relative share of remaining placements. Setting Weight resets Count."),
-                            weight));
-                        if (EditorGUI.EndChangeCheck())
-                        {
-                            mode = SupportDistributionRuleMode.Weight;
-                            value = weight;
-                        }
+                        share = EditorGUILayout.FloatField(
+                            new GUIContent(
+                                "Share (%)",
+                                "Percentage view of Count. Editing it rounds Count to the nearest whole placement; halfway values round up."),
+                            share);
+                        bool shareChanged = EditorGUI.EndChangeCheck();
+
+                        if (!countChanged && shareChanged)
+                            count = GetSupportCount(share);
                     }
 
-                    if (selectedTag != rule?.SupportTag || mode != rule?.Mode || value != rule?.Value)
+                    if (selectedTag != rule?.SupportTag ||
+                        rule?.Mode != SupportDistributionRuleMode.ExactCount ||
+                        count != rule?.Value)
                     {
-                        rule = new SupportDistributionRule(selectedTag, mode, value);
+                        rule = new SupportDistributionRule(
+                            selectedTag,
+                            SupportDistributionRuleMode.ExactCount,
+                            count);
                         _supportDistributionRules[i] = rule;
                     }
                 }
@@ -235,21 +255,25 @@ namespace Genix.Editor.Windows
             if (removeIndex >= 0)
                 _supportDistributionRules.RemoveAt(removeIndex);
 
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                EditorGUILayout.LabelField(
-                    new GUIContent(
-                        "All Unlisted Surfaces",
-                        "Relative share for support surfaces without a rule above."));
-                _defaultSupportWeight = Mathf.Max(0, EditorGUILayout.IntField(
-                    _defaultSupportWeight,
-                    GUILayout.Width(48f)));
-                int currentWeightSum = GetSupportWeightSum();
-                GUILayout.Label(
-                    currentWeightSum > 0 ? $"{_defaultSupportWeight * 100f / currentWeightSum:0.#}%" : "0%",
-                    EditorStyles.miniLabel,
-                    GUILayout.Width(74f));
-            }
+            Rect fallbackRow = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
+            EditorGUI.PrefixLabel(
+                fallbackRow,
+                new GUIContent(
+                    "All Unlisted Surfaces",
+                    "Automatically receives every placement not assigned to a listed support tag."));
+
+            const float percentageWidth = 74f;
+            Rect percentageRect = new(
+                fallbackRow.xMax - percentageWidth,
+                fallbackRow.y,
+                percentageWidth,
+                fallbackRow.height);
+            int[] currentTargets = GetSupportDistributionTargets();
+            int unlistedCount = currentTargets[currentTargets.Length - 1];
+            EditorGUI.LabelField(
+                percentageRect,
+                $"{GetSupportShare(unlistedCount):0.#}%",
+                SupportPercentageStyle);
 
             List<SemanticTag> duplicates = _supportDistributionRules
                 .Where(rule => rule?.SupportTag)
@@ -270,14 +294,7 @@ namespace Genix.Editor.Windows
             if (exactTotal > _objectCount)
             {
                 EditorGUILayout.HelpBox(
-                    $"Exact support counts request {exactTotal} objects, but the run requests only {_objectCount}.",
-                    MessageType.Warning);
-            }
-
-            if (GetSupportWeightSum() <= 0 && exactTotal < _objectCount)
-            {
-                EditorGUILayout.HelpBox(
-                    "Increase the fallback weight or a weighted support rule so remaining objects have a destination.",
+                    $"Support counts request {exactTotal} objects, but the run requests only {_objectCount}.",
                     MessageType.Warning);
             }
 
@@ -293,13 +310,21 @@ namespace Genix.Editor.Windows
 
             _supportDistributionRules.Add(new SupportDistributionRule(
                 supportTag,
-                SupportDistributionRuleMode.Weight,
-                1));
+                SupportDistributionRuleMode.ExactCount,
+                0));
         }
 
-        private int GetSupportWeightSum() => _supportDistributionRules
-            .Where(rule => rule?.IsConfigured == true && rule.Mode == SupportDistributionRuleMode.Weight)
-            .Sum(rule => rule.Value) + _defaultSupportWeight;
+        private int[] GetSupportDistributionTargets() => SupportDistributionAllocator.Allocate(
+            _objectCount,
+            _supportDistributionRules,
+            Mathf.Max(1, _defaultSupportWeight));
+
+        private float GetSupportShare(int count) => _objectCount > 0
+            ? Mathf.Max(0, count) * 100f / _objectCount
+            : 0f;
+
+        private int GetSupportCount(float share) =>
+            EditorGui.RoundPercentageToCount(_objectCount, share);
 
         private static SemanticTag DrawSupportRuleTag(SemanticTag selected)
         {
@@ -346,14 +371,14 @@ namespace Genix.Editor.Windows
 
         private SupportDistributionSettings CreateSupportDistributionSettings() => new(
             _supportDistributionEnabled,
-            _defaultSupportWeight,
+            Mathf.Max(1, _defaultSupportWeight),
             _supportDistributionRules);
 
         private void ApplySupportDistributionSettings(SupportDistributionSettings settings)
         {
             settings ??= SupportDistributionSettings.Disabled;
             _supportDistributionEnabled = settings.IsEnabled;
-            _defaultSupportWeight = settings.DefaultWeight;
+            _defaultSupportWeight = Mathf.Max(1, settings.DefaultWeight);
             _supportDistributionRules.Clear();
             _supportDistributionRules.AddRange(settings.Rules.Select(rule => rule.Copy()));
         }

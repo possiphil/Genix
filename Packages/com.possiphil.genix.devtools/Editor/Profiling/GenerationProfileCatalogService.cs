@@ -34,6 +34,9 @@ namespace Genix.Editor.Profiling
                 .OrderByDescending(report => report.CreatedAt)
                 .ToList();
 
+            if (catalog.Reports.SequenceEqual(reports))
+                return;
+
             catalog.SetReports(reports);
             EditorUtility.SetDirty(catalog);
             AssetDatabase.SaveAssets();

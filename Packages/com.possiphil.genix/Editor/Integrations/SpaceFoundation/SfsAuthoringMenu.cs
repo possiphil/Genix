@@ -89,7 +89,7 @@ namespace Genix.SpaceFoundation.Editor
             return false;
         }
 
-        [MenuItem(Root + "Open Authoring Window", false, 50)]
+        [MenuItem(Root + "Open Space Setup", false, 50)]
         private static void OpenWindow() => SfsAuthoringWindow.Open();
 
         private static SpaceFoundationSystem.SpaceFoundation GetOrCreateFoundation()
@@ -104,7 +104,7 @@ namespace Genix.SpaceFoundation.Editor
             if (foundations.Length == 0)
                 return SfsAuthoringSceneBuilder.CreateFoundation(1f);
 
-            Debug.LogError("Multiple Space Foundations exist. Open SFS Authoring and select the intended Foundation explicitly.");
+            Debug.LogError("Multiple Space Foundations exist. Open Genix Space Setup and select the intended Foundation explicitly.");
             return null;
         }
 

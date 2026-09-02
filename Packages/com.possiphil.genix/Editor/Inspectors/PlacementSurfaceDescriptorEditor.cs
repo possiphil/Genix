@@ -49,19 +49,6 @@ namespace Genix.Editor.Inspectors
                     MessageType.Warning);
             }
 
-            using (new EditorGUI.DisabledScope(
-                       !SupportSurfaceRegionAuthoring.CanCreate(descriptor.gameObject)))
-            {
-                if (GUILayout.Button(new GUIContent(
-                        "Add Support Surface",
-                        "Create an editable support-surface child for an internal shelf board or raised level.")))
-                {
-                    SupportSurfaceRegionAuthoring.Create(
-                        descriptor.gameObject,
-                        GenixEditorWindow.GetConfiguredSurfaceLayerMask());
-                }
-            }
-
             DrawSurfaceTags();
 
             if (DesignerUiPreferences.IsAdvanced)
@@ -106,7 +93,7 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.Space(6f);
             EditorGUILayout.LabelField(new GUIContent(
                     "Asset Rules",
-                    "Allowed defaults to Any. Forbidden defaults to None and takes precedence. These rules are configured on the surface, while an asset's Support Tags describe the surfaces that asset can use."),
+                    "Required defaults to Any. Blocked defaults to None and takes precedence. These rules are configured on the surface, while an asset's Support Tags describe the surfaces that asset can use."),
                 EditorStyles.boldLabel);
 
             DrawAssetTagRule(
@@ -125,7 +112,7 @@ namespace Genix.Editor.Inspectors
             if (conflicts.Count > 0)
             {
                 EditorGUILayout.HelpBox(
-                    $"Allowed and Forbidden contain: {string.Join(", ", conflicts.Select(tag => tag.DisplayName))}. Forbidden takes precedence.",
+                    $"Required and Blocked contain: {string.Join(", ", conflicts.Select(tag => tag.DisplayName))}. Blocked takes precedence.",
                     MessageType.Warning);
             }
         }

@@ -36,7 +36,7 @@ namespace Genix.Editor.Windows
             new("Pools", "Choose assets manually or include them with reusable rules."),
             new("Tags", "Define semantic categories and tags."),
             new("Target Areas", "Inspect and tag available generation areas."),
-            new("Scene Setup", "Configure surfaces, anchors, paths, and exclusion regions in the current scene."),
+            new("Scene Setup", "Configure surfaces, fixed relation anchors, and exclusion regions in the current scene."),
             new("Layouts", "Review, preview, and apply saved results.")
         };
 
@@ -66,10 +66,6 @@ namespace Genix.Editor.Windows
 
         private int _prefabCreationSlotPickerControlId = -1;
 
-        private string _staticPoolMessage;
-        private MessageType _staticPoolMessageType = MessageType.Info;
-        private double _staticPoolMessageUntil;
-
         private readonly List<GameObject> _prefabsToCreate = new();
 
         private string _assetCreationMessage;
@@ -92,6 +88,7 @@ namespace Genix.Editor.Windows
         private UnityEditor.Editor _selectedObjectEditor;
         private UnityEditor.Editor _selectedCategoryEditor;
         private UnityEditor.Editor _selectedSemanticTagEditor;
+        private bool _focusCreatedObjectName;
 
         private Vector2 _listScroll;
         private Vector2 _windowScroll;
@@ -117,8 +114,8 @@ namespace Genix.Editor.Windows
         private LayoutSortMode _layoutSortMode = LayoutSortMode.NewestFirst;
         private LayoutScopeFilter _layoutScopeFilter = LayoutScopeFilter.CurrentScene;
         private int _layoutPage;
+        private bool _showLayoutAssets;
 
-        private AssetPool _targetStaticPool;
         private readonly LocationPanelHost _locationPanel = new();
         private readonly TargetAreaSelectorHost _layoutTargetAreaSelector = new();
 
@@ -238,19 +235,43 @@ namespace Genix.Editor.Windows
                 }
             }
 
+            bool showActions = ShouldShowContentActions();
+            bool showAdvanced = TabUsesAdvancedMode();
+
+            if (!showActions && !showAdvanced)
+                return;
+
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
                 GUILayout.FlexibleSpace();
 
-                if (DesignerUiPreferences.IsAdvanced && GUILayout.Button(
+                if (showActions && GUILayout.Button(
                         new GUIContent("Actions", "Open content-library maintenance actions."),
                         EditorStyles.toolbarDropDown,
                         GUILayout.Width(72f)))
                     ShowContentActionsMenu();
 
-                DesignerUiPreferences.DrawToolbarSelector();
+                if (showAdvanced)
+                    DesignerUiPreferences.DrawToolbarSelector();
             }
         }
+
+        private bool ShouldShowContentActions() => _tab switch
+        {
+            ContentTab.Tags => true,
+            ContentTab.AssetPools => true,
+            ContentTab.Assets => true,
+            ContentTab.Layouts => true,
+            _ => false
+        };
+
+        private bool TabUsesAdvancedMode() => _tab switch
+        {
+            ContentTab.Assets => true,
+            ContentTab.AssetPools => true,
+            ContentTab.SceneSetup => true,
+            _ => false
+        };
 
         private void ShowContentActionsMenu()
         {
@@ -276,6 +297,22 @@ namespace Genix.Editor.Windows
 
                     menu.AddItem(new GUIContent("Delete All Tags…"), false, () => ClearTags(null));
                     menu.AddItem(new GUIContent("Delete All Categories and Tags…"), false, ClearCategories);
+                    break;
+                case ContentTab.Layouts:
+                    LayoutBrowserSnapshot snapshot = GetLayoutBrowserSnapshot();
+                    List<LayoutBrowserIndexEntry> layouts = GetFilteredLayouts(snapshot.Entries);
+                    if (!snapshot.IsLoading && layouts.Any(layout => layout != null && !layout.Locked))
+                    {
+                        menu.AddItem(
+                            new GUIContent("Delete Filtered Layouts…"),
+                            false,
+                            () => DeleteMatchingLayouts(layouts));
+                    }
+                    else
+                    {
+                        menu.AddDisabledItem(new GUIContent("Delete Filtered Layouts…"));
+                    }
+
                     break;
             }
 

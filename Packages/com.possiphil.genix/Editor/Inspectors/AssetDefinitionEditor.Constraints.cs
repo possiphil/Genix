@@ -21,7 +21,7 @@ namespace Genix.Editor.Inspectors
                 EditorGUILayout.LabelField(new GUIContent(
                     "Asset Spacing",
                     "Optional center-to-center distances from one asset or every asset carrying a selected tag. Distances are symmetric and the larger matching requirement wins. Floor and Ceiling use horizontal distance; Wall and Inside Space use 3D distance."),
-                    EditorStyles.miniBoldLabel);
+                    EditorStyles.boldLabel);
                 GUILayout.FlexibleSpace();
 
                 if (GUILayout.Button("Add", GUILayout.Width(44f)))
@@ -136,7 +136,7 @@ namespace Genix.Editor.Inspectors
         private void DrawAssetRelativePlacement()
         {
             EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField("Placement Relative to Objects", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField("Object Relationship", EditorStyles.boldLabel);
             SerializedProperty enabled = _assetRelativePlacement.FindPropertyRelative("enabled");
             EditorGUILayout.PropertyField(enabled, new GUIContent(
                 "Use Object Relationship",
@@ -199,7 +199,7 @@ namespace Genix.Editor.Inspectors
                 if (canUsePathStations)
                 {
                     EditorGUILayout.PropertyField(usePathStations, new GUIContent(
-                        "Create Regular Path Stations",
+                        "Path Stations",
                         "Derive evenly spaced virtual anchors from matching paths instead of authoring each anchor manually."));
                     if (usePathStations.boolValue)
                     {
@@ -327,7 +327,7 @@ namespace Genix.Editor.Inspectors
         private void DrawPathPlacement()
         {
             EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField("Placement Along Paths", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField("Path Relationship", EditorStyles.boldLabel);
             SerializedProperty enabled = _pathPlacement.FindPropertyRelative("enabled");
             EditorGUILayout.PropertyField(enabled, new GUIContent(
                 "Use Path Relationship",

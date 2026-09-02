@@ -26,6 +26,14 @@ Results are grouped by subsystem. Green means every completed test in the group 
 
 The dashboard delegates execution to Unity's `TestRunnerApi`; the built-in Test Runner remains the source of truth. Runs started in either interface are collected by the dashboard.
 
+The dashboard automatically includes loaded editor test assemblies whose names begin with
+`Genix.Tests.`. A host project can therefore keep content-specific validation beside its own
+scenes and assets, for example in `Genix.Tests.HostProject.Editor`, without adding those scenarios to
+the reusable DevTools package. Package tests use only the small fixtures under `Tests/Fixtures`.
+The hierarchy-empty `ReadOnlyEvaluationScene` fixture intentionally contains no evaluation content;
+it verifies that a scene installed from a read-only package can be copied to a writable project
+workspace before a saved layout is applied.
+
 ### Test names
 
 Test method names identify the operation under test, the relevant scenario, and the expected behavior. This follows Microsoft's [.NET unit-testing guidance](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-best-practices#follow-test-naming-standards) and makes a failure useful as executable documentation. Avoid generic names such as `Works`, redundant `Test` prefixes, and implementation details that are not part of the asserted contract.
@@ -47,7 +55,8 @@ The command uses a file bridge under the host project's `Library/Genix` director
 Projects that install Space Foundation System also compile the optional
 `Genix.Tests.SpaceFoundation.Editor` assembly. Its focused tests cover voxel flood fill and
 surface extraction at the production adapter boundary without making SFS a dependency of the
-core test assembly.
+core test assembly. Initialize the host project's Addressables settings before running this
+assembly; SFS reports a missing configuration as an editor error.
 
 ## Property and robustness tests
 
@@ -69,7 +78,7 @@ Scene-scale timing is intentionally separate from correctness testing. Use the [
 
 Use **Coverage** in the dashboard to open **Window > Analysis > Code Coverage**. Enable coverage, include `Genix.Runtime`, `Genix.Editor.Common`, `Genix.Editor`, and `Genix.SpaceFoundation.Editor`, enable automatic HTML report generation, then run Full from the dashboard. Coverage identifies unexecuted code; it does not show whether assertions are strong, so report it together with property results and the mutation score.
 
-For coverage reporting, retain the generated HTML report and record statement and branch coverage separately. Exclude generated code, third-party packages, and Unity framework assemblies from the denominator.
+For coverage reporting, retain the generated HTML report and record line and method coverage per Genix-owned assembly. Report branch coverage only when the exporter supplies branch observations; otherwise state that it is unavailable. Exclude generated code, third-party packages, and Unity framework assemblies from the denominator.
 
 ## Mutation testing
 
@@ -87,13 +96,13 @@ The adapter is intentionally narrow. Expanding mutation scope to Unity-dependent
 
 ## What the suite does not claim
 
-EditMode tests cover deterministic logic and editor orchestration without loading full gameplay scenes. Broad PlayMode tests are omitted because Genix is an editor planning tool and its runtime behavior is already exercised through EditMode-compatible APIs. Evaluation scenes remain necessary for perceptual placement quality, Space Foundation interoperability, large real-world terrains, and designer workflow studies.
+EditMode tests cover deterministic logic and editor orchestration without loading full gameplay scenes. Broad PlayMode tests are omitted because Genix is an editor planning tool and its runtime behavior is already exercised through EditMode-compatible APIs. Evaluation scenes remain necessary for perceptual placement quality, Space Foundation interoperability, large real-world terrains, and designer workflow studies. Those project-specific scenes and their content tests belong to the host project; the dashboard discovers the host test assemblies alongside the package suite.
 
 For a defensible evaluation, report all of the following rather than one aggregate pass count:
 
 1. Quick, Full, and Stress pass/fail totals with exported dashboard JSON.
 2. Property case counts and replay seeds for any failures.
-3. Statement and branch coverage for Genix-owned assemblies.
+3. Line and method coverage for Genix-owned assemblies, plus branch coverage when available.
 4. Performance distributions on fixed evaluation hardware and scenes.
 5. Mutation score, mutation scope, exclusions, and reviewed equivalent mutants.
 6. Separate manual or scene-based evaluation results for visual and interaction quality.

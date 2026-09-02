@@ -30,9 +30,6 @@ namespace Genix.Editor.Profiling
 
             GenerationProfileCatalogService.RegisterReport(report);
 
-            Selection.activeObject = report;
-            EditorGUIUtility.PingObject(report);
-
             Debug.Log($"Saved Genix profile report: {path}", report);
             return report;
         }

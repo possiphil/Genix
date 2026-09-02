@@ -37,6 +37,22 @@ namespace Genix.Editor.Windows
                     EditorStyles.boldLabel);
                 GUILayout.FlexibleSpace();
 
+                using (new EditorGUI.DisabledScope(
+                           !SupportSurfaceRegionAuthoring.CanCreate(descriptor.gameObject)))
+                {
+                    if (GUILayout.Button(
+                            new GUIContent(
+                                "Add Support Surface",
+                                "Create an editable support surface under this object for an internal shelf or raised level."),
+                            GUILayout.Width(140f)))
+                    {
+                        SupportSurfaceRegionAuthoring.Create(
+                            descriptor.gameObject,
+                            GenixEditorWindow.GetConfiguredSurfaceLayerMask());
+                        MarkSceneSetupDirty();
+                    }
+                }
+
                 if (GUILayout.Button(
                         new GUIContent(
                             "Copy",
@@ -95,4 +111,3 @@ namespace Genix.Editor.Windows
         }
     }
 }
-

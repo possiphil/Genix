@@ -32,7 +32,7 @@ namespace Genix.Editor.Evaluation
         internal static string CreateRunsCsv(IEnumerable<GenerationEvaluationRunRecord> runs)
         {
             StringBuilder csv = new();
-            csv.AppendLine("scenario,kind,scene,area_provider,target_id,preset,seed,requested,placed,generation_succeeded,automatic_verdict,automatic_checks_passed,tested_candidates,rejected_candidates,minimum_placement_distance,top_rejection,stop_reason,layout_asset,layout_guid,visual_reviewable,visual_review_completed,visual_note_valid,visual_review_evidence_valid,layout_asset_missing,visual_rating,visual_notes");
+            csv.AppendLine("scenario,kind,scene,area_provider,target_id,preset,seed,requested,placed,generation_succeeded,automatic_verdict,automatic_checks_passed,tested_candidates,rejected_candidates,minimum_placement_distance,top_rejection,stop_reason,layout_asset,layout_guid,visual_reviewable,visual_review_completed,visual_note_valid,visual_review_evidence_valid,layout_asset_missing,visual_rating,visual_notes,visual_capture_manifest,visual_capture_manifest_sha256,visual_capture_created_at_utc");
             foreach (GenerationEvaluationRunRecord run in runs)
             {
                 Append(csv, run.scenario, run.scenarioKind, run.scene, run.areaProviderId, run.targetId, run.preset, run.seed,
@@ -40,7 +40,8 @@ namespace Genix.Editor.Evaluation
                     run.testedCandidates, run.rejectedCandidates, Number(run.minimumPlacementDistance), run.topRejection, run.stopReason,
                     run.layoutAssetPath, run.layoutGuid, run.HasLayoutReference, run.VisualReviewCompleted,
                     run.VisualReviewNoteValid, run.VisualReviewEvidenceValid, run.HasMissingLayoutAsset,
-                    run.visualRating, run.visualNotes);
+                    run.visualRating, run.visualNotes, run.visualReviewCaptureManifestPath,
+                    run.visualReviewCaptureManifestSha256, run.visualReviewCapturedAtUtc);
             }
             return csv.ToString();
         }

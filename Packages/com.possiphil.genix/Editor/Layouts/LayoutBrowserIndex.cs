@@ -204,6 +204,25 @@ namespace Genix.Editor.Layouts
             ResetQuery();
         }
 
+        public static void Refresh(SavedLayout layout)
+        {
+            if (!layout)
+                return;
+
+            string path = AssetDatabase.GetAssetPath(layout);
+            if (!IsLayoutPath(path))
+                return;
+
+            LayoutBrowserIndexStore store = LayoutBrowserIndexStore.instance;
+            if (!store.IsCurrent(SchemaVersion))
+                return;
+
+            store.ApplyChanges(
+                Array.Empty<string>(),
+                new[] { LayoutBrowserIndexEntry.FromLayout(layout, path) });
+            ResetQuery();
+        }
+
         public static void ApplyAssetChanges(
             IReadOnlyList<string> importedPaths,
             IReadOnlyList<string> deletedPaths,

@@ -19,7 +19,7 @@ binding them to an asset. A notice appears when bound settings differ from the s
 
 The Generator remembers the last selected preset asset by GUID per project and editor user, so moving
 or renaming it does not break startup loading. Choosing `Custom` clears the remembered preset. Target
-Area and Record Detailed Diagnostics are not captured because they are scene- or run-specific.
+Area and Detailed Diagnostics are not captured because they are scene- or run-specific.
 
 ## Surface discovery
 
@@ -31,7 +31,7 @@ Area and Record Detailed Diagnostics are not captured because they are scene- or
 
 **Voxel Boundary Detail** appears only for boundary-based floor or ceiling generation. **Layer Bounds** is faster but approximates irregular layers. **Cell-Preserving** keeps holes and outlines more accurately.
 
-Maximum Floor Slope and Maximum Ceiling Slope define the accepted slope from upward and downward horizontal. Normals between the thresholds are walls.
+Floor Slope Limit and Ceiling Slope Limit define the accepted slope from upward and downward horizontal. Normals between the thresholds are walls.
 
 ## Placement targets
 
@@ -50,16 +50,15 @@ control. Every surface that matches no listed rule belongs to **Default / Other 
 office setup can list only Desktop and Shelf without maintaining zero-weight entries for unrelated
 environment tags. Unlisted surfaces appear as **All Unlisted Surfaces** in the Generator.
 
-- **Exact Count** reserves a concrete number of accepted placements for the selected support tag.
-- **Weight** assigns a relative share of the object count remaining after exact rules.
-- **All Unlisted Surfaces** assigns the corresponding weighted share to unlisted surfaces.
+- **Count** assigns a concrete number of requested placements to the selected support tag.
+- **Share (%)** shows the same budget as a percentage of Object Count. Editing either field updates
+  the other; percentage input is rounded to the nearest whole placement, with halfway values rounded up.
+- **All Unlisted Surfaces** automatically receives the placements not assigned to listed tags and
+  displays their resulting percentage. It has no independent input.
 
-Exact rules are allocated first. Weighted rules and the default group then divide the remainder by
-their relative weights; the displayed percentages update from the current weight sum. A weight of
-zero excludes that group from the weighted remainder, while other groups can still receive their
-exact counts. If one surface descriptor carries several explicitly configured tags, the first
-matching rule in the list is used. Diagnostics report requested and achieved counts for every rule
-and the default group.
+If one surface descriptor carries several explicitly configured tags, the first matching rule in
+the list is used. Diagnostics report requested and achieved counts for every rule and the automatic
+unlisted-surface group.
 
 ## Sampling styles
 
@@ -88,11 +87,11 @@ Candidates per Object and Minimum Candidate Count trade additional search covera
 | Minimum Support | Required supported fraction of adaptive footprint probes. |
 | Maximum Height Difference | Maximum allowed height range among support probes. |
 | Sink Offset | Moves a fitted asset into the support surface by a small distance. |
-| Wall Placement Height | Adds clearance between a wall asset's rotated lower bound and the wall baseline. Zero places it flush. |
+| Vertical Placement | Uses the full wall, one fixed height, or a bounded height range. In Full Wall mode, Baseline Offset adds clearance above each sampled wall baseline. |
 | Wall Random Roll | Tries deterministic rotations around the wall normal without tilting the asset away from the wall. |
 | Face Target | Rotates the asset toward the nearest active relative-placement anchor. |
-| Placement Relative to Objects | Constrains this asset to a semantic anchor, local side, 3D distance interval, and optional facing policy. |
-| Near Path | Constrains this asset by horizontal distance and side relative to a semantic path, with optional along/across-path facing. |
+| Object Relationship | Constrains this asset to a semantic anchor, local side, 3D distance interval, and optional facing policy. |
+| Path Relationship | Constrains this asset by horizontal distance and side relative to a semantic path, with optional along/across-path facing. |
 | Wall Relationship | Near Wall enforces a maximum horizontal bounds gap; Away From Wall reserves a minimum gap. Scene walls and steep terrain classified with the current Maximum Floor/Ceiling Slope thresholds participate. |
 
 Rotation Offset is an asset-specific correction, not random variation. Genix rotates the prefab
@@ -164,7 +163,7 @@ additional optional instances. The policy is independent of the asset's global *
 
 Pool-level **Per-Anchor Groups** complement this asset-specific count. Select the anchor source and
 one concrete anchor asset or anchor tag, then select a member asset tag and cardinality. Every
-member must still define a compatible Placement Relative to Objects rule so Genix can assign it to a
+member must still define a compatible Object Relationship rule so Genix can assign it to a
 concrete anchor. Use the asset-level count when one exact asset needs a quota; use a pool group when
 several interchangeable or related assets must share one quota.
 
@@ -193,7 +192,7 @@ circular chains such as A requiring B while B requires A stop with an explicit d
 
 `PathPlacementSource` exposes an ordered centerline with asset-compatible semantic tags. A path is
 not a narrow placement region: normal surface projection still chooses the physical terrain or
-floor, while **Near Path** only constrains horizontal distance, optional authored side, and facing.
+floor, while **Path Relationship** only constrains horizontal distance, optional authored side, and facing.
 This lets a broad Rest Area region contain benches while a separate path rule keeps them close to
 and facing the trail. Left and Right follow the authored point order. Facing can remain unchanged,
 follow or oppose the path direction, or point toward or away from its nearest centerline point.
@@ -202,7 +201,7 @@ entrances, exits, junctions, and geometry transitions. A value of zero leaves th
 available. Facing directions are interpolated across adjacent polyline segments so curved paths do
 not introduce abrupt orientation changes at individual authored points.
 
-**Create Regular Path Stations** is available on tag-based Placement Relative to Objects rules that accept
+**Path Stations** is available on tag-based Object Relationship rules that accept
 scene anchors. Genix derives virtual anchors at the configured spacing and lateral offset; it does
 not create one scene object or semantic region per placement. **Both Sides** creates an atomic pair
 for each usable station, so an exact per-anchor count produces symmetric roadside furniture.
@@ -226,8 +225,8 @@ remain excluded.
 - **Regenerate** replaces all generated objects owned by the selected target area with one newly planned result. If replacement generation fails, Genix restores the previous result.
 - **Allow Partial Results** keeps valid placements when the requested count cannot be reached.
 - **Fixed Seed** makes random decisions reproducible and enables candidate-cache reuse.
-- **Record Detailed Diagnostics** stores per-attempt geometry and should be enabled only while investigating a run.
-- **More > Save Layout** captures the current generated hierarchy. Preview, apply, edit, and delete saved layouts under **Genix Content > Layouts**.
-- **More > Clear SFS Cache** and **Clear Last Run** keep maintenance actions out of the primary generation workflow.
+- **Detailed Diagnostics** stores per-attempt geometry and should be enabled only while investigating a run.
+- **More > Save Layout** captures the current generated hierarchy. Under **Genix Content > Layouts**, designers can find layouts by target area, preview or apply them, and edit their name, notes, favorite state, and deletion protection.
+- **More > Clear Last Run** clears the current diagnostics and any unapplied preview plan.
 
-Profiling is intentionally not a Generator setting. Install the optional Genix DevTools package and use **Tools > Genix Developer > Profiler** when an instrumented run is required.
+Profiling is intentionally not a Generator setting. Install the optional Genix DevTools package and use **Tools > Genix Developer > Profiler** to run a separately configured, instrumented Preview or Generate operation.

@@ -4,7 +4,7 @@ All notable changes to this package are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow semantic versioning.
 
-## [Unreleased]
+## [0.1.0] - 2026-09-02
 
 ### Added
 
@@ -46,6 +46,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Case-only asset renames no longer receive an unnecessary numeric suffix.
 - Inside-space Poisson spacing now uses three-dimensional distance instead of incorrectly blocking vertically separated objects by their horizontal projection.
 - Lazy candidate generation now enforces Candidate Multiplier as a hard provider-independent budget and reports when an impossible request exhausts it.
+- Designer windows now use a consistent responsive layout, progressive disclosure, terminology, tooltips, list interaction, and Undo-aware command structure.
+- Layout browsing now indexes lightweight metadata and loads complete layout assets only on selection or an explicit action.
+- Support-distribution count and percentage inputs now stay synchronized with deterministic nearest-integer rounding.
 
 ### Removed
 

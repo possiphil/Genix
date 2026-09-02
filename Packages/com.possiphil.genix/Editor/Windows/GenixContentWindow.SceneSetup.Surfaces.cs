@@ -206,9 +206,13 @@ namespace Genix.Editor.Windows
 
         private static string GetCapacitySummary(PlacementSurfaceDescriptor descriptor)
         {
-            string total = descriptor.LimitCapacity ? descriptor.MaxCapacity.ToString() : "∞";
             int specificRules = descriptor.AssetCapacityRules.Count(rule => rule?.IsConfigured == true);
-            return specificRules > 0 ? $"{total} +{specificRules}" : total;
+            if (specificRules == 0)
+                return descriptor.LimitCapacity ? descriptor.MaxCapacity.ToString() : "Unlimited";
+
+            string total = descriptor.LimitCapacity ? descriptor.MaxCapacity.ToString() : "∞";
+            string ruleLabel = specificRules == 1 ? "rule" : "rules";
+            return $"{total} ({specificRules} {ruleLabel})";
         }
 
         private static string GetCapacityTooltip(PlacementSurfaceDescriptor descriptor)

@@ -91,9 +91,24 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.PropertyField(_boundsCenterOffset, BoundsCenterLabel);
 
             EditorGUILayout.Space(4f);
-            EditorGUILayout.PropertyField(_reserveClearance, new GUIContent(
-                "Reserve Clearance",
-                "Reserve an additional invisible volume that fixed geometry and other generated objects may not enter. Clearance is bidirectional: other visuals cannot enter it, and it cannot overlap other visuals, clearances, or fixed colliders."));
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.PropertyField(_reserveClearance, new GUIContent(
+                    "Reserve Clearance",
+                    "Reserve an additional invisible volume that fixed geometry and other generated objects may not enter. Clearance is bidirectional: other visuals cannot enter it, and it cannot overlap other visuals, clearances, or fixed colliders."));
+
+                using (new EditorGUI.DisabledScope(!_reserveClearance.boolValue))
+                {
+                    if (GUILayout.Button(new GUIContent(
+                            "Copy Placement Bounds",
+                            "Copy the placement bounds into the clearance volume, then adjust the sides that need extra room."),
+                        GUILayout.Width(148f)))
+                    {
+                        _clearanceSize.vector3Value = _boundsSize.vector3Value;
+                        _clearanceCenterOffset.vector3Value = _boundsCenterOffset.vector3Value;
+                    }
+                }
+            }
 
             if (_reserveClearance.boolValue)
             {
@@ -105,14 +120,6 @@ namespace Genix.Editor.Inspectors
                     EditorGUILayout.PropertyField(_clearanceCenterOffset, new GUIContent(
                         "Center Offset (units)",
                         "Clearance center relative to the prefab transform origin."));
-
-                    if (GUILayout.Button(new GUIContent(
-                            "Start From Placement Bounds",
-                            "Copy the placement bounds into the clearance volume, then adjust the sides that need extra room.")))
-                    {
-                        _clearanceSize.vector3Value = _boundsSize.vector3Value;
-                        _clearanceCenterOffset.vector3Value = _boundsCenterOffset.vector3Value;
-                    }
                 }
             }
         }

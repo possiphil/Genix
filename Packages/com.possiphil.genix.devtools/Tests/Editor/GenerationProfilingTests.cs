@@ -7,6 +7,7 @@ using Genix.Editor.Profiling;
 using Genix.Placement;
 using Genix.Profiling;
 using Genix.Sampling;
+using Genix.Styles;
 using Genix.Tests.Framework;
 using NUnit.Framework;
 using UnityEngine;
@@ -293,6 +294,96 @@ namespace Genix.Tests
                 GenerationProfilerService.Changed -= OnChanged;
                 GenerationProfilerService.SetProfilingEnabled(false);
                 GenerationProfilerService.ClearLastProfile();
+            }
+        }
+
+        [Test]
+        public void CaptureOnceScopesInstrumentationAndReturnsStoredProfile()
+        {
+            bool wasEnabled = GenerationProfilerService.ProfilingEnabled;
+            GenerationProfilerService.SetProfilingEnabled(false);
+            GenerationProfilerService.ClearLastProfile();
+
+            try
+            {
+                GenerationProfilerRecorder capturedRecorder = null;
+                GenerationProfile captured = GenerationProfilerService.CaptureOnce(() =>
+                {
+                    Assert.That(GenerationProfilerService.ProfilingEnabled, Is.True);
+                    capturedRecorder = GenerationProfilerService.CreateRecorderIfEnabled();
+                    GenerationProfilerService.Store(capturedRecorder);
+                });
+
+                Assert.That(capturedRecorder, Is.Not.Null);
+                Assert.That(captured, Is.SameAs(capturedRecorder.Profile));
+                Assert.That(GenerationProfilerService.LastProfile, Is.SameAs(captured));
+                Assert.That(GenerationProfilerService.ProfilingEnabled, Is.False);
+            }
+            finally
+            {
+                GenerationProfilerService.SetProfilingEnabled(wasEnabled);
+                GenerationProfilerService.ClearLastProfile();
+            }
+        }
+
+        [Test]
+        public void ProfilerRunBuildsRequestFromCompleteGenerationPreset()
+        {
+            using GenerationTestScene scene = new(sourceName: "Profiler Run Area");
+            scene.CreateAsset("Profiler Asset");
+            StylePreset style = ScriptableObject.CreateInstance<StylePreset>();
+            GenerationPreset preset = ScriptableObject.CreateInstance<GenerationPreset>();
+
+            try
+            {
+                style.name = "Profiler Style";
+                style.Initialize(scene.CreateRequest().StyleSettings);
+                preset.name = "Profiler Preset";
+                preset.Apply(new GenerationPresetSettings(
+                    scene.Pool,
+                    style,
+                    9,
+                    PlacementTarget.Floor | PlacementTarget.Wall,
+                    TargetDistributionMode.Weighted,
+                    new TargetDistributionWeights(3, 2, 0, 0),
+                    AreaDecompositionMode.Precise,
+                    SurfaceDiscoveryMode.SfsBoundaries,
+                    new LayerMask { value = 1 << 7 },
+                    new LayerMask { value = 1 << 8 },
+                    new LayerMask { value = 1 << 9 },
+                    35f,
+                    45f,
+                    RelativePlacementSource.None,
+                    4f,
+                    new LayerMask { value = 1 << 10 },
+                    true,
+                    -12345,
+                    false));
+
+                bool created = GenerationProfilerRunService.TryCreateRequest(
+                    scene.AreaSource,
+                    preset,
+                    out GenerationRequest request,
+                    out string error);
+
+                Assert.That(created, Is.True, error);
+                Assert.That(request.AreaSource, Is.SameAs(scene.AreaSource));
+                Assert.That(request.AssetPool, Is.SameAs(scene.Pool));
+                Assert.That(request.ObjectCount, Is.EqualTo(9));
+                Assert.That(request.PlacementTargets, Is.EqualTo(PlacementTarget.Floor | PlacementTarget.Wall));
+                Assert.That(request.TargetDistributionMode, Is.EqualTo(TargetDistributionMode.Weighted));
+                Assert.That(request.TargetDistributionWeights.Floor, Is.EqualTo(3));
+                Assert.That(request.TargetDistributionWeights.Wall, Is.EqualTo(2));
+                Assert.That(request.StyleName, Is.EqualTo("Profiler Style"));
+                Assert.That(request.UseFixedSeed, Is.True);
+                Assert.That(request.RandomSeed, Is.EqualTo(-12345));
+                Assert.That(request.BestEffort, Is.False);
+                Assert.That(request.DetailedDiagnostics, Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(preset);
+                Object.DestroyImmediate(style);
             }
         }
 

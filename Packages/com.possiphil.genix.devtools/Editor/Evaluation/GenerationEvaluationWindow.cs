@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Genix.Areas;
 using Genix.Core;
+using Genix.Editor.Common;
 using Genix.Editor.Drawers;
 using Genix.Editor.Infrastructure;
 using Genix.Editor.Layouts;
@@ -23,11 +24,13 @@ namespace Genix.Editor.Evaluation
     {
         private const string SelectedSuiteKey = "Genix.Evaluations.SelectedSuite";
         private const string SelectedReportKey = "Genix.Evaluations.SelectedReport";
+        private const string ReviewCaptureSessionKey = "Genix.Evaluations.ReviewCaptureRunning";
         private const float ScenarioConfigurationMinHeight = 255f;
         private const float ScenarioControlsHeight = 20f;
         private const float PaneSpacing = 6f;
         private const float ReportPaneHeight = 300f;
         private const float SectionHorizontalPadding = 5f;
+        private const double InfoMessageDurationSeconds = 5d;
 
         private enum AutomaticResultFilter
         {
@@ -69,6 +72,8 @@ namespace Genix.Editor.Evaluation
         private AutomaticResultFilter _resultFilter;
         private VisualReviewFilter _reviewFilter;
         private string _validationMessage = string.Empty;
+        private MessageType _validationMessageType = MessageType.Info;
+        private double _validationMessageExpiresAt;
 
         private GenerationEvaluationSuite[] _evaluationSuites = Array.Empty<GenerationEvaluationSuite>();
         private string[] _evaluationSuiteOptions = Array.Empty<string>();
@@ -94,6 +99,7 @@ namespace Genix.Editor.Evaluation
             }
         }
 
+        /// <summary>Opens the Genix Evaluation window.</summary>
         [MenuItem("Tools/Genix Developer/Evaluation", false, 30)]
         public static void Open()
         {
@@ -105,18 +111,27 @@ namespace Genix.Editor.Evaluation
         {
             GenerationEvaluationRunner.Changed += HandleRunnerChanged;
             EditorApplication.projectChanged += HandleProjectChanged;
+            EditorApplication.update += UpdateValidationMessageTimeout;
             RefreshSelectableAssets();
 
             GenerationEvaluationSuite rememberedSuite = LoadRemembered<GenerationEvaluationSuite>(SelectedSuiteKey);
             GenerationEvaluationReport rememberedReport = LoadRemembered<GenerationEvaluationReport>(SelectedReportKey);
             SetSuite(rememberedSuite ? rememberedSuite : _evaluationSuites.FirstOrDefault());
             SetReport(rememberedReport ? rememberedReport : _evaluationReports.FirstOrDefault());
+
+            if (EditorCampaignSession.ConsumeInterruptedMarker(ReviewCaptureSessionKey))
+            {
+                SetValidationMessage(
+                    "The previous review capture was interrupted. Capture Missing resumes with the remaining layouts.",
+                    MessageType.Warning);
+            }
         }
 
         private void OnDisable()
         {
             GenerationEvaluationRunner.Changed -= HandleRunnerChanged;
             EditorApplication.projectChanged -= HandleProjectChanged;
+            EditorApplication.update -= UpdateValidationMessageTimeout;
         }
 
         private void OnGUI()
@@ -142,42 +157,105 @@ namespace Genix.Editor.Evaluation
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
                 DrawSuiteDropdown();
-
-                using (new EditorGUI.DisabledScope(GenerationEvaluationRunner.IsRunning))
-                {
-                    if (GUILayout.Button(
-                            new GUIContent("Create", "Create and select a new evaluation suite."),
-                            EditorStyles.toolbarButton,
-                            GUILayout.Width(56f)))
-                        CreateSuite();
-
-                    using (new EditorGUI.DisabledScope(!_suite))
-                    {
-                        if (GUILayout.Button(
-                                new GUIContent("Clean Up", "Delete superseded evaluation layouts while retaining layouts referenced by current reports."),
-                                EditorStyles.toolbarButton,
-                                GUILayout.Width(66f)))
-                            CleanUpEvaluationLayouts();
-                    }
-                }
+                DrawSuiteActions();
 
                 GUILayout.FlexibleSpace();
 
                 DrawReportDropdown();
-
-                using (new EditorGUI.DisabledScope(!_report))
-                {
-                    if (GUILayout.Button(new GUIContent("Export", "Export the selected report as JSON plus run, check, and aggregate CSV files including current visual ratings."), EditorStyles.toolbarButton, GUILayout.Width(54f)))
-                        ExportReport();
-                }
+                DrawReportActions();
             }
         }
 
-        private void DrawSuiteDropdown()
+        private void DrawSuiteActions()
+        {
+            using (new EditorGUI.DisabledScope(GenerationEvaluationRunner.IsRunning))
+            {
+                if (GUILayout.Button(
+                        new GUIContent("Suite Actions", "Create an evaluation suite or clean up superseded layouts."),
+                        EditorStyles.toolbarDropDown,
+                        GUILayout.Width(102f)))
+                    ShowSuiteActionsMenu();
+            }
+        }
+
+        private void ShowSuiteActionsMenu()
+        {
+            GenericMenu menu = new();
+            menu.AddItem(new GUIContent("Create Suite…"), false, CreateSuite);
+            menu.AddSeparator(string.Empty);
+
+            if (_suite)
+            {
+                menu.AddItem(
+                    new GUIContent("Clean Up Layouts…"),
+                    false,
+                    CleanUpEvaluationLayouts);
+            }
+            else
+            {
+                menu.AddDisabledItem(new GUIContent("Clean Up Layouts…"));
+            }
+
+            menu.ShowAsContext();
+        }
+
+        private void DrawReportActions()
+        {
+            using (new EditorGUI.DisabledScope(!_report))
+            {
+                if (GUILayout.Button(new GUIContent("Export", "Export the selected report as JSON plus run, check, and aggregate CSV files including current visual ratings."), EditorStyles.toolbarButton, GUILayout.Width(48f)))
+                    ExportReport();
+
+                if (GUILayout.Button(
+                        new GUIContent(
+                            "Capture Missing",
+                            "Capture only layouts without a complete, valid set of review images. Existing valid captures are retained."),
+                        EditorStyles.toolbarButton,
+                        GUILayout.Width(98f)))
+                    CaptureReportReviewViews(false);
+
+                if (GUILayout.Button(
+                        new GUIContent(string.Empty, "Open additional review-capture actions."),
+                        EditorStyles.toolbarDropDown,
+                        GUILayout.Width(18f)))
+                    ShowReviewCaptureMenu();
+            }
+        }
+
+        private void ShowReviewCaptureMenu()
+        {
+            GenericMenu menu = new();
+            menu.AddItem(
+                new GUIContent("Create Review PDF"),
+                false,
+                () => CreateReviewPdf(true));
+
+            string existingPdf = GenerationEvaluationReviewPdfService.GetExistingPdfPath(_report);
+            if (string.IsNullOrWhiteSpace(existingPdf))
+            {
+                menu.AddDisabledItem(new GUIContent("Open Review PDF"));
+            }
+            else
+            {
+                menu.AddItem(
+                    new GUIContent("Open Review PDF"),
+                    false,
+                    () => Application.OpenURL(new Uri(existingPdf).AbsoluteUri));
+            }
+
+            menu.AddSeparator(string.Empty);
+            menu.AddItem(
+                new GUIContent("Recapture All…"),
+                false,
+                () => CaptureReportReviewViews(true));
+            menu.ShowAsContext();
+        }
+
+        private void DrawSuiteDropdown(float minimumWidth = 80f)
         {
             if (_evaluationSuites.Length == 0)
             {
-                DrawEmptyToolbarDropdown("No Evaluation Suites", 180f, 280f);
+                DrawEmptyToolbarDropdown("No Evaluation Suites", minimumWidth, 190f);
                 return;
             }
 
@@ -190,17 +268,17 @@ namespace Genix.Editor.Evaluation
                 selectedIndex,
                 _evaluationSuiteOptions,
                 EditorStyles.toolbarPopup,
-                GUILayout.MinWidth(180f),
-                GUILayout.MaxWidth(280f));
+                GUILayout.MinWidth(minimumWidth),
+                GUILayout.MaxWidth(190f));
             if (EditorGUI.EndChangeCheck())
                 SetSuite(_evaluationSuites[Mathf.Clamp(selectedIndex, 0, _evaluationSuites.Length - 1)]);
         }
 
-        private void DrawReportDropdown()
+        private void DrawReportDropdown(float minimumWidth = 260f)
         {
             if (_evaluationReports.Length == 0)
             {
-                DrawEmptyToolbarDropdown("No Evaluation Reports", 170f, 300f);
+                DrawEmptyToolbarDropdown("No Evaluation Reports", minimumWidth, 230f);
                 return;
             }
 
@@ -213,7 +291,7 @@ namespace Genix.Editor.Evaluation
                 selectedIndex,
                 _evaluationReportOptions,
                 EditorStyles.toolbarPopup,
-                GUILayout.MinWidth(170f),
+                GUILayout.MinWidth(minimumWidth),
                 GUILayout.MaxWidth(300f));
             if (EditorGUI.EndChangeCheck())
                 SetReport(_evaluationReports[Mathf.Clamp(selectedIndex, 0, _evaluationReports.Length - 1)]);
@@ -287,7 +365,7 @@ namespace Genix.Editor.Evaluation
                 EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(false, 19f), progress, progressLabel);
 
                 if (!string.IsNullOrWhiteSpace(_validationMessage))
-                    EditorGUILayout.HelpBox(_validationMessage, MessageType.Error);
+                    EditorGUILayout.HelpBox(_validationMessage, _validationMessageType);
                 if (!string.IsNullOrWhiteSpace(GenerationEvaluationRunner.LastError))
                     EditorGUILayout.HelpBox(GenerationEvaluationRunner.LastError, MessageType.Error);
 
@@ -895,6 +973,30 @@ namespace Genix.Editor.Evaluation
                         : "Loads the run's source scene and applies this saved observation without saving the scene.";
                     if (GUILayout.Button(new GUIContent(label, tooltip), GUILayout.Height(25f)))
                         OpenRun(run);
+
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        string contactSheet = GenerationEvaluationReviewCaptureService
+                            .GetExistingContactSheetPath(run);
+                        bool hasExistingCapture = !string.IsNullOrWhiteSpace(
+                            GenerationEvaluationReviewCaptureService.GetExistingManifestPath(run));
+                        string captureLabel = hasExistingCapture ? "Recapture Views" : "Capture Views";
+                        if (GUILayout.Button(
+                                new GUIContent(
+                                    captureLabel,
+                                    "Apply this layout and render the overview, orthographic top view, and two perpendicular side views. A 2x2 contact sheet and a hashed manifest are retained outside Assets."),
+                                GUILayout.Height(25f)))
+                            CaptureSelectedReviewViews();
+
+                        using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(contactSheet)))
+                        {
+                            if (GUILayout.Button(
+                                    new GUIContent("Reveal Captures", "Reveal this run's retained review images and 2x2 contact sheet."),
+                                    GUILayout.Width(120f),
+                                    GUILayout.Height(25f)))
+                                EditorUtility.RevealInFinder(contactSheet);
+                        }
+                    }
                 }
             }
         }
@@ -1010,14 +1112,38 @@ namespace Genix.Editor.Evaluation
         private void StartEvaluation(bool selectedOnly)
         {
             _serializedSuite.ApplyModifiedProperties();
-            _validationMessage = string.Empty;
+            SetValidationMessage(string.Empty, MessageType.Info);
             GenerationEvaluationRunner.Start(_suite, selectedOnly ? _selectedScenario : -1);
         }
 
         private void ValidateSuite()
         {
             _serializedSuite.ApplyModifiedProperties();
-            _validationMessage = string.Join("\n", GenerationEvaluationRunner.Validate(_suite));
+            string validationMessage = string.Join("\n", GenerationEvaluationRunner.Validate(_suite));
+            SetValidationMessage(validationMessage, MessageType.Error);
+        }
+
+        private void SetValidationMessage(string message, MessageType messageType)
+        {
+            _validationMessage = message ?? string.Empty;
+            _validationMessageType = messageType;
+            _validationMessageExpiresAt = messageType == MessageType.Info &&
+                                          !string.IsNullOrWhiteSpace(_validationMessage)
+                ? EditorApplication.timeSinceStartup + InfoMessageDurationSeconds
+                : 0d;
+        }
+
+        private void UpdateValidationMessageTimeout()
+        {
+            if (_validationMessageExpiresAt <= 0d ||
+                EditorApplication.timeSinceStartup < _validationMessageExpiresAt)
+            {
+                return;
+            }
+
+            _validationMessage = string.Empty;
+            _validationMessageExpiresAt = 0d;
+            Repaint();
         }
 
         private void CreateSuite()
@@ -1035,13 +1161,19 @@ namespace Genix.Editor.Evaluation
 
         private void OpenRun(GenerationEvaluationRunRecord run)
         {
+            string layoutAssetPath = run.ResolvedLayoutAssetPath;
             SavedLayout layout = run.LoadLayout();
             if (!layout)
             {
-                _validationMessage = $"The referenced layout asset '{run.layoutAssetPath}' is missing.";
+                SetValidationMessage(
+                    $"The referenced layout asset '{run.layoutAssetPath}' is missing.",
+                    MessageType.Error);
                 return;
             }
 
+            string sourceScenePath = EvaluationSceneWorkspace.ResolveSourceScenePath(
+                _report?.SuiteAssetPath,
+                run);
             Scene scene = SceneManager.GetActiveScene();
             if (!IsRunSceneActive(run))
             {
@@ -1049,15 +1181,24 @@ namespace Genix.Editor.Evaluation
                     return;
 
                 if (!EvaluationSceneWorkspace.TryPrepare(
-                        run.scene,
+                        sourceScenePath,
                         out string writableScenePath,
                         out string workspaceError))
                 {
-                    _validationMessage = workspaceError;
+                    SetValidationMessage(workspaceError, MessageType.Error);
                     return;
                 }
 
                 scene = EditorSceneManager.OpenScene(writableScenePath, OpenSceneMode.Single);
+            }
+
+            layout = AssetDatabase.LoadAssetAtPath<SavedLayout>(layoutAssetPath);
+            if (!layout)
+            {
+                SetValidationMessage(
+                    $"The referenced layout asset '{layoutAssetPath}' could not be reloaded after opening the scene.",
+                    MessageType.Error);
+                return;
             }
 
             IBenchmarkAreaResolver resolver = BenchmarkAreaResolverRegistry.CreateResolvers()
@@ -1066,9 +1207,11 @@ namespace Genix.Editor.Evaluation
             string error = string.Empty;
             if (areaSource == null || !LayoutApplyService.Apply(layout, areaSource, out error))
             {
-                _validationMessage = string.IsNullOrWhiteSpace(error)
-                    ? $"Could not resolve target '{run.targetId}' in '{run.scene}'."
-                    : error;
+                SetValidationMessage(
+                    string.IsNullOrWhiteSpace(error)
+                        ? $"Could not resolve target '{run.targetId}' in '{sourceScenePath}'."
+                        : error,
+                    MessageType.Error);
                 return;
             }
 
@@ -1076,14 +1219,17 @@ namespace Genix.Editor.Evaluation
             SceneView.lastActiveSceneView?.FrameSelected();
         }
 
-        private static bool IsRunSceneActive(GenerationEvaluationRunRecord run)
+        private bool IsRunSceneActive(GenerationEvaluationRunRecord run)
         {
             if (run == null || string.IsNullOrWhiteSpace(run.scene))
                 return false;
 
+            string sourceScenePath = EvaluationSceneWorkspace.ResolveSourceScenePath(
+                _report?.SuiteAssetPath,
+                run);
             Scene activeScene = SceneManager.GetActiveScene();
             return activeScene.IsValid() &&
-                   EvaluationSceneWorkspace.MatchesSource(activeScene.path, run.scene);
+                   EvaluationSceneWorkspace.MatchesSource(activeScene.path, sourceScenePath);
         }
 
         private void ExportReport()
@@ -1093,12 +1239,236 @@ namespace Genix.Editor.Evaluation
             int invalid = _report.Runs.Count(run => run.HasInvalidVisualReviewEvidence);
             int reviewable = _report.Runs.Count(run => run.HasLayoutReference);
             int valid = _report.Runs.Count(run => run.VisualReviewEvidenceValid);
-            _validationMessage = invalid > 0
+            string exportWarning = invalid > 0
                 ? $"Export retained {invalid:N0} run(s) with invalid visual-review evidence. Review runs.csv and summary.csv before using the export."
                 : valid < reviewable
                     ? $"Export retained {reviewable - valid:N0} saved layout(s) without complete valid visual-review evidence."
                     : string.Empty;
+            SetValidationMessage(exportWarning, MessageType.Warning);
             EditorUtility.RevealInFinder(directory);
+        }
+
+        private void CaptureSelectedReviewViews()
+        {
+            if (!_report || _selectedRun < 0 || _selectedRun >= _report.Runs.Count)
+                return;
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+
+            if (!GenerationEvaluationReviewCaptureService.CaptureRun(
+                    _report,
+                    _selectedRun,
+                    out string contactSheet,
+                    out string error))
+            {
+                SetValidationMessage(error, MessageType.Error);
+                return;
+            }
+
+            SetValidationMessage(
+                "Captured four standardized review views and one contact sheet for the selected run.",
+                MessageType.Info);
+            EditorUtility.RevealInFinder(contactSheet);
+        }
+
+        private void CaptureReportReviewViews(bool recaptureAll)
+        {
+            if (!_report)
+                return;
+
+            int[] availableRunIndices = _report.Runs
+                .Select((run, index) => new { Run = run, Index = index })
+                .Where(item => item.Run.HasLayoutReference && !item.Run.HasMissingLayoutAsset)
+                .Select(item => item.Index)
+                .ToArray();
+            if (availableRunIndices.Length == 0)
+            {
+                SetValidationMessage(
+                    "The selected report contains no available saved layouts.",
+                    MessageType.Warning);
+                return;
+            }
+
+            List<int> runIndices = new(availableRunIndices.Length);
+            int retained = 0;
+            if (recaptureAll)
+            {
+                runIndices.AddRange(availableRunIndices);
+            }
+            else
+            {
+                try
+                {
+                    for (int index = 0; index < availableRunIndices.Length; index++)
+                    {
+                        int runIndex = availableRunIndices[index];
+                        GenerationEvaluationRunRecord run = _report.Runs[runIndex];
+                        if (EditorUtility.DisplayCancelableProgressBar(
+                                "Checking Review Captures",
+                                $"{index + 1:N0}/{availableRunIndices.Length:N0}: {run.scenario}, seed {run.seed}",
+                                index / (float)availableRunIndices.Length))
+                        {
+                            SetValidationMessage("Review-capture validation cancelled.", MessageType.Info);
+                            return;
+                        }
+
+                        GenerationEvaluationReviewCaptureService.ReviewCaptureStatus status =
+                            GenerationEvaluationReviewCaptureService.GetCaptureStatus(
+                                _report,
+                                runIndex,
+                                out _,
+                                out _);
+                        if (status == GenerationEvaluationReviewCaptureService.ReviewCaptureStatus.Valid)
+                            retained++;
+                        else
+                            runIndices.Add(runIndex);
+                    }
+                }
+                finally
+                {
+                    EditorUtility.ClearProgressBar();
+                }
+
+                if (runIndices.Count == 0)
+                {
+                    CreateReviewPdf(
+                        true,
+                        $"All {retained:N0} available layouts already have valid review captures.");
+                    return;
+                }
+            }
+
+            string title = recaptureAll ? "Recapture All Review Views" : "Capture Missing Review Views";
+            string message = recaptureAll
+                ? $"This will recapture all {runIndices.Count:N0} available layouts. Each existing capture is replaced only after its new image set is complete. Continue?"
+                : $"This will capture {runIndices.Count:N0} missing or invalid layout(s) and retain {retained:N0} valid capture(s). Continue?";
+            string confirmLabel = recaptureAll ? "Recapture All" : "Capture Missing";
+            if (!EditorUtility.DisplayDialog(
+                    title,
+                    message,
+                    confirmLabel,
+                    "Cancel") ||
+                !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                return;
+            }
+
+            int captured = 0;
+            bool completed = false;
+            string firstManifest = string.Empty;
+            string reportPath = AssetDatabase.GetAssetPath(_report);
+            try
+            {
+                using (EditorCampaignSession.Begin(ReviewCaptureSessionKey))
+                {
+                    foreach (int runIndex in runIndices)
+                    {
+                        _report = AssetDatabase.LoadAssetAtPath<GenerationEvaluationReport>(reportPath);
+                        GenerationEvaluationRunRecord run = _report.Runs[runIndex];
+                        if (EditorUtility.DisplayCancelableProgressBar(
+                                "Genix Visual Review Capture",
+                                $"{captured + 1:N0}/{runIndices.Count:N0}: {run.scenario}, seed {run.seed}",
+                                captured / (float)runIndices.Count))
+                        {
+                            SetValidationMessage(
+                                $"Review capture cancelled after {captured:N0} layout(s). Capture Missing can resume the batch.",
+                                MessageType.Warning);
+                            break;
+                        }
+
+                        if (!GenerationEvaluationReviewCaptureService.CaptureRun(
+                                _report,
+                                runIndex,
+                                out _,
+                                out string error))
+                        {
+                            SetValidationMessage(
+                                $"Review capture stopped after {captured:N0} layout(s). {error}",
+                                MessageType.Error);
+                            break;
+                        }
+
+                        captured++;
+                        firstManifest = firstManifest.Length > 0
+                            ? firstManifest
+                            : GenerationEvaluationReviewCaptureService.GetExistingManifestPath(
+                                _report.Runs[runIndex]);
+                    }
+                }
+
+                if (captured == runIndices.Count)
+                    completed = true;
+            }
+            catch (Exception exception)
+            {
+                SetValidationMessage(
+                    $"Review capture stopped after {captured:N0} layout(s). {exception.Message}",
+                    MessageType.Error);
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+                _report = AssetDatabase.LoadAssetAtPath<GenerationEvaluationReport>(reportPath);
+                if (_report)
+                {
+                    _selectedRun = Mathf.Clamp(_selectedRun, 0, Mathf.Max(0, _report.Runs.Count - 1));
+                    AssetDatabase.SaveAssetIfDirty(_report);
+                }
+            }
+
+            if (completed)
+            {
+                CreateReviewPdf(
+                    true,
+                    $"Captured four standardized views and one contact sheet for {captured:N0} layout(s).");
+            }
+            else if (!string.IsNullOrWhiteSpace(firstManifest))
+            {
+                EditorUtility.RevealInFinder(Path.GetDirectoryName(firstManifest));
+            }
+        }
+
+        private bool CreateReviewPdf(bool revealInFinder, string successPrefix = "")
+        {
+            if (!_report)
+                return false;
+
+            try
+            {
+                EditorUtility.DisplayProgressBar(
+                    "Creating Review PDF",
+                    "Validating contact sheets and assembling PDF pages...",
+                    0.5f);
+                if (!GenerationEvaluationReviewPdfService.Build(
+                        _report,
+                        out string pdfPath,
+                        out int pageCount,
+                        out string error))
+                {
+                    SetValidationMessage(error, MessageType.Error);
+                    return false;
+                }
+
+                string message = $"Created a {pageCount:N0}-page visual-review PDF.";
+                if (!string.IsNullOrWhiteSpace(successPrefix))
+                    message = successPrefix + " " + message;
+                SetValidationMessage(message, MessageType.Info);
+
+                if (revealInFinder)
+                    EditorUtility.RevealInFinder(pdfPath);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                SetValidationMessage(
+                    $"Could not create the review PDF: {exception.Message}",
+                    MessageType.Error);
+                return false;
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
         }
 
         private void CleanUpEvaluationLayouts()

@@ -1,6 +1,7 @@
 using Genix.Assets;
 using Genix.Editor.Drawers;
 using Genix.Editor.UI;
+using Genix.Editor.Utilities;
 using Genix.Extensions;
 using Genix.Layouts;
 using Genix.Semantics;
@@ -29,6 +30,7 @@ namespace Genix.Editor.Windows
                 if (_tab == ContentTab.Tags)
                 {
                     DrawTagDetails();
+                    FocusCreatedObjectNameIfRequested();
                     return;
                 }
 
@@ -41,7 +43,10 @@ namespace Genix.Editor.Windows
                     DrawAssetPlacementPreview(selectedAsset);
 
                 if (_tab == ContentTab.Layouts && selectedObject is SavedLayout selectedLayout)
+                {
                     DrawLayoutDetails(selectedLayout);
+                    return;
+                }
 
                 if (_tab == ContentTab.SceneSetup)
                 {
@@ -57,7 +62,17 @@ namespace Genix.Editor.Windows
 
                 UnityEditor.Editor.CreateCachedEditor(selectedObject, null, ref _selectedObjectEditor);
                 _selectedObjectEditor.OnInspectorGUI();
+                FocusCreatedObjectNameIfRequested();
             }
+        }
+
+        private void FocusCreatedObjectNameIfRequested()
+        {
+            if (!_focusCreatedObjectName)
+                return;
+
+            EditorGUI.FocusTextInControl(EditorGui.DisplayNameControlName);
+            _focusCreatedObjectName = false;
         }
 
         private static void DrawAssetPlacementPreview(AssetDefinition asset)

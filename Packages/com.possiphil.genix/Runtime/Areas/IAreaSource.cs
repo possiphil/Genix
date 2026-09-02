@@ -35,20 +35,16 @@ namespace Genix.Areas
     /// <summary>Optional capability exposed by area sources with manually invalidatable caches.</summary>
     public interface IAreaCacheControl
     {
-        /// <summary>Gets the designer-facing label for the cache-clear command.</summary>
-        string ClearCacheLabel { get; }
-        /// <summary>Gets an explanation of which cached data the command invalidates.</summary>
-        string ClearCacheTooltip { get; }
         /// <summary>Invalidates all spatial data owned by this area source.</summary>
         void ClearCache();
     }
 
     /// <summary>
     /// Exposes whether an area build used its authoritative spatial representation or a degraded fallback.
-    /// Evaluation tooling uses this capability to reject methodologically invalid runs without coupling to
-    /// a specific spatial-system integration.
+    /// Diagnostics and validation tools can use this capability without coupling to a specific spatial-system
+    /// integration.
     /// </summary>
-    public interface IAreaSourceEvaluationStatus
+    public interface IAreaSourceIntegrityStatus
     {
         /// <summary>Gets whether the most recent successful area build used authoritative spatial data.</summary>
         bool UsedAuthoritativeSpatialData { get; }

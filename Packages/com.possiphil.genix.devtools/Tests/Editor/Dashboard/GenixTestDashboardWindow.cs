@@ -47,12 +47,6 @@ namespace Genix.Tests.Dashboard
         private const float TestCasesWidth = 104f;
         private const float TestTypeWidth = 54f;
         private const float TestColumnSpacing = 4f;
-        private static readonly string[] KnownTestAssemblies =
-        {
-            "Genix.Tests.Editor",
-            "Genix.Tests.SpaceFoundation.Editor"
-        };
-
         private readonly Dictionary<string, bool> _foldouts = new();
         private Vector2 _scroll;
         private string _search = string.Empty;
@@ -498,17 +492,8 @@ namespace Genix.Tests.Dashboard
             }, preset);
         }
 
-        private static string[] GetAvailableTestAssemblies()
-        {
-            HashSet<string> loadedAssemblies = AppDomain.CurrentDomain
-                .GetAssemblies()
-                .Select(assembly => assembly.GetName().Name)
-                .ToHashSet(StringComparer.Ordinal);
-
-            return KnownTestAssemblies
-                .Where(loadedAssemblies.Contains)
-                .ToArray();
-        }
+        private static string[] GetAvailableTestAssemblies() =>
+            GenixTestAssemblyDiscovery.GetLoadedAssemblyNames();
 
         private IEnumerable<GenixTestResultRecord> GetFilteredResults()
         {

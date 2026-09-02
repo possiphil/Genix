@@ -17,7 +17,8 @@ inspect, rename, replace, or delete every generated asset after setup.
 
 ## Prerequisites
 
-1. Open a Unity project that contains Genix and Space Foundation System.
+1. Open a Unity project that contains Genix and Space Foundation System. In a new project, open
+   **Window > Asset Management > Addressables > Groups** once so SFS can resolve its Addressables settings.
 2. Create or compute an SFS space and expose it through a target-area anchor.
 3. Put physical placement surfaces on layers that can be selected in Genix.
 4. Create Genix asset definitions and assign them to an asset pool.
@@ -38,7 +39,7 @@ Enable **Advanced** when the scene needs a non-default surface source, target or
 
 ## Surface setup
 
-Floor, wall, and ceiling assets require matching physical surfaces unless **SFS Boundaries** is selected. Assign those colliders to the corresponding Floor, Wall, or Ceiling layer masks. A surface is classified by its normal and the **Maximum Floor Slope** and **Maximum Ceiling Slope** thresholds.
+Floor, wall, and ceiling assets require matching physical surfaces unless **SFS Boundaries** is selected. Assign those colliders to the corresponding Floor, Wall, or Ceiling layer masks. A surface is classified by its normal and the **Floor Slope Limit** and **Ceiling Slope Limit** thresholds.
 
 Inside Space assets use valid volume cells and do not require a surface collider. They still undergo height, volume, overlap, clearance, and relative-placement checks.
 
@@ -57,5 +58,5 @@ The Generator remembers the last selected preset per project and editor user. Ch
 clears that remembered selection.
 
 Target Area is intentionally not captured, so one preset can be reused across evaluation scenes.
-Record Detailed Diagnostics is also excluded because it is a run-specific debugging control that can add
+Detailed Diagnostics is also excluded because it is a run-specific debugging control that can add
 memory overhead.

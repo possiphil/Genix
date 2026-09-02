@@ -7,6 +7,7 @@ Genix is a designer-facing procedural placement package for Unity. It combines S
 Start with the [package documentation](Documentation~/index.md). It contains:
 
 - a guided setup and first-generation workflow;
+- a complete designer-interface guide;
 - explanations of the generation pipeline, areas, sampling, and placement;
 - a complete settings reference with recommended use cases;
 - diagnostics and troubleshooting guides.

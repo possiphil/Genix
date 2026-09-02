@@ -99,7 +99,7 @@ namespace Genix.SpaceFoundation.Editor
             Transform layoutRoot = FindLayoutRoot(selectedObject ? selectedObject.transform : null);
             if (!layoutRoot)
             {
-                error = "Select an SFS Authoring layout parent or one of its children.";
+                error = "Select a generated space layout or one of its children.";
                 return false;
             }
 
@@ -128,7 +128,7 @@ namespace Genix.SpaceFoundation.Editor
                 !TryGetBoundaryCenter(delimiters, "Boundary Back", layoutRoot, out Vector3 back) ||
                 !TryGetBoundaryCenter(delimiters, "Boundary Front", layoutRoot, out Vector3 front))
             {
-                error = "This older layout cannot be reconstructed safely. Recreate non-rectangular or grid layouts with the current SFS Authoring version.";
+                error = "This older layout cannot be reconstructed safely. Recreate non-rectangular or grid layouts with the current Genix Space Setup version.";
                 return false;
             }
 

@@ -18,13 +18,14 @@ dotnet tool install -g docfx
 
 Homebrew can install the .NET SDK, but DocFX itself should be installed through `dotnet tool`. If the command is not on `PATH`, invoke it as `~/.dotnet/tools/docfx`.
 
-Open the Unity project at least once after changing assembly definitions so Unity regenerates its `.csproj` files. Then run the package documentation build:
+Open a Unity project with the Genix packages installed at least once after changing assembly definitions so Unity regenerates its `.csproj` files. For an embedded package, run the documentation build directly. For a local or Git package, provide the host project explicitly:
 
 ```sh
-Tools/Documentation/build.sh
+UNITY_PROJECT=/absolute/path/to/unity-project \
+  Packages/com.possiphil.genix/Documentation~/build.sh
 ```
 
-The generated manual is written to `Documentation~/_site`; generated API metadata is written to `Documentation~/api`. Both are build output rather than authored package source. DocFX is optional for package users because Unity opens the Markdown manual directly from Package Manager.
+The generated manual is written to `Documentation~/_site`; generated API metadata is written to `Documentation~/api`; staged assemblies and XML files are written to `Documentation~/.artifacts`. All three are ignored build output rather than authored package source. DocFX is optional for package users because Unity opens the Markdown manual directly from Package Manager.
 
 The script compiles the Runtime, Editor.Common, Space Foundation integration, and main Editor assemblies with XML output enabled. DocFX reflects those assemblies and reads their side-by-side XML files. This assembly-based approach avoids requiring Mono-MSBuild to interpret Unity's generated projects on macOS. DocFX then writes YAML metadata and renders it together with the conceptual manual.
 
@@ -32,7 +33,7 @@ DocFX may report `InvalidAssemblyReference` warnings for optional or transitive 
 
 ## Documentation standard
 
-Use XML comments for contracts that a caller needs while writing code:
+Microsoft's [C# XML documentation guidance](https://learn.microsoft.com/dotnet/csharp/language-reference/xmldoc/recommended-tags) recommends documenting every publicly visible type and member. Genix applies that rule to package-owned public APIs and uses XML comments for contracts that a caller needs while writing code:
 
 - `<summary>` states purpose or observable behavior rather than repeating the identifier.
 - `<param>` explains units, accepted ranges, ownership, and `null` behavior when those matter.
@@ -41,6 +42,8 @@ Use XML comments for contracts that a caller needs while writing code:
 - `<remarks>` captures lifecycle, caching, performance, or ordering constraints that do not fit in the summary.
 
 Internal types and methods need comments only when an invariant, algorithm, cache lifetime, or ownership rule is not clear from the code. Inline comments should explain why a non-obvious step exists, not narrate individual statements.
+
+The manual follows Unity's [recommended package layout](https://docs.unity3d.com/6000.0/Documentation/Manual/cus-layout.html): contributor context stays in `README.md` and user documentation stays in `Documentation~`. Interface text and tooltips follow Apple's [writing guidance](https://developer.apple.com/design/human-interface-guidelines/writing) where it is compatible with Unity conventions: familiar terms, concise action-oriented labels, consistent language, and errors that explain the next corrective step. Domain terms remain technical when replacing them would make diagnostics ambiguous.
 
 ## Structural conventions
 
@@ -65,6 +68,6 @@ dotnet build Genix.Editor.csproj --no-restore -t:Rebuild \
   -p:WarningsAsErrors=1591%3B1570%3B1587
 ```
 
-Apply the same check to `Genix.Editor.Common.csproj` and `Genix.SpaceFoundation.Editor.csproj`. `CS1591` catches missing public documentation, `CS1570` catches malformed XML, and `CS1587` catches comments that are not attached to a valid language element.
+Apply the same check to `Genix.Editor.Common.csproj`, `Genix.SpaceFoundation.Editor.csproj`, and the optional DevTools assemblies. `CS1591` catches missing public documentation, `CS1570` catches malformed XML, and `CS1587` catches comments that are not attached to a valid language element.
 
 Treat the generated API pages as verification, not as the only developer guidance. Architectural rationale belongs in the conceptual documentation, while designer-facing behavior belongs in the settings reference and editor tooltips.

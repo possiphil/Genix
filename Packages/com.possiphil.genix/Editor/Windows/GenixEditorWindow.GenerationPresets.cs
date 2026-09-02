@@ -24,61 +24,108 @@ namespace Genix.Editor.Windows
         private void DrawGenerationPresetSection()
         {
             int selectedIndex = GetGenerationPresetIndex(_selectedGenerationPreset);
+            float lineHeight = EditorGUIUtility.singleLineHeight;
+            float rowSpacing = EditorGUIUtility.standardVerticalSpacing;
+            bool showActions = DesignerUiPreferences.IsAdvanced;
+            float rowStep = lineHeight + rowSpacing;
+            Rect blockRect = EditorGUILayout.GetControlRect(false, lineHeight * 3f + rowSpacing * 2f);
+            Rect presetRect = new(blockRect.x, blockRect.y, blockRect.width, lineHeight);
+            Rect contentHeaderRect = new(
+                blockRect.x,
+                blockRect.y + rowStep * 2f,
+                blockRect.width,
+                lineHeight);
 
-            using (new EditorGUILayout.HorizontalScope())
+            const float editWidth = 48f;
+            Rect editRect = new(
+                presetRect.xMax - editWidth,
+                presetRect.y,
+                editWidth,
+                presetRect.height);
+            Rect popupRowRect = new(
+                presetRect.x,
+                presetRect.y,
+                Mathf.Max(0f, editRect.x - RunButtonGap - presetRect.x),
+                presetRect.height);
+            Rect popupRect = EditorGUI.PrefixLabel(popupRowRect, GenerationPresetLabel);
+
+            EditorGUI.BeginChangeCheck();
+            selectedIndex = EditorGUI.Popup(
+                popupRect,
+                selectedIndex,
+                _generationPresetOptions,
+                EditorGui.EllipsizedPopupStyle);
+
+            if (EditorGUI.EndChangeCheck())
+                SelectGenerationPreset(selectedIndex);
+
+            using (new EditorGUI.DisabledScope(!_selectedGenerationPreset))
             {
-                EditorGUI.BeginChangeCheck();
-                selectedIndex = EditorGui.Popup(
-                    GenerationPresetLabel,
-                    selectedIndex,
-                    _generationPresetOptions);
-
-                if (EditorGUI.EndChangeCheck())
-                    SelectGenerationPreset(selectedIndex);
-
-                if (DesignerUiPreferences.IsAdvanced)
+                if (GUI.Button(
+                        editRect,
+                        new GUIContent("Edit", "Open the selected generation preset in the Inspector.")))
                 {
-                    EditorGui.DrawEditAssetButton(
-                        _selectedGenerationPreset,
-                        EditorStyles.miniButtonLeft,
-                        48f,
-                        EditorGUIUtility.singleLineHeight);
-                    DrawGenerationPresetActions();
-                }
-                else
-                {
-                    EditorGui.DrawEditAssetButton(_selectedGenerationPreset);
+                    EditorGui.ShowObjectInInspector(_selectedGenerationPreset);
                 }
             }
+
+            if (showActions)
+            {
+                Rect actionRect = new(
+                    blockRect.x,
+                    blockRect.y + rowStep,
+                    blockRect.width,
+                    lineHeight);
+                DrawGenerationPresetActions(actionRect);
+            }
+
+            EditorGUI.LabelField(contentHeaderRect, "Content", EditorStyles.boldLabel);
         }
 
-        private void DrawGenerationPresetActions()
+        private void DrawGenerationPresetActions(Rect rowRect)
         {
-            if (GUILayout.Button(
+            const float saveWidth = 96f;
+            const float actionWidth = 64f;
+            const float actionGap = 2f;
+            float groupWidth = saveWidth + actionWidth * 2f + actionGap * 2f;
+            Rect saveRect = new(
+                rowRect.xMax - groupWidth,
+                rowRect.y,
+                saveWidth,
+                rowRect.height);
+            Rect updateRect = new(
+                saveRect.xMax + actionGap,
+                rowRect.y,
+                actionWidth,
+                rowRect.height);
+            Rect revertRect = new(
+                updateRect.xMax + actionGap,
+                rowRect.y,
+                actionWidth,
+                rowRect.height);
+
+            if (GUI.Button(
+                    saveRect,
                     new GUIContent("Save as New", "Create a preset from the current settings."),
-                    EditorStyles.miniButtonMid,
-                    GUILayout.Width(80f),
-                    GUILayout.Height(EditorGUIUtility.singleLineHeight)))
+                    EditorStyles.miniButton))
             {
                 SaveGenerationPresetAsNew();
             }
 
             using (new EditorGUI.DisabledScope(!_selectedGenerationPreset))
             {
-                if (GUILayout.Button(
+                if (GUI.Button(
+                        updateRect,
                         new GUIContent("Update", "Save the current settings to the selected preset."),
-                        EditorStyles.miniButtonMid,
-                        GUILayout.Width(58f),
-                        GUILayout.Height(EditorGUIUtility.singleLineHeight)))
+                        EditorStyles.miniButton))
                 {
                     UpdateSelectedGenerationPreset();
                 }
 
-                if (GUILayout.Button(
+                if (GUI.Button(
+                        revertRect,
                         new GUIContent("Revert", "Discard current changes and reload the selected preset."),
-                        EditorStyles.miniButtonRight,
-                        GUILayout.Width(58f),
-                        GUILayout.Height(EditorGUIUtility.singleLineHeight)))
+                        EditorStyles.miniButton))
                 {
                     ApplyGenerationPreset(_selectedGenerationPreset);
                 }

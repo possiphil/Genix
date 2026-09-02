@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Genix.Authoring
 {
     /// <summary>Visualizes the exact free voxel volumes stored by an SFS-authored layout.</summary>
-    [AddComponentMenu("Genix/SFS Authoring Layout Display")]
+    [AddComponentMenu("Genix/Space Setup Layout Display")]
     [DisallowMultipleComponent]
     public sealed class SfsAuthoringLayoutDisplay : MonoBehaviour
     {

@@ -18,7 +18,7 @@ Check the style algorithm. Cluster sampling intentionally groups candidates. Gri
 
 ## A run is unexpectedly slow
 
-1. Disable Record Detailed Diagnostics unless per-attempt data is required.
+1. Disable Detailed Diagnostics unless per-attempt data is required.
 2. Compare the phase breakdown rather than total time alone.
 3. Check for garbage collections and a large managed-memory delta.
 4. Distinguish cold area construction from warm planning.

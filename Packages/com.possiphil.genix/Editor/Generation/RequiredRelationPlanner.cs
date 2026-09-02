@@ -54,11 +54,70 @@ namespace Genix.Editor.Generation
             IGenerationProfiler profiler,
             Action<PlacementCandidate> onPlaced)
         {
+            CompleteAssetRelations(
+                requirePathStations: true,
+                getPool,
+                namer,
+                diagnostics,
+                profiler,
+                onPlaced);
+            CompleteRelativeTagMinimums(
+                getPool,
+                namer,
+                diagnostics,
+                profiler,
+                onPlaced);
+            CompleteAssetRelations(
+                requirePathStations: false,
+                getPool,
+                namer,
+                diagnostics,
+                profiler,
+                onPlaced);
+
+            foreach (AssetPoolAnchorGroupLimit group in _context.AssetPool.AnchorGroupLimits)
+            {
+                if (group is not { IsConfigured: true, HasMinimumPerAnchor: true })
+                    continue;
+
+                IReadOnlyList<RelativeAnchor> anchors =
+                    RelativeAnchorProvider.CollectMatchingAssetAnchors(
+                        _context,
+                        group,
+                        includePlannedObjects: false);
+                foreach (RelativeAnchor anchor in anchors)
+                {
+                    CompleteAnchorGroup(
+                        group,
+                        anchor,
+                        getPool,
+                        namer,
+                        diagnostics,
+                        profiler,
+                        onPlaced,
+                        null,
+                        new HashSet<AssetDefinition>());
+                }
+            }
+        }
+
+        private void CompleteAssetRelations(
+            bool requirePathStations,
+            Func<PlacementType, CandidatePool> getPool,
+            GeneratedObjectNamer namer,
+            IDiagnosticsSink diagnostics,
+            IGenerationProfiler profiler,
+            Action<PlacementCandidate> onPlaced)
+        {
             foreach (AssetDefinition dependent in _assets)
             {
                 AssetRelativePlacementRule rule = dependent.AssetRelativePlacement;
-                if (rule?.IsConfigured != true || !rule.HasMinimumPerAnchor)
+                if (rule?.IsConfigured != true ||
+                    !rule.HasMinimumPerAnchor ||
+                    rule.UsesPathStations != requirePathStations)
+                {
                     continue;
+                }
 
                 IReadOnlyList<RelativeAnchor> anchors =
                     RelativeAnchorProvider.CollectMatchingAssetAnchors(
@@ -87,33 +146,76 @@ namespace Genix.Editor.Generation
                     }
                 }
             }
+        }
 
-
-            foreach (AssetPoolAnchorGroupLimit group in _context.AssetPool.AnchorGroupLimits)
+        private void CompleteRelativeTagMinimums(
+            Func<PlacementType, CandidatePool> getPool,
+            GeneratedObjectNamer namer,
+            IDiagnosticsSink diagnostics,
+            IGenerationProfiler profiler,
+            Action<PlacementCandidate> onPlaced)
+        {
+            foreach (AssetPoolTagLimit limit in _context.AssetPool.TagPlacementLimits)
             {
-                if (group is not { IsConfigured: true, HasMinimumPerAnchor: true })
+                if (limit is not { IsConfigured: true, MinPlacements: > 0 })
                     continue;
 
-                IReadOnlyList<RelativeAnchor> anchors =
-                    RelativeAnchorProvider.CollectMatchingAssetAnchors(
-                        _context,
-                        group,
-                        includePlannedObjects: false);
-                foreach (RelativeAnchor anchor in anchors)
+                List<AssetDefinition> choices = _assets
+                    .Where(asset =>
+                        limit.Matches(asset) &&
+                        asset.AssetRelativePlacement?.IsConfigured == true)
+                    .OrderBy(asset => asset.AssetName, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                _context.Random.Shuffle(choices);
+
+                while (GetTagPlacementCount(limit) < limit.MinPlacements &&
+                       _context.Plan.Count < _context.Count)
                 {
-                    CompleteAnchorGroup(
-                        group,
-                        anchor,
-                        getPool,
-                        namer,
-                        diagnostics,
-                        profiler,
-                        onPlaced,
-                        null,
-                        new HashSet<AssetDefinition>());
+                    bool placed = false;
+                    foreach (AssetDefinition choice in choices)
+                    {
+                        if (_context.AssetPool.HasReachedPlacementLimit(choice, _context) ||
+                            !CanStart(choice, _context.Count - _context.Plan.Count))
+                        {
+                            continue;
+                        }
+
+                        IReadOnlyList<RelativeAnchor> anchors =
+                            RelativeAnchorProvider.CollectMatchingAssetAnchors(
+                                _context,
+                                choice.AssetRelativePlacement,
+                                dependentAsset: choice);
+                        foreach (RelativeAnchor anchor in anchors)
+                        {
+                            if (!TryPlanComposition(
+                                    choice,
+                                    anchor,
+                                    getPool,
+                                    namer,
+                                    diagnostics,
+                                    profiler,
+                                    onPlaced))
+                            {
+                                continue;
+                            }
+
+                            placed = true;
+                            break;
+                        }
+
+                        if (placed)
+                            break;
+                    }
+
+                    if (!placed)
+                        break;
                 }
             }
         }
+
+        private int GetTagPlacementCount(AssetPoolTagLimit limit) =>
+            _context.Plan.GetAssetTagCount(limit.AssetTag) +
+            _context.GeneratedSceneObjects.GetAssetTagCount(limit.AssetTag);
 
         public bool CompleteNewAnchor(
             PlannedObject root,

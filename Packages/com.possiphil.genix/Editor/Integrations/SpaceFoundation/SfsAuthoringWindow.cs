@@ -15,6 +15,17 @@ namespace Genix.SpaceFoundation.Editor
     {
         private const int PreviewVolumeLimit = 500;
         private const float LabelWidth = 155f;
+        private static readonly string[] PositionSourceNames = { "Manual", "Scene View Pivot", "Selection Center" };
+        private static readonly SfsAuthoringSizeMode[] BasicBoundedSizeModes =
+            { SfsAuthoringSizeMode.WorldUnits, SfsAuthoringSizeMode.FitSelection };
+        private static readonly string[] BasicBoundedSizeModeNames = { "World Units", "Fit Selection" };
+        private static readonly SfsAuthoringSizeMode[] AdvancedBoundedSizeModes =
+            { SfsAuthoringSizeMode.WorldUnits, SfsAuthoringSizeMode.VoxelCounts, SfsAuthoringSizeMode.FitSelection };
+        private static readonly string[] AdvancedBoundedSizeModeNames =
+            { "World Units", "Voxel Counts", "Fit Selection" };
+        private static readonly SfsAuthoringSizeMode[] RoomSizeModes =
+            { SfsAuthoringSizeMode.WorldUnits, SfsAuthoringSizeMode.VoxelCounts };
+        private static readonly string[] RoomSizeModeNames = { "World Units", "Voxel Counts" };
 
         [SerializeField] private SpaceFoundationSystem.SpaceFoundation _foundation;
         [SerializeField] private float _newFoundationVoxelSize = 1f;
@@ -46,10 +57,10 @@ namespace Genix.SpaceFoundation.Editor
         private List<SfsAuthoringValidationMessage> _sceneMessages = new();
         private bool _sceneValidationHasRun;
 
-        [MenuItem("Tools/Genix/SFS Authoring", false, 20)]
+        [MenuItem("Tools/Genix/Space Setup", false, 20)]
         public static void Open()
         {
-            SfsAuthoringWindow window = GenixWindowDocking.Open<SfsAuthoringWindow>("Genix SFS Authoring");
+            SfsAuthoringWindow window = GenixWindowDocking.Open<SfsAuthoringWindow>("Genix Space Setup");
             window.minSize = new Vector2(520f, 600f);
         }
 
@@ -74,7 +85,7 @@ namespace Genix.SpaceFoundation.Editor
 
         private void OnSelectionChanged()
         {
-            if (_centerMode == SfsAuthoringCenterMode.SelectionBounds || _sizeMode == SfsAuthoringSizeMode.FitSelection)
+            if (_centerMode == SfsAuthoringCenterMode.SelectionCenter || _sizeMode == SfsAuthoringSizeMode.FitSelection)
                 RebuildPlan();
             Repaint();
         }
@@ -91,12 +102,7 @@ namespace Genix.SpaceFoundation.Editor
             DrawElementActions();
             EditorGUILayout.Space(8f);
             DrawLayoutSection();
-            if (DesignerUiPreferences.IsAdvanced)
-            {
-                EditorGUILayout.Space(8f);
-                DrawPlanSummary();
-            }
-            else if (_plan == null)
+            if (_plan == null && !TryGetMissingSelectionMessage(out _))
             {
                 EditorGUILayout.Space(8f);
                 EditorGUILayout.HelpBox(_planError, MessageType.Error);
@@ -260,7 +266,11 @@ namespace Genix.SpaceFoundation.Editor
                     }
 
                     _showPreview = EditorGUILayout.Toggle(
-                        new GUIContent("Scene Preview", "Shows planned interiors, delimiters, and anchors before scene objects are created."),
+                        new GUIContent(
+                            "Scene Preview",
+                            _plan != null && _plan.InteriorVolumes.Count > PreviewVolumeLimit
+                                ? $"Shows the first {PreviewVolumeLimit} of {_plan.InteriorVolumes.Count} planned interior volumes; creation is not limited."
+                                : "Shows planned interiors, delimiters, and anchors before scene objects are created."),
                         _showPreview);
                 }
             }
@@ -268,9 +278,32 @@ namespace Genix.SpaceFoundation.Editor
 
         private void DrawCenterFields()
         {
-            _centerMode = (SfsAuthoringCenterMode)EditorGUILayout.EnumPopup(
-                new GUIContent("Position Source", "Place the setup manually, at the Scene view pivot, or around the selected objects."),
-                _centerMode);
+            if (_layoutType == SfsAuthoringLayoutType.BoundedLocation &&
+                _sizeMode == SfsAuthoringSizeMode.FitSelection)
+            {
+                if (TryGetSelectionBounds(out Bounds selectionBounds))
+                {
+                    using (new EditorGUI.DisabledScope(true))
+                        EditorGUILayout.Vector3Field("Selection Center", selectionBounds.center);
+                }
+
+                DrawActualPosition();
+                return;
+            }
+
+            _centerMode = (SfsAuthoringCenterMode)EditorGUILayout.Popup(
+                new GUIContent("Position Source", "Place the setup manually, at the Scene view pivot, or at the center of selected geometry."),
+                (int)_centerMode,
+                PositionSourceNames);
+
+            if (_centerMode == SfsAuthoringCenterMode.SelectionCenter &&
+                !TryGetSelectionBounds(out _))
+            {
+                EditorGUILayout.HelpBox(
+                    "Select an object with a Renderer or Collider to use its center.",
+                    MessageType.Warning);
+                return;
+            }
 
             if (_centerMode == SfsAuthoringCenterMode.Manual)
             {
@@ -281,20 +314,46 @@ namespace Genix.SpaceFoundation.Editor
                 using (new EditorGUI.DisabledScope(true))
                     EditorGUILayout.Vector3Field("Resolved Position", ResolveCenter());
             }
+
+            DrawActualPosition();
+        }
+
+        private void DrawActualPosition()
+        {
+            if (DesignerUiPreferences.IsAdvanced && _plan != null)
+            {
+                float centerDelta = Vector3.Distance(_plan.RequestedCenter, _plan.ActualCenter);
+                using (new EditorGUI.DisabledScope(true))
+                {
+                    EditorGUILayout.Vector3Field(
+                        new GUIContent(
+                            "Actual Position",
+                            centerDelta > 0.0001f
+                                ? $"Position snapped by {centerDelta:0.###} world units to align with the SFS voxel grid."
+                                : "Voxel-aligned position used by the generated location."),
+                        _plan.ActualCenter);
+                }
+            }
         }
 
         private void DrawBoundedFields()
         {
-            _sizeMode = (SfsAuthoringSizeMode)EditorGUILayout.EnumPopup(
-                new GUIContent("Size Input", "World size rounds up to complete cells. Cell count is exact. Fit Selection uses selected geometry."),
-                _sizeMode);
+            _sizeMode = DrawSizeModePopup(
+                new GUIContent("Size Input", "World size rounds up to complete cells. Fit Selection uses selected geometry. Exact voxel counts are available in Advanced mode."),
+                _sizeMode,
+                BasicBoundedSizeModes,
+                BasicBoundedSizeModeNames,
+                AdvancedBoundedSizeModes,
+                AdvancedBoundedSizeModeNames);
 
             if (_sizeMode == SfsAuthoringSizeMode.WorldUnits)
                 _worldSize = EditorGUILayout.Vector3Field("Requested Size (units)", _worldSize);
             else if (_sizeMode == SfsAuthoringSizeMode.VoxelCounts)
                 _voxelCounts = EditorGUILayout.Vector3IntField("Free Voxel Cells", _voxelCounts);
             else
-                DrawSelectionBoundsStatus();
+                DrawSelectionSizeStatus();
+
+            DrawActualSize();
         }
 
         private void DrawGridFields()
@@ -311,9 +370,17 @@ namespace Genix.SpaceFoundation.Editor
 
             if (!_usePerAxisRoomSizes)
             {
-                _sizeMode = (SfsAuthoringSizeMode)EditorGUILayout.EnumPopup(
-                    new GUIContent("Room Size Input", "Uniform room size in world units or exact voxel counts."),
-                    _sizeMode == SfsAuthoringSizeMode.FitSelection ? SfsAuthoringSizeMode.WorldUnits : _sizeMode);
+                if (DesignerUiPreferences.IsAdvanced || _sizeMode == SfsAuthoringSizeMode.VoxelCounts)
+                {
+                    _sizeMode = DrawSizeModePopup(
+                        new GUIContent("Room Size Input", "Use world units or an exact free-cell count for every room."),
+                        _sizeMode == SfsAuthoringSizeMode.FitSelection ? SfsAuthoringSizeMode.WorldUnits : _sizeMode,
+                        RoomSizeModes,
+                        RoomSizeModeNames,
+                        RoomSizeModes,
+                        RoomSizeModeNames);
+                }
+
                 if (_sizeMode == SfsAuthoringSizeMode.WorldUnits)
                     _worldSize = EditorGUILayout.Vector3Field("Room Size (units)", _worldSize);
                 else
@@ -325,6 +392,8 @@ namespace Genix.SpaceFoundation.Editor
                 DrawAxisList("Y Level Cells", _yRoomCells, _gridCounts.y);
                 DrawAxisList("Z Row Cells", _zRoomCells, _gridCounts.z);
             }
+
+            DrawActualSize("Voxel-aligned total size used by the generated grid, including separator cells.");
         }
 
         private void DrawFootprintFields()
@@ -342,6 +411,7 @@ namespace Genix.SpaceFoundation.Editor
                 new GUIContent("Height (cells)", "Free vertical cells in the location."),
                 _footprintHeightCells);
 
+            DrawActualSize("Voxel-aligned bounding size of the generated footprint.");
             DrawFootprintMask();
         }
 
@@ -400,15 +470,12 @@ namespace Genix.SpaceFoundation.Editor
             }
         }
 
-        private void DrawSelectionBoundsStatus()
+        private void DrawSelectionSizeStatus()
         {
             if (TryGetSelectionBounds(out Bounds bounds))
             {
                 using (new EditorGUI.DisabledScope(true))
-                {
-                    EditorGUILayout.Vector3Field("Selection Center", bounds.center);
                     EditorGUILayout.Vector3Field("Selection Size", bounds.size);
-                }
             }
             else
             {
@@ -416,34 +483,40 @@ namespace Genix.SpaceFoundation.Editor
             }
         }
 
-        private void DrawPlanSummary()
+        private static SfsAuthoringSizeMode DrawSizeModePopup(
+            GUIContent label,
+            SfsAuthoringSizeMode current,
+            IReadOnlyList<SfsAuthoringSizeMode> basicModes,
+            string[] basicNames,
+            IReadOnlyList<SfsAuthoringSizeMode> advancedModes,
+            string[] advancedNames)
         {
-            EditorGUILayout.LabelField("Preview", EditorStyles.boldLabel);
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            bool showAdvancedModes = DesignerUiPreferences.IsAdvanced ||
+                                     current == SfsAuthoringSizeMode.VoxelCounts;
+            IReadOnlyList<SfsAuthoringSizeMode> modes = showAdvancedModes ? advancedModes : basicModes;
+            string[] names = showAdvancedModes ? advancedNames : basicNames;
+            int currentIndex = 0;
+            for (int i = 0; i < modes.Count; i++)
             {
-                if (_plan == null)
-                {
-                    EditorGUILayout.HelpBox(_planError, MessageType.Error);
-                    return;
-                }
+                if (modes[i] == current)
+                    currentIndex = i;
+            }
 
-                EditorGUILayout.LabelField("Locations", _plan.LocationCount.ToString());
-                EditorGUILayout.LabelField("Delimiters", _plan.Delimiters.Count.ToString());
-                EditorGUILayout.LabelField("Anchors", _plan.Anchors.Count.ToString());
-                EditorGUILayout.Vector3Field("Requested Center", _plan.RequestedCenter);
-                float centerDelta = Vector3.Distance(_plan.RequestedCenter, _plan.ActualCenter);
-                EditorGUILayout.Vector3Field(new GUIContent(
-                        "Actual Center",
-                        centerDelta > 0.0001f
-                            ? $"Center snapped by {centerDelta:0.###} world units to align with the SFS voxel grid."
-                            : "Voxel-aligned center used by the generated layout."),
-                    _plan.ActualCenter);
-                EditorGUILayout.Vector3Field("Requested Size", _plan.RequestedSize);
-                EditorGUILayout.Vector3Field(new GUIContent(
+            int selectedIndex = EditorGUILayout.Popup(label, currentIndex, names);
+            return modes[Mathf.Clamp(selectedIndex, 0, modes.Count - 1)];
+        }
+
+        private void DrawActualSize(string tooltip = null)
+        {
+            if (!DesignerUiPreferences.IsAdvanced || _plan == null)
+                return;
+
+            using (new EditorGUI.DisabledScope(true))
+            {
+                EditorGUILayout.Vector3Field(
+                    new GUIContent(
                         "Actual Size",
-                        _plan.InteriorVolumes.Count > PreviewVolumeLimit
-                            ? $"Scene preview is limited to {PreviewVolumeLimit} of {_plan.InteriorVolumes.Count} interior volumes; creation is not limited."
-                            : "Voxel-aligned size used by the generated layout."),
+                        tooltip ?? "Voxel-aligned size used by the generated location."),
                     _plan.ActualSize);
             }
         }
@@ -503,7 +576,7 @@ namespace Genix.SpaceFoundation.Editor
             GameObject created = SfsAuthoringSceneBuilder.CreateLayout(_plan, foundation, out string error);
             if (!created)
             {
-                EditorUtility.DisplayDialog("SFS Authoring", error, "OK");
+                EditorUtility.DisplayDialog("Genix Space Setup", error, "OK");
                 return;
             }
 
@@ -584,6 +657,13 @@ namespace Genix.SpaceFoundation.Editor
 
         private void RebuildPlan()
         {
+            if (TryGetMissingSelectionMessage(out string selectionError))
+            {
+                _plan = null;
+                _planError = selectionError;
+                return;
+            }
+
             float voxelSize = _foundation ? _foundation.voxelSize : Mathf.Max(0.001f, _newFoundationVoxelSize);
             SfsAuthoringRequest request = BuildRequest(voxelSize);
             SfsAuthoringPlanner.TryCreate(request, voxelSize, out _plan, out _planError);
@@ -635,9 +715,30 @@ namespace Genix.SpaceFoundation.Editor
         {
             if (_centerMode == SfsAuthoringCenterMode.SceneViewPivot && SceneView.lastActiveSceneView)
                 return SceneView.lastActiveSceneView.pivot;
-            if (_centerMode == SfsAuthoringCenterMode.SelectionBounds && TryGetSelectionBounds(out Bounds bounds))
+            if (_centerMode == SfsAuthoringCenterMode.SelectionCenter && TryGetSelectionBounds(out Bounds bounds))
                 return bounds.center;
             return _manualCenter;
+        }
+
+        private bool TryGetMissingSelectionMessage(out string message)
+        {
+            if (_layoutType == SfsAuthoringLayoutType.BoundedLocation &&
+                _sizeMode == SfsAuthoringSizeMode.FitSelection &&
+                !TryGetSelectionBounds(out _))
+            {
+                message = "Select an object with a Renderer or Collider to fit a location.";
+                return true;
+            }
+
+            if (_centerMode == SfsAuthoringCenterMode.SelectionCenter &&
+                !TryGetSelectionBounds(out _))
+            {
+                message = "Select an object with a Renderer or Collider to use its center.";
+                return true;
+            }
+
+            message = string.Empty;
+            return false;
         }
 
         private HashSet<Vector2Int> ResolveFootprintMask()

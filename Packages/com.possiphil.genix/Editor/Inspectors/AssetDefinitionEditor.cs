@@ -16,32 +16,9 @@ namespace Genix.Editor.Inspectors
     [CustomEditor(typeof(AssetDefinition))]
     public sealed partial class AssetDefinitionEditor : UnityEditor.Editor
     {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        private const float MinimumLabelWidth = 155f;
+        private const float MaximumLabelWidth = 200f;
+        private const float LabelWidthRatio = 0.32f;
         private static readonly GUIContent AssetNameLabel = new(
             "Asset Name",
             "Designer-facing name used in pools, diagnostics, and generated object names.");
@@ -106,6 +83,10 @@ namespace Genix.Editor.Inspectors
         private SerializedProperty _wallProximityMode;
         private SerializedProperty _wallDistance;
 
+        private static bool _showSurfaceBehavior;
+        private static bool _showSpacingAndRelationships;
+        private static bool _showBoundsAndClearance;
+
         private void OnEnable()
         {
             _prefab = serializedObject.FindProperty("prefab");
@@ -149,31 +130,36 @@ namespace Genix.Editor.Inspectors
 
         public override void OnInspectorGUI()
         {
-            serializedObject.Update();
+            float previousLabelWidth = EditorGUIUtility.labelWidth;
+            EditorGUIUtility.labelWidth = Mathf.Clamp(
+                EditorGUIUtility.currentViewWidth * LabelWidthRatio,
+                MinimumLabelWidth,
+                MaximumLabelWidth);
 
-            DrawAssetNameField();
-            DrawPrefabSection();
-
-            EditorGUILayout.Space(4f);
-
-            DrawPlacementSection();
-
-            EditorGUILayout.Space(4f);
-
-            if (DesignerUiPreferences.IsAdvanced)
+            try
             {
-                DrawSupportSurfaceSection();
+                serializedObject.Update();
+
+                DrawAssetNameField();
+                DrawPrefabSection();
 
                 EditorGUILayout.Space(4f);
 
-                DrawBoundsSection();
+                DrawPlacementSection();
 
-                EditorGUILayout.Space(6f);
+                EditorGUILayout.Space(4f);
+
+                DrawSemanticTagsSection();
+
+                if (DesignerUiPreferences.IsAdvanced)
+                    DrawAdvancedAssetSettings();
+
+                serializedObject.ApplyModifiedProperties();
             }
-
-            DrawSemanticTagsSection();
-
-            serializedObject.ApplyModifiedProperties();
+            finally
+            {
+                EditorGUIUtility.labelWidth = previousLabelWidth;
+            }
         }
 
         private void DrawAssetNameField()
@@ -210,6 +196,37 @@ namespace Genix.Editor.Inspectors
             EditorGUILayout.LabelField("Placement", EditorStyles.boldLabel);
 
             EditorGUILayout.PropertyField(_placementType, PlacementTypeLabel);
+
+            if (IsWallPlacementType())
+            {
+                DrawWallHeightSection();
+
+                EditorGUILayout.PropertyField(_randomRollRotation, new GUIContent(
+                    "Random Roll",
+                    "Try deterministic rotations around the wall normal while keeping the asset flush with the wall."));
+            }
+            else if (IsInsideSpacePlacementType())
+            {
+                EditorGUILayout.PropertyField(_randomYawRotation, RotationLabel("Yaw", "vertical axis"));
+                EditorGUILayout.PropertyField(_randomPitchRotation, RotationLabel("Pitch", "side axis"));
+                EditorGUILayout.PropertyField(_randomRollRotation, RotationLabel("Roll", "forward axis"));
+            }
+            else
+            {
+                EditorGUILayout.PropertyField(_randomYawRotation, RotationLabel("Yaw", "surface normal"));
+            }
+
+            EditorGUILayout.PropertyField(_orientationMode, OrientationModeLabel);
+
+            if (UsesSupportForward() && (IsWallPlacementType() || IsInsideSpacePlacementType()))
+            {
+                EditorGUILayout.HelpBox(
+                    IsWallPlacementType()
+                        ? "Wall assets already face the sampled wall normal. Use Random Roll to vary their rotation instead of Match Support Forward."
+                        : "Inside Space has no supporting surface. Match Support Forward therefore cannot resolve a direction.",
+                    MessageType.Warning);
+            }
+
             EditorGUILayout.PropertyField(_limitPlacements, new GUIContent(
                 "Limit Placements",
                 "Limit this asset across existing and newly planned Genix output in the target area."));
@@ -227,50 +244,61 @@ namespace Genix.Editor.Inspectors
                         _maxPlacements.intValue = Mathf.Max(1, maximum);
                 }
             }
+        }
 
-            if (DesignerUiPreferences.IsAdvanced)
+        private void DrawAdvancedAssetSettings()
+        {
+            EditorGUILayout.Space(12f);
+            EditorGUILayout.LabelField("Advanced Settings", EditorStyles.boldLabel);
+
+            if (!IsInsideSpacePlacementType())
             {
-                DrawAssetSpacingRules();
-                DrawAssetRelativePlacement();
-                DrawPathPlacement();
+                _showSurfaceBehavior = EditorGUILayout.BeginFoldoutHeaderGroup(
+                    _showSurfaceBehavior,
+                    new GUIContent(
+                        "Surface Behavior",
+                        "Control compatible support surfaces, geometric fitting, and optional wall distance."));
+                if (_showSurfaceBehavior)
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        DrawSupportSurfaceSection();
+                        DrawSurfaceFitSection();
+
+                        if (IsFloorOrCeilingPlacementType())
+                            DrawWallProximitySection();
+                    }
+                }
+                EditorGUILayout.EndFoldoutHeaderGroup();
             }
 
-            if (IsWallPlacementType())
+            _showSpacingAndRelationships = EditorGUILayout.BeginFoldoutHeaderGroup(
+                _showSpacingAndRelationships,
+                new GUIContent(
+                    "Spacing and Relationships",
+                    "Control distances from other assets and placement relative to objects or paths."));
+            if (_showSpacingAndRelationships)
             {
-                DrawWallHeightSection();
-
-                EditorGUILayout.PropertyField(_randomRollRotation, new GUIContent(
-                    "Random Roll",
-                    "Try deterministic rotations around the wall normal while keeping the asset flush with the wall."));
-                if (DesignerUiPreferences.IsAdvanced)
-                    DrawSurfaceFitSection();
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    DrawAssetSpacingRules();
+                    DrawAssetRelativePlacement();
+                    DrawPathPlacement();
+                }
             }
-            else if (IsInsideSpacePlacementType())
+            EditorGUILayout.EndFoldoutHeaderGroup();
+
+            _showBoundsAndClearance = EditorGUILayout.BeginFoldoutHeaderGroup(
+                _showBoundsAndClearance,
+                new GUIContent(
+                    "Bounds and Clearance",
+                    "Inspect placement bounds and optionally reserve additional empty space."));
+            if (_showBoundsAndClearance)
             {
-                EditorGUILayout.PropertyField(_randomYawRotation, RotationLabel("Yaw", "vertical axis"));
-                EditorGUILayout.PropertyField(_randomPitchRotation, RotationLabel("Pitch", "side axis"));
-                EditorGUILayout.PropertyField(_randomRollRotation, RotationLabel("Roll", "forward axis"));
+                using (new EditorGUI.IndentLevelScope())
+                    DrawBoundsSection();
             }
-            else
-            {
-                EditorGUILayout.PropertyField(_randomYawRotation, RotationLabel("Yaw", "surface normal"));
-                if (DesignerUiPreferences.IsAdvanced)
-                    DrawSurfaceFitSection();
-            }
-
-            EditorGUILayout.PropertyField(_orientationMode, OrientationModeLabel);
-
-            if (DesignerUiPreferences.IsAdvanced && IsFloorOrCeilingPlacementType())
-                DrawWallProximitySection();
-
-            if (UsesSupportForward() && (IsWallPlacementType() || IsInsideSpacePlacementType()))
-            {
-                EditorGUILayout.HelpBox(
-                    IsWallPlacementType()
-                        ? "Wall assets already face the sampled wall normal. Use Random Roll to vary their rotation instead of Match Support Forward."
-                        : "Inside Space has no supporting surface. Match Support Forward therefore cannot resolve a direction.",
-                    MessageType.Warning);
-            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
         }
 
         private static void DrawSectionHeader(string title, Action drawButtons)

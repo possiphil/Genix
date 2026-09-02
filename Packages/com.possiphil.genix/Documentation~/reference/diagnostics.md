@@ -1,10 +1,10 @@
 ## Diagnostics
 
 Diagnostics use progressive disclosure so the same report serves designers and developers without
-mixing their terminology. With **Advanced** disabled, the report shows the generation result,
-requested and placed objects, and the **Main Placement Issue** in designer-facing language.
-**Advanced** adds the recorded configuration and aggregate placement-search measurements.
-Reports captured with **Record Detailed Diagnostics** additionally expose individual positions,
+mixing their terminology. By default, the report shows the generation result, requested and placed
+objects, and the **Main Placement Issue** in designer-facing language. **Technical Details** adds
+the recorded configuration and aggregate placement-search measurements.
+Reports captured with **Detailed Diagnostics** additionally expose individual positions,
 asset attempts, bounds, rejection reasons, related objects, and Scene-view overlays.
 
 ### Terminology
@@ -41,5 +41,5 @@ provides separate profiling and benchmark workflows under **Tools > Genix Develo
 measurement controls are deliberately not part of the designer Generator.
 
 The Generator's **Save Report** action stores one report for the last run. Summary runs produce a
-compact report; runs recorded with **Record Detailed Diagnostics** produce a detailed report that
+compact report; runs recorded with **Detailed Diagnostics** produce a detailed report that
 already contains the summary result. The Diagnostics window lists both together, newest first.

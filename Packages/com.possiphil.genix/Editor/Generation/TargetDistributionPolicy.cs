@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Genix.Assets;
@@ -288,6 +289,77 @@ namespace Genix.Editor.Generation
         }
     }
 
+    /// <summary>Converts exact and weighted support rules into concrete placement budgets.</summary>
+    internal static class SupportDistributionAllocator
+    {
+        public static int[] Allocate(
+            int count,
+            IReadOnlyList<SupportDistributionRule> rules,
+            int defaultWeight)
+        {
+            rules ??= Array.Empty<SupportDistributionRule>();
+            int[] targets = new int[rules.Count + 1];
+            int remaining = Mathf.Max(0, count);
+
+            for (int i = 0; i < rules.Count && remaining > 0; i++)
+            {
+                SupportDistributionRule rule = rules[i];
+                if (rule?.IsConfigured != true || rule.Mode != SupportDistributionRuleMode.ExactCount)
+                    continue;
+
+                int allocated = Mathf.Min(rule.Value, remaining);
+                targets[i] = allocated;
+                remaining -= allocated;
+            }
+
+            if (remaining <= 0)
+                return targets;
+
+            List<(int Group, int Weight)> weights = new();
+            for (int i = 0; i < rules.Count; i++)
+            {
+                SupportDistributionRule rule = rules[i];
+                if (rule?.IsConfigured == true &&
+                    rule.Mode == SupportDistributionRuleMode.Weight &&
+                    rule.Value > 0)
+                {
+                    weights.Add((i, rule.Value));
+                }
+            }
+
+            if (defaultWeight > 0)
+                weights.Add((rules.Count, defaultWeight));
+
+            int totalWeight = weights.Sum(entry => entry.Weight);
+            if (totalWeight <= 0)
+            {
+                targets[rules.Count] += remaining;
+                return targets;
+            }
+
+            int assigned = 0;
+            List<(int Group, float Remainder)> remainders = new();
+            foreach ((int group, int weight) in weights)
+            {
+                float exact = remaining * weight / (float)totalWeight;
+                int whole = Mathf.FloorToInt(exact);
+                targets[group] += whole;
+                assigned += whole;
+                remainders.Add((group, exact - whole));
+            }
+
+            foreach ((int group, _) in remainders
+                         .OrderByDescending(entry => entry.Remainder)
+                         .ThenBy(entry => entry.Group)
+                         .Take(remaining - assigned))
+            {
+                targets[group]++;
+            }
+
+            return targets;
+        }
+    }
+
     /// <summary>Tracks exact and weighted accepted-placement budgets across semantic support tags.</summary>
     internal sealed class SupportDistributionState
     {
@@ -305,10 +377,12 @@ namespace Genix.Editor.Generation
             SupportDistributionSettings settings = context.SupportDistribution;
             IsActive = true;
             _rules = settings.Rules;
-            _targets = new int[_rules.Count + 1];
+            _targets = SupportDistributionAllocator.Allocate(
+                context.Count,
+                _rules,
+                settings.DefaultWeight);
             _placed = new int[_targets.Length];
             ActiveSeedFilter = MatchesActiveGroup;
-            AllocateTargets(Mathf.Max(0, context.Count), settings.DefaultWeight);
         }
 
         public static SupportDistributionState Create(GenerationContext context) =>
@@ -404,60 +478,5 @@ namespace Genix.Editor.Generation
 
         private bool MatchesActiveGroup(CandidateSeed seed) => Matches(seed, _activeGroup);
 
-        private void AllocateTargets(int count, int defaultWeight)
-        {
-            int remaining = count;
-
-            for (int i = 0; i < _rules.Count && remaining > 0; i++)
-            {
-                SupportDistributionRule rule = _rules[i];
-                if (rule.Mode != SupportDistributionRuleMode.ExactCount)
-                    continue;
-
-                int allocated = Mathf.Min(rule.Value, remaining);
-                _targets[i] = allocated;
-                remaining -= allocated;
-            }
-
-            if (remaining <= 0)
-                return;
-
-            List<(int Group, int Weight)> weights = new();
-            for (int i = 0; i < _rules.Count; i++)
-            {
-                SupportDistributionRule rule = _rules[i];
-                if (rule.Mode == SupportDistributionRuleMode.Weight && rule.Value > 0)
-                    weights.Add((i, rule.Value));
-            }
-
-            if (defaultWeight > 0)
-                weights.Add((_rules.Count, defaultWeight));
-
-            int totalWeight = weights.Sum(entry => entry.Weight);
-            if (totalWeight <= 0)
-            {
-                _targets[_rules.Count] += remaining;
-                return;
-            }
-
-            int assigned = 0;
-            List<(int Group, float Remainder)> remainders = new();
-            foreach ((int group, int weight) in weights)
-            {
-                float exact = remaining * weight / (float)totalWeight;
-                int whole = Mathf.FloorToInt(exact);
-                _targets[group] += whole;
-                assigned += whole;
-                remainders.Add((group, exact - whole));
-            }
-
-            foreach ((int group, _) in remainders
-                         .OrderByDescending(entry => entry.Remainder)
-                         .ThenBy(entry => entry.Group)
-                         .Take(remaining - assigned))
-            {
-                _targets[group]++;
-            }
-        }
     }
 }

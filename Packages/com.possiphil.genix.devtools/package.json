@@ -4,6 +4,17 @@
   "displayName": "Genix DevTools",
   "description": "Optional tests, profiling, benchmarking, and evaluation workflows for Genix development.",
   "unity": "6000.0",
+  "keywords": [
+    "testing",
+    "profiling",
+    "benchmarking",
+    "evaluation"
+  ],
+  "license": "See LICENSE.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/possiphil/Genix.git"
+  },
   "dependencies": {
     "com.possiphil.genix": "0.1.0",
     "com.unity.test-framework": "1.7.0"

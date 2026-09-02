@@ -45,9 +45,16 @@ namespace Genix.Editor.Evaluation
     [Serializable]
     public sealed class GenerationEvaluationCheckRecord
     {
+        /// <summary>Name of the evaluated assertion.</summary>
         public string name = string.Empty;
+
+        /// <summary>Outcome recorded for the assertion.</summary>
         public EvaluationCheckStatus status;
+
+        /// <summary>Number of violations found by the assertion.</summary>
         public int violations;
+
+        /// <summary>Human-readable evidence or failure context.</summary>
         public string message = string.Empty;
     }
 
@@ -55,16 +62,26 @@ namespace Genix.Editor.Evaluation
     [Serializable]
     public sealed class GenerationEvaluationCountRecord
     {
+        /// <summary>Name of the counted item or rejection reason.</summary>
         public string name = string.Empty;
+
+        /// <summary>Recorded number of occurrences.</summary>
         public int count;
     }
 
     /// <summary>Aggregated occurrence evidence for one asset or support kind across a scenario.</summary>
     public sealed class GenerationEvaluationCoverageRecord
     {
+        /// <summary>Name of the asset or support kind.</summary>
         public string name = string.Empty;
+
+        /// <summary>Number of runs in which the item occurred at least once.</summary>
         public int runsPresent;
+
+        /// <summary>Total number of runs included in the coverage calculation.</summary>
         public int totalRuns;
+
+        /// <summary>Total number of occurrences across all included runs.</summary>
         public int totalCount;
 
         /// <summary>Gets the fraction of scenario runs in which the item occurred at least once.</summary>
@@ -75,30 +92,88 @@ namespace Genix.Editor.Evaluation
     [Serializable]
     public sealed class GenerationEvaluationRunRecord
     {
+        /// <summary>Name of the evaluated scenario.</summary>
         public string scenario = string.Empty;
+
+        /// <summary>Evaluation category assigned to the scenario.</summary>
         public string scenarioKind = string.Empty;
+
+        /// <summary>Asset path of the scene used for the run.</summary>
         public string scene = string.Empty;
+
+        /// <summary>Persistent identifier of the selected area provider.</summary>
         public string areaProviderId = string.Empty;
+
+        /// <summary>Identifier of the target area within the provider.</summary>
         public string targetId = string.Empty;
+
+        /// <summary>Name of the generation preset used for the run.</summary>
         public string preset = string.Empty;
+
+        /// <summary>Deterministic random seed used for generation.</summary>
         public int seed;
+
+        /// <summary>Number of objects requested by the scenario.</summary>
         public int requestedCount;
+
+        /// <summary>Number of objects placed by the generator.</summary>
         public int placedCount;
+
+        /// <summary>Whether the generation operation completed successfully.</summary>
         public bool generationSucceeded;
+
+        /// <summary>Number of candidate poses tested during generation.</summary>
         public int testedCandidates;
+
+        /// <summary>Number of tested candidates rejected by placement constraints.</summary>
         public int rejectedCandidates;
+
+        /// <summary>Most frequent candidate rejection reason, if available.</summary>
         public string topRejection = string.Empty;
+
+        /// <summary>Reason generation stopped before or after satisfying the request.</summary>
         public string stopReason = string.Empty;
+
+        /// <summary>Minimum placement distance configured for the run, in metres.</summary>
         public float minimumPlacementDistance;
+
+        /// <summary>Names of assets eligible for selection in this run.</summary>
         public List<string> eligibleAssetNames = new();
+
+        /// <summary>Names of support kinds expected to be represented in scenario coverage.</summary>
         public List<string> expectedSupportNames = new();
+
+        /// <summary>Placed-object counts grouped by asset.</summary>
         public List<GenerationEvaluationCountRecord> assetCounts = new();
+
+        /// <summary>Placed-object counts grouped by support kind.</summary>
         public List<GenerationEvaluationCountRecord> supportCounts = new();
+
+        /// <summary>Rejected-candidate counts grouped by reason.</summary>
         public List<GenerationEvaluationCountRecord> rejectionCounts = new();
+
+        /// <summary>Last known asset path of the saved review layout.</summary>
         public string layoutAssetPath = string.Empty;
+
+        /// <summary>Unity asset GUID used to resolve the saved layout after it moves.</summary>
         public string layoutGuid = string.Empty;
+
+        /// <summary>Human rating assigned during visual review.</summary>
         public EvaluationVisualRating visualRating;
+
+        /// <summary>Reviewer notes supporting the assigned visual rating.</summary>
         public string visualNotes = string.Empty;
+
+        /// <summary>Project-relative path of the standardized review-capture manifest.</summary>
+        public string visualReviewCaptureManifestPath = string.Empty;
+
+        /// <summary>SHA-256 digest of the review-capture manifest.</summary>
+        public string visualReviewCaptureManifestSha256 = string.Empty;
+
+        /// <summary>UTC timestamp at which the review views were captured.</summary>
+        public string visualReviewCapturedAtUtc = string.Empty;
+
+        /// <summary>Automatic assertion results recorded for the run.</summary>
         public List<GenerationEvaluationCheckRecord> checks = new();
 
         /// <summary>Gets the aggregate automatic-evidence verdict without folding unavailable evidence into a pass.</summary>
@@ -237,17 +312,40 @@ namespace Genix.Editor.Evaluation
     [Serializable]
     public sealed class GenerationEvaluationCampaignResult
     {
+        /// <summary>Name of the evaluation suite.</summary>
         public string suiteName = string.Empty;
+
+        /// <summary>Project-relative asset path of the evaluation suite.</summary>
         public string suiteAssetPath = string.Empty;
+
+        /// <summary>UTC timestamp at which the campaign artifact was created.</summary>
         public string createdAtUtc = string.Empty;
+
+        /// <summary>Unity version used to execute the campaign.</summary>
         public string unityVersion = string.Empty;
+
+        /// <summary>Operating-system description reported by the execution environment.</summary>
         public string operatingSystem = string.Empty;
+
+        /// <summary>Digest of the suite and its evaluation-relevant dependencies.</summary>
         public string suiteDependencyHash = string.Empty;
+
+        /// <summary>Scope selected for the campaign, such as the complete suite or one scenario.</summary>
         public string runScope = "Unknown";
+
+        /// <summary>Selected scenario index for a scoped run, or -1 for the complete suite.</summary>
         public int selectedScenarioIndex = -1;
+
+        /// <summary>Number of runs expected when the campaign began.</summary>
         public int expectedRunCount;
+
+        /// <summary>Whether every expected generation run completed.</summary>
         public bool campaignCompleted;
+
+        /// <summary>Whether the campaign was cancelled before completion.</summary>
         public bool campaignCancelled;
+
+        /// <summary>Recorded results for completed generation runs.</summary>
         public List<GenerationEvaluationRunRecord> runs = new();
     }
 

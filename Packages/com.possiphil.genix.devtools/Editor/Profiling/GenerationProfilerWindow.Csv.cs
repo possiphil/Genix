@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Genix.Areas;
 using Genix.Extensions;
@@ -11,7 +13,7 @@ namespace Genix.Editor.Profiling
 {
     public sealed partial class GenerationProfilerWindow
     {
-        private static void CopyCsv(GenerationProfile profile)
+        private static void ExportCsv(GenerationProfile profile)
         {
             if (profile == null)
                 return;
@@ -59,10 +61,10 @@ namespace Genix.Editor.Profiling
                         .OrderByDescending(entry => entry.Value)
                         .Select(entry => new RejectionView(entry.Key.ToDisplayName(), entry.Value)))));
 
-            EditorGUIUtility.systemCopyBuffer = string.Join("\n", lines);
+            ExportCsv(lines, profile.TargetName, profile.RunId);
         }
 
-        private static void CopyCsv(GenerationProfileReport report)
+        private static void ExportCsv(GenerationProfileReport report)
         {
             if (!report)
                 return;
@@ -106,7 +108,43 @@ namespace Genix.Editor.Profiling
                         entry.Calls)),
                     target.Rejections.Select(entry => new RejectionView(entry.Reason, entry.Count)))));
 
-            EditorGUIUtility.systemCopyBuffer = string.Join("\n", lines);
+            ExportCsv(lines, report.TargetName, report.RunId);
+        }
+
+        private static void ExportCsv(IReadOnlyCollection<string> lines, string targetName, string runId)
+        {
+            string projectDirectory = Path.GetDirectoryName(Application.dataPath) ?? Application.dataPath;
+            string path = EditorUtility.SaveFilePanel(
+                "Export Profile CSV",
+                projectDirectory,
+                CreateCsvFileName(targetName, runId),
+                "csv");
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+
+            try
+            {
+                File.WriteAllText(path, string.Join("\n", lines) + "\n");
+                Debug.Log($"Exported Genix profile CSV: {path}");
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+                EditorUtility.DisplayDialog(
+                    "Export Profile CSV",
+                    $"The profile could not be exported.\n\n{exception.Message}",
+                    "OK");
+            }
+        }
+
+        private static string CreateCsvFileName(string targetName, string runId)
+        {
+            string target = string.IsNullOrWhiteSpace(targetName) ? "Unknown" : targetName;
+            foreach (char invalidCharacter in Path.GetInvalidFileNameChars())
+                target = target.Replace(invalidCharacter, '_');
+
+            target = target.Replace(' ', '_');
+            return $"GenixProfile_{target}_{ShortenRunId(runId)}";
         }
 
         private static List<string> CreateCsvLines(
@@ -251,4 +289,3 @@ namespace Genix.Editor.Profiling
         }
     }
 }
-

@@ -96,6 +96,19 @@ namespace Genix.Editor.Evaluation
 
         public static bool Start(GenerationEvaluationSuite suite, int selectedScenario = -1)
         {
+            return Start(suite, selectedScenario, promptForModifiedScenes: true);
+        }
+
+        public static bool StartAutomated(GenerationEvaluationSuite suite, int selectedScenario = -1)
+        {
+            return Start(suite, selectedScenario, promptForModifiedScenes: false);
+        }
+
+        private static bool Start(
+            GenerationEvaluationSuite suite,
+            int selectedScenario,
+            bool promptForModifiedScenes)
+        {
             if (IsRunning)
                 return false;
 
@@ -108,7 +121,9 @@ namespace Genix.Editor.Evaluation
                 return false;
             }
 
-            if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            if (promptForModifiedScenes &&
+                !Application.isBatchMode &&
+                !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
                 _status = "Evaluation cancelled before scene loading.";
                 Changed?.Invoke();

@@ -27,7 +27,7 @@
 - `Packages/com.possiphil.genix.devtools/Editor/Benchmarking` and `Editor/Evaluation` own unattended research campaigns.
 - `Editor/Common/EditorCampaignSession` owns temporary editor-global state for both campaign types. `EditorCampaignAreaContext` prepares and resolves target areas once per loaded scene. Runners therefore share scene restoration, profiling isolation, assembly-reload locking, interruption detection, and target lifecycle semantics.
 - `Packages/com.possiphil.genix.devtools/Tests` contains the Unity test assemblies and dashboard.
-- `Packages/com.possiphil.genix.devtools/Evaluation` contains thesis scenes and assets rather than production designer content.
+- Project-specific benchmark and evaluation scenes belong to the host project. DevTools contains only the reusable campaign tooling and small generic test fixtures.
 
 ## Internal module boundaries
 

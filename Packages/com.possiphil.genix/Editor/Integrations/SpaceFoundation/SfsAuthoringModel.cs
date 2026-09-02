@@ -23,7 +23,7 @@ namespace Genix.SpaceFoundation.Editor
     {
         Manual,
         SceneViewPivot,
-        SelectionBounds
+        SelectionCenter
     }
 
     internal enum SfsFootprintTemplate

@@ -4,6 +4,17 @@
   "displayName": "Genix",
   "description": "Designer-focused procedural generation tools for Unity.",
   "unity": "6000.0",
+  "keywords": [
+    "procedural-generation",
+    "placement",
+    "design-tools",
+    "spatial"
+  ],
+  "license": "See LICENSE.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/possiphil/Genix.git"
+  },
   "author": {
     "name": "possiphil"
   }

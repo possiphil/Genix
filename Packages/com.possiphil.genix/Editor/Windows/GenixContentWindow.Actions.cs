@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Genix.Assets;
 using Genix.Editor.Assets;
-using Genix.Editor.Utilities;
 using Genix.Extensions;
 using Genix.Layouts;
 using Genix.Orientation;
@@ -23,14 +22,13 @@ namespace Genix.Editor.Windows
                 if (!this)
                     return;
 
-                CreateCategoryDialog.Open((displayName, allowMultipleTags, usage) =>
-                {
-                    TagCategory category = AssetCatalogService.CreateCategory(displayName, allowMultipleTags, usage);
-                    AssetCatalogService.Refresh();
+                TagCategory category = AssetCatalogService.CreateCategory(
+                    "New Category",
+                    allowMultipleTags: true,
+                    TagCategoryUsage.Asset);
+                AssetCatalogService.Refresh();
 
-                    SelectObject(category);
-                    Repaint();
-                });
+                SelectCreatedObject(category);
             };
         }
 
@@ -40,17 +38,13 @@ namespace Genix.Editor.Windows
 
             EditorApplication.delayCall += () =>
             {
-                if (!this)
+                if (!this || !defaultCategory)
                     return;
 
-                CreateTagDialog.Open(defaultCategory, (displayName, category) =>
-                {
-                    SemanticTag tag = AssetCatalogService.CreateTag(displayName, category);
-                    AssetCatalogService.Refresh();
+                SemanticTag tag = AssetCatalogService.CreateTag("New Tag", defaultCategory);
+                AssetCatalogService.Refresh();
 
-                    SelectObject(tag);
-                    Repaint();
-                });
+                SelectCreatedObject(tag);
             };
         }
 
@@ -61,19 +55,21 @@ namespace Genix.Editor.Windows
                 if (!this)
                     return;
 
-                CreateAssetPoolDialog.Open(mode, (displayName, poolMode) =>
-                {
-                    AssetPool pool = AssetCatalogService.CreateAssetPool(displayName, poolMode);
-                    AssetCatalogService.Refresh();
+                AssetPool pool = AssetCatalogService.CreateAssetPool("New Asset Pool", mode);
+                AssetCatalogService.Refresh();
 
-                    SelectObject(pool);
-
-                    if (pool.IsStatic)
-                        _targetStaticPool = pool;
-
-                    Repaint();
-                });
+                SelectCreatedObject(pool);
             };
+        }
+
+        private void SelectCreatedObject(Object createdObject)
+        {
+            if (!createdObject)
+                return;
+
+            SelectObject(createdObject);
+            _focusCreatedObjectName = true;
+            Repaint();
         }
 
         private void DeleteSelectedAsset()
@@ -140,95 +136,8 @@ namespace Genix.Editor.Windows
             if (!confirmed)
                 return;
 
-            if (_targetStaticPool == pool)
-                _targetStaticPool = null;
-
             ClearSelection();
             AssetCatalogService.DeleteAssetPool(pool);
-        }
-
-        private void AddSelectedAssetToTargetPool()
-        {
-            if (!_targetStaticPool)
-            {
-                ShowStaticPoolMessage("No target static pool selected.", MessageType.Warning);
-                return;
-            }
-
-            if (!_selectedAsset)
-            {
-                ShowStaticPoolMessage("No asset selected.", MessageType.Warning);
-                return;
-            }
-
-            if (_targetStaticPool.StaticAssets.Contains(_selectedAsset))
-            {
-                ShowStaticPoolMessage(
-                    $"'{_selectedAsset.AssetName}' is already in '{_targetStaticPool.name}'.",
-                    MessageType.Warning);
-
-                return;
-            }
-
-            _targetStaticPool.AddStaticAsset(_selectedAsset);
-            EditorUtility.SetDirty(_targetStaticPool);
-            AssetDatabase.SaveAssets();
-
-            ShowStaticPoolMessage(
-                $"Added '{_selectedAsset.AssetName}' to '{_targetStaticPool.name}'.",
-                MessageType.Info);
-        }
-
-        private void AddFilteredAssetsToTargetPool(IReadOnlyList<AssetDefinition> filteredAssets)
-        {
-            if (!_targetStaticPool)
-            {
-                ShowStaticPoolMessage("No target static pool selected.", MessageType.Warning);
-                return;
-            }
-
-            List<AssetDefinition> candidates = filteredAssets
-                .Where(asset => asset)
-                .Distinct()
-                .ToList();
-
-            if (candidates.Count == 0)
-            {
-                ShowStaticPoolMessage("No filtered assets to add.", MessageType.Warning);
-                return;
-            }
-
-            List<AssetDefinition> newAssets = candidates
-                .Where(asset => !_targetStaticPool.StaticAssets.Contains(asset))
-                .ToList();
-
-            int duplicateCount = candidates.Count - newAssets.Count;
-
-            if (newAssets.Count == 0)
-            {
-                ShowStaticPoolMessage(
-                    $"All {candidates.Count} filtered assets are already in '{_targetStaticPool.name}'.",
-                    MessageType.Warning);
-
-                return;
-            }
-
-            _targetStaticPool.AddStaticAssets(newAssets);
-            EditorUtility.SetDirty(_targetStaticPool);
-            AssetDatabase.SaveAssets();
-
-            if (duplicateCount > 0)
-            {
-                ShowStaticPoolMessage(
-                    $"Added {newAssets.Count} assets to '{_targetStaticPool.name}'. {duplicateCount} were already included.",
-                    MessageType.Warning);
-
-                return;
-            }
-
-            ShowStaticPoolMessage(
-                $"Added {newAssets.Count} assets to '{_targetStaticPool.name}'.",
-                MessageType.Info);
         }
 
         private TagCategory GetTargetCategoryForNewTag()
@@ -239,8 +148,7 @@ namespace Genix.Editor.Windows
             if (_selectedSemanticTag && _selectedSemanticTag.Category)
                 return _selectedSemanticTag.Category;
 
-            AssetCatalog catalog = AssetCatalogService.GetOrCreate();
-            return catalog.Categories.FirstOrDefault(category => category);
+            return null;
         }
 
         private void SetCategoryFilter(
@@ -519,7 +427,6 @@ namespace Genix.Editor.Windows
                 return;
 
             _selectedPool = null;
-            _targetStaticPool = null;
             DestroySelectedObjectEditor();
 
             AssetCatalogService.ClearAssetPools();
@@ -542,7 +449,6 @@ namespace Genix.Editor.Windows
             _selectedSemanticTag = null;
             _selectedPool = null;
             _selectedLayout = null;
-            _targetStaticPool = null;
 
             DestroySelectedObjectEditor();
 

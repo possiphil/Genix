@@ -3,19 +3,19 @@
     {
       "src": [
         {
-          "src": "../../../../space-foundation-system/Temp/Bin/Debug/Genix.Runtime",
+          "src": ".artifacts/Genix.Runtime",
           "files": ["Genix.Runtime.dll"]
         },
         {
-          "src": "../../../../space-foundation-system/Temp/Bin/Debug/Genix.Editor.Common",
+          "src": ".artifacts/Genix.Editor.Common",
           "files": ["Genix.Editor.Common.dll"]
         },
         {
-          "src": "../../../../space-foundation-system/Temp/Bin/Debug/Genix.SpaceFoundation.Editor",
+          "src": ".artifacts/Genix.SpaceFoundation.Editor",
           "files": ["Genix.SpaceFoundation.Editor.dll"]
         },
         {
-          "src": "../../../../space-foundation-system/Temp/Bin/Debug/Genix.Editor",
+          "src": ".artifacts/Genix.Editor",
           "files": ["Genix.Editor.dll"]
         }
       ],

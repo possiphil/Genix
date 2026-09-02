@@ -47,6 +47,7 @@ namespace Genix.Editor.Benchmarking
         private GenerationBenchmarkSuite[] _benchmarkSuites = Array.Empty<GenerationBenchmarkSuite>();
         private string[] _benchmarkSuiteOptions = Array.Empty<string>();
 
+        /// <summary>Opens the Genix Benchmarks window.</summary>
         [MenuItem("Tools/Genix Developer/Benchmarks", false, 20)]
         public static void Open()
         {

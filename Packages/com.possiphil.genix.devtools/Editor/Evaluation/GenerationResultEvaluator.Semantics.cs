@@ -62,7 +62,7 @@ namespace Genix.Editor.Evaluation
 
         private static GenerationEvaluationCheckRecord EvaluateSpatialSource(IAreaSource areaSource)
         {
-            if (areaSource is not IAreaSourceEvaluationStatus status)
+            if (areaSource is not IAreaSourceIntegrityStatus status)
                 return Unavailable("Spatial Source Integrity", "The selected area provider does not expose source integrity.");
 
             return Record(
@@ -145,4 +145,3 @@ namespace Genix.Editor.Evaluation
         }
     }
 }
-

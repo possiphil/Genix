@@ -22,7 +22,7 @@ namespace Genix.Editor.Common
         /// <summary>Draws a tag field and reports normalized selections through the supplied callback.</summary>
         public static void Draw(string label, TagCategory category, IEnumerable<SemanticTag> availableTags, IEnumerable<SemanticTag> selectedTags, Action<IReadOnlyList<SemanticTag>> onChanged,
             bool forceMultiSelect = false, bool anySelected = false, Action<IReadOnlyList<SemanticTag>, SpecialSelection> onChangedWithSpecialSelection = null,
-            bool showNoneOption = true, bool showAnyOption = true)
+            bool showNoneOption = true, bool showAnyOption = true, string tooltip = null)
         {
             if (!category)
                 return;
@@ -37,7 +37,7 @@ namespace Genix.Editor.Common
                 selection = selection.Take(1).ToList();
 
             Rect rowRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
-            Rect fieldRect = EditorGUI.PrefixLabel(rowRect, new GUIContent(label));
+            Rect fieldRect = EditorGUI.PrefixLabel(rowRect, new GUIContent(label, tooltip));
 
             bool hasSelectableOptions = tags.Count > 0 || showNoneOption || showAnyOption;
 

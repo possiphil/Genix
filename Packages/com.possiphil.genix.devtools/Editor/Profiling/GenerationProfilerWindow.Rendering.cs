@@ -11,6 +11,11 @@ namespace Genix.Editor.Profiling
 {
     public sealed partial class GenerationProfilerWindow
     {
+        private const float ProfileSectionSpacing = 4f;
+        private const float ProfileNestedSectionSpacing = 2f;
+
+        private static readonly HashSet<string> CollapsedProfileSections = new();
+
         private static void DrawRunSummary(GenerationProfile profile)
         {
             DrawRunSummary(
@@ -62,23 +67,32 @@ namespace Genix.Editor.Profiling
             string candidateSource,
             string stopReason)
         {
-            EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField("Run", EditorStyles.boldLabel);
-            DrawStat("Created", createdAt);
-            DrawStat("Run ID", ShortenRunId(runId));
-            DrawStat("Target", targetName);
-            DrawStat("Run Type", runType);
-            DrawStat("Targets", placementTargets);
-            DrawStat("Distribution", distributionMode);
-            DrawStat("Style", styleName);
-            DrawStat("Sampling", samplingAlgorithm);
-            DrawStat("Requested", requestedObjectCount.ToString());
-            DrawStat("Placed/Planned", placedObjectCount.ToString());
-            DrawStat("Seed", randomSeed.ToString());
-            DrawStat("Candidate Source", candidateSource);
+            EditorGUILayout.Space(ProfileSectionSpacing);
+            if (!DrawProfileFoldout("Run", "Run"))
+                return;
 
-            if (!string.IsNullOrWhiteSpace(stopReason))
-                EditorGUILayout.HelpBox(stopReason, MessageType.Warning);
+            using (new EditorGUI.IndentLevelScope())
+            {
+                DrawStat("Recorded", createdAt);
+                DrawStat("Run ID", ShortenRunId(runId));
+                DrawStat("Target Area", targetName);
+                DrawStat("Run Type", runType);
+                DrawStat("Placement Targets", placementTargets);
+                DrawStat("Target Distribution", distributionMode);
+                DrawStat("Generation Style", styleName);
+                DrawStat("Sampling Algorithm", samplingAlgorithm);
+                DrawStat("Requested Objects", requestedObjectCount.ToString());
+                DrawStat(
+                    IsPreviewRun(runType)
+                        ? "Planned Objects"
+                        : "Placed Objects",
+                    placedObjectCount.ToString());
+                DrawStat("Seed", randomSeed.ToString());
+                DrawStat("Candidate Source", candidateSource);
+
+                if (!string.IsNullOrWhiteSpace(stopReason))
+                    EditorGUILayout.HelpBox(stopReason, MessageType.Warning);
+            }
         }
 
         private static void DrawPhaseSummary(GenerationProfile profile)
@@ -115,20 +129,25 @@ namespace Genix.Editor.Profiling
 
         private static void DrawPhaseSummary(System.Func<GenerationProfilePhase, float> getPhaseTime, ProfileRuntimeView runtime)
         {
-            EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField("Pipeline", EditorStyles.boldLabel);
-            DrawPhase(getPhaseTime, GenerationProfilePhase.Total, "Total");
-            DrawPhase(getPhaseTime, GenerationProfilePhase.AssetFilter, "Asset Filter");
-            DrawPhase(getPhaseTime, GenerationProfilePhase.AreaBuild, "Area Build");
-            DrawPhase(getPhaseTime, GenerationProfilePhase.CandidateGeneration, "Candidate Generation");
-            DrawPhase(getPhaseTime, GenerationProfilePhase.Planning, "Planning Solver");
-            DrawPlanningUnattributed(runtime);
-            DrawPhase(getPhaseTime, GenerationProfilePhase.Apply, "Apply");
-            DrawPhase(getPhaseTime, GenerationProfilePhase.ContextSetup, "Context Setup");
-            DrawPhase(getPhaseTime, GenerationProfilePhase.PreviewPlanCopy, "Preview Plan Handoff");
-            DrawPhase(getPhaseTime, GenerationProfilePhase.PreviewDiagnosticsHandoff, "Preview Diagnostics Handoff");
-            DrawPhase(getPhaseTime, GenerationProfilePhase.PreviewCleanup, "Preview Cleanup");
-            DrawPhase(getPhaseTime, GenerationProfilePhase.PreviewLog, "Preview Log");
+            EditorGUILayout.Space(ProfileSectionSpacing);
+            if (!DrawProfileFoldout("PhaseBreakdown", "Phase Breakdown"))
+                return;
+
+            using (new EditorGUI.IndentLevelScope())
+            {
+                DrawPhase(getPhaseTime, GenerationProfilePhase.Total, "Total");
+                DrawPhase(getPhaseTime, GenerationProfilePhase.AssetFilter, "Asset Filtering");
+                DrawPhase(getPhaseTime, GenerationProfilePhase.AreaBuild, "Area Build");
+                DrawPhase(getPhaseTime, GenerationProfilePhase.CandidateGeneration, "Candidate Generation");
+                DrawPhase(getPhaseTime, GenerationProfilePhase.Planning, "Planning");
+                DrawPlanningUnattributed(runtime);
+                DrawPhase(getPhaseTime, GenerationProfilePhase.Apply, "Scene Application");
+                DrawPhase(getPhaseTime, GenerationProfilePhase.ContextSetup, "Context Setup");
+                DrawPhase(getPhaseTime, GenerationProfilePhase.PreviewPlanCopy, "Preview Plan Storage");
+                DrawPhase(getPhaseTime, GenerationProfilePhase.PreviewDiagnosticsHandoff, "Preview Diagnostics");
+                DrawPhase(getPhaseTime, GenerationProfilePhase.PreviewCleanup, "Preview Cleanup");
+                DrawPhase(getPhaseTime, GenerationProfilePhase.PreviewLog, "Preview Log");
+            }
         }
 
         private static void DrawPhase(System.Func<GenerationProfilePhase, float> getPhaseTime, GenerationProfilePhase phase, string label)
@@ -146,7 +165,7 @@ namespace Genix.Editor.Profiling
             if (runtime.PlanningUnattributedMilliseconds <= 0f)
                 return;
 
-            DrawStat("Planning Unattributed", FormatMilliseconds(runtime.PlanningUnattributedMilliseconds));
+            DrawStat("Other Planning", FormatMilliseconds(runtime.PlanningUnattributedMilliseconds));
         }
 
         private static void DrawRuntimeSummary(ProfileRuntimeView runtime)
@@ -154,8 +173,9 @@ namespace Genix.Editor.Profiling
             if (!runtime.HasManagedRuntimeStats)
                 return;
 
-            EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Managed Runtime", EditorStyles.boldLabel);
+            EditorGUILayout.Space(ProfileSectionSpacing);
+            if (!DrawProfileFoldout("ManagedMemory", "Managed Memory"))
+                return;
 
             using (new EditorGUI.IndentLevelScope())
             {
@@ -178,8 +198,9 @@ namespace Genix.Editor.Profiling
             if (entries.Count == 0)
                 return;
 
-            EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Planning Breakdown", EditorStyles.boldLabel);
+            EditorGUILayout.Space(ProfileSectionSpacing);
+            if (!DrawProfileFoldout("PlanningSteps", "Planning Steps"))
+                return;
 
             using (new EditorGUI.IndentLevelScope())
             {
@@ -201,8 +222,9 @@ namespace Genix.Editor.Profiling
             if (entries.Count == 0)
                 return;
 
-            EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Area Build Breakdown", EditorStyles.boldLabel);
+            EditorGUILayout.Space(ProfileSectionSpacing);
+            if (!DrawProfileFoldout("AreaBuildSteps", "Area Build Steps"))
+                return;
 
             using (new EditorGUI.IndentLevelScope())
             {
@@ -216,12 +238,13 @@ namespace Genix.Editor.Profiling
 
         private static void DrawTargetProfiles(GenerationProfile profile)
         {
-            EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField("Targets", EditorStyles.boldLabel);
+            EditorGUILayout.Space(ProfileSectionSpacing);
+            if (!DrawProfileFoldout("PlacementTargets", "Placement Targets"))
+                return;
 
             if (profile.Targets.Count == 0)
             {
-                EditorGUILayout.LabelField("No target-level profile data captured.");
+                EditorGUILayout.LabelField("No placement-target profile data was recorded.");
                 return;
             }
 
@@ -231,12 +254,13 @@ namespace Genix.Editor.Profiling
 
         private static void DrawTargetProfiles(GenerationProfileReport report)
         {
-            EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField("Targets", EditorStyles.boldLabel);
+            EditorGUILayout.Space(ProfileSectionSpacing);
+            if (!DrawProfileFoldout("PlacementTargets", "Placement Targets"))
+                return;
 
             if (report.Targets.Count == 0)
             {
-                EditorGUILayout.LabelField("No target-level profile data captured.");
+                EditorGUILayout.LabelField("No placement-target profile data was recorded.");
                 return;
             }
 
@@ -320,34 +344,41 @@ namespace Genix.Editor.Profiling
             IEnumerable<ValidationStepView> validationSteps,
             IEnumerable<RejectionView> rejections)
         {
-            EditorGUILayout.Space(4f);
+            EditorGUILayout.Space(ProfileNestedSectionSpacing);
 
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            using (new EditorGUI.IndentLevelScope())
             {
-                EditorGUILayout.LabelField(placementType, EditorStyles.boldLabel);
-                DrawStat("Seed Generation", FormatMilliseconds(seedGenerationMilliseconds));
-                DrawStat("Sampling", FormatMilliseconds(samplingMilliseconds));
-                DrawStat("Projection", FormatMilliseconds(projectionMilliseconds));
-                DrawStat("Raycast", $"{FormatMilliseconds(raycastMilliseconds)} ({raycastCalls} calls, {raycastHits} hits)");
-                DrawStat("Validation", FormatMilliseconds(validationMilliseconds));
-                DrawValidationSteps(validationSteps);
-                DrawStat("Raw Samples", rawSamples.ToString());
-                DrawStat("Candidate Seeds", candidateSeeds.ToString());
-                DrawStat("Tested Seeds", testedSeeds.ToString());
-                DrawStat("Projection Hits", FormatRatio(projectionHits, projectionAttempts));
-                DrawStat("Accepted Ratio", FormatRatio(acceptedAttempts, assetAttempts));
-                DrawStat("Avg Projection", FormatAverageMilliseconds(projectionMilliseconds, projectionAttempts));
-                DrawStat("Avg Raycast", FormatAverageMilliseconds(raycastMilliseconds, raycastCalls));
-                DrawStat("Avg Validation", FormatAverageMilliseconds(validationMilliseconds, assetAttempts));
-                DrawStat("Asset Attempts", assetAttempts.ToString());
-                DrawStat("Accepted Attempts", acceptedAttempts.ToString());
-                DrawStat("Rejected Attempts", rejectedAttempts.ToString());
+                if (!DrawProfileFoldout($"Target.{placementType}", placementType))
+                    return;
 
-                DrawRejectionCounts(rejections);
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    DrawStat("Seed Generation", FormatMilliseconds(seedGenerationMilliseconds));
+                    DrawStat("Sampling", FormatMilliseconds(samplingMilliseconds));
+                    DrawStat("Projection", FormatMilliseconds(projectionMilliseconds));
+                    DrawStat("Raycast", $"{FormatMilliseconds(raycastMilliseconds)} ({raycastCalls} calls, {raycastHits} hits)");
+                    DrawStat("Validation", FormatMilliseconds(validationMilliseconds));
+                    DrawValidationSteps(placementType, validationSteps);
+                    DrawStat("Raw Samples", rawSamples.ToString());
+                    DrawStat("Candidate Seeds", candidateSeeds.ToString());
+                    DrawStat("Tested Seeds", testedSeeds.ToString());
+                    DrawStat("Projection Hits", FormatRatio(projectionHits, projectionAttempts));
+                    DrawStat("Acceptance Rate", FormatRatio(acceptedAttempts, assetAttempts));
+                    DrawStat("Average Projection", FormatAverageMilliseconds(projectionMilliseconds, projectionAttempts));
+                    DrawStat("Average Raycast", FormatAverageMilliseconds(raycastMilliseconds, raycastCalls));
+                    DrawStat("Average Validation", FormatAverageMilliseconds(validationMilliseconds, assetAttempts));
+                    DrawStat("Asset Attempts", assetAttempts.ToString());
+                    DrawStat("Accepted Attempts", acceptedAttempts.ToString());
+                    DrawStat("Rejected Attempts", rejectedAttempts.ToString());
+
+                    DrawRejectionCounts(placementType, rejections);
+                }
             }
         }
 
-        private static void DrawValidationSteps(IEnumerable<ValidationStepView> validationSteps)
+        private static void DrawValidationSteps(
+            string placementType,
+            IEnumerable<ValidationStepView> validationSteps)
         {
             List<ValidationStepView> entries = (validationSteps ?? Enumerable.Empty<ValidationStepView>())
                 .Where(entry => entry.Calls > 0 || entry.Milliseconds > 0f)
@@ -357,8 +388,9 @@ namespace Genix.Editor.Profiling
             if (entries.Count == 0)
                 return;
 
-            EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Validation Breakdown", EditorStyles.boldLabel);
+            EditorGUILayout.Space(ProfileNestedSectionSpacing);
+            if (!DrawProfileFoldout($"Target.{placementType}.ValidationSteps", "Validation Steps"))
+                return;
 
             using (new EditorGUI.IndentLevelScope())
             {
@@ -370,7 +402,9 @@ namespace Genix.Editor.Profiling
             }
         }
 
-        private static void DrawRejectionCounts(IEnumerable<RejectionView> rejections)
+        private static void DrawRejectionCounts(
+            string placementType,
+            IEnumerable<RejectionView> rejections)
         {
             List<RejectionView> entries = (rejections ?? Enumerable.Empty<RejectionView>())
                 .Where(entry => entry.Count > 0)
@@ -379,8 +413,9 @@ namespace Genix.Editor.Profiling
             if (entries.Count == 0)
                 return;
 
-            EditorGUILayout.Space(2f);
-            EditorGUILayout.LabelField("Rejections", EditorStyles.boldLabel);
+            EditorGUILayout.Space(ProfileNestedSectionSpacing);
+            if (!DrawProfileFoldout($"Target.{placementType}.Rejections", "Rejections"))
+                return;
 
             using (new EditorGUI.IndentLevelScope())
             {
@@ -389,10 +424,34 @@ namespace Genix.Editor.Profiling
             }
         }
 
+        private static bool DrawProfileFoldout(string key, string label)
+        {
+            bool expanded = !CollapsedProfileSections.Contains(key);
+            Rect row = EditorGUILayout.GetControlRect(
+                false,
+                EditorGUIUtility.singleLineHeight,
+                GUILayout.ExpandWidth(true));
+            row = EditorGUI.IndentedRect(row);
+
+            bool nextExpanded = GUI.Toggle(
+                row,
+                expanded,
+                new GUIContent(label),
+                EditorStyles.foldoutHeader);
+
+            if (nextExpanded)
+                CollapsedProfileSections.Remove(key);
+            else
+                CollapsedProfileSections.Add(key);
+
+            return nextExpanded;
+        }
+
         private static void DrawStat(string label, string value)
         {
-            EditorGUILayout.LabelField(label, value);
+            EditorGUILayout.LabelField(
+                new GUIContent(label, label),
+                new GUIContent(value, value));
         }
     }
 }
-

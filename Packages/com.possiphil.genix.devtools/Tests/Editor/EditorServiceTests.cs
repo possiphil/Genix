@@ -4,6 +4,7 @@ using Genix.Editor.Generation;
 using Genix.Editor.Assets;
 using Genix.Editor.Infrastructure;
 using Genix.Editor.State;
+using Genix.Editor.Utilities;
 using Genix.Editor.Validation;
 using Genix.Geometry;
 using Genix.Placement;
@@ -71,6 +72,22 @@ namespace Genix.Tests
 
             Assert.That(result, Does.Contain("Floor 5/7"));
             Assert.That(result, Does.Contain("Wall 0/3"));
+        }
+
+        [TestCase(5, 50f, 3)]
+        [TestCase(5, 30f, 2)]
+        [TestCase(5, 29.9f, 1)]
+        [TestCase(5, -10f, 0)]
+        [TestCase(5, 110f, 5)]
+        [TestCase(0, 50f, 0)]
+        public void PercentageCountsUseDesignerFriendlyHalfUpRounding(
+            int totalCount,
+            float percentage,
+            int expectedCount)
+        {
+            Assert.That(
+                EditorGui.RoundPercentageToCount(totalCount, percentage),
+                Is.EqualTo(expectedCount));
         }
 
         [Test]

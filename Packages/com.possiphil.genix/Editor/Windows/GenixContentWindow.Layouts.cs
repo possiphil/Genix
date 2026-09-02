@@ -81,24 +81,6 @@ namespace Genix.Editor.Windows
             DrawSectionHeader($"Layouts ({layouts.Count})", () =>
             {
                 DrawLayoutSortDropdown();
-
-                using (new EditorGUI.DisabledScope(layouts.All(layout => layout == null || layout.Locked)))
-                {
-                    if (DesignerUiPreferences.IsAdvanced && GUILayout.Button(
-                            new GUIContent(
-                                "Delete Filtered…",
-                                "Delete every unlocked layout matching the current filters. Locked layouts are kept."),
-                            GUILayout.Width(104f)))
-                    {
-                        DeleteMatchingLayouts(layouts);
-                    }
-                }
-
-                using (new EditorGUI.DisabledScope(!_selectedLayout || _selectedLayout.Locked))
-                {
-                    if (GUILayout.Button("Delete…", GUILayout.Width(64f)))
-                        DeleteSelectedLayout();
-                }
             });
 
             if (pageCount > 1)
@@ -176,7 +158,8 @@ namespace Genix.Editor.Windows
                 Rect infoRect = new(rowRect.x, rowRect.y + 18f, rowRect.width, 18f);
 
                 EditorGUI.LabelField(titleRect, layout.DisplayName, EditorStyles.boldLabel);
-                EditorGUI.LabelField(infoRect, GetLayoutListInfo(layout));
+                string info = GetLayoutListInfo(layout);
+                EditorGUI.LabelField(infoRect, new GUIContent(info, info));
             }
 
             EditorGUILayout.Space(2f);
@@ -187,49 +170,81 @@ namespace Genix.Editor.Windows
             if (!layout)
                 return;
 
-            EditorGUILayout.LabelField("Saved Layout", EditorStyles.boldLabel);
+            DrawSectionHeader("Layout Summary", () => DrawDeleteLayoutButton(layout));
 
-            using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                DrawLayoutThumbnail(layout);
-
-                using (new EditorGUILayout.VerticalScope())
+                using (new EditorGUILayout.HorizontalScope())
                 {
-                    DrawLayoutPreviewStat("Scene", GetLayoutSceneLabel(layout));
-                    DrawLayoutPreviewStat("Target Area", GetLayoutTargetLabel(layout));
-                    DrawLayoutPreviewStat("Objects", layout.ObjectCount.ToString());
-                    DrawLayoutPreviewStat("Targets", GetLayoutPlacementTargetLabel(layout));
-                    DrawLayoutPreviewStat("Style", string.IsNullOrWhiteSpace(layout.StyleName) ? "No Style" : layout.StyleName);
-                    DrawLayoutPreviewStat("Bounds", FormatVector(layout.Bounds.size));
+                    DrawLayoutThumbnail(layout);
+
+                    using (new EditorGUILayout.VerticalScope())
+                    {
+                        DrawLayoutPreviewStat("Target Area", GetLayoutTargetLabel(layout));
+                        DrawLayoutPreviewStat("Objects", layout.ObjectCount.ToString());
+                        DrawLayoutPreviewStat("Placement", GetLayoutPlacementTargetLabel(layout));
+                        DrawLayoutPreviewStat("Style", string.IsNullOrWhiteSpace(layout.StyleName) ? "No Style" : layout.StyleName);
+                    }
                 }
+
+                EditorGUILayout.Space(3f);
+                DrawLayoutAssets(layout);
             }
 
-            string assetSummary = GetLayoutAssetSummary(layout);
+            EditorGUILayout.Space(6f);
 
-            if (!string.IsNullOrWhiteSpace(assetSummary))
-                EditorGUILayout.LabelField(assetSummary, EditorStyles.miniLabel);
+            DrawLayoutMetadata(layout);
 
-            EditorGUILayout.Space(4f);
+            EditorGUILayout.Space(6f);
 
-            if (_layoutScopeFilter == LayoutScopeFilter.CurrentTargetArea)
-            {
-                IAreaSource areaSource = CreateLayoutAreaSource();
-                DrawLayoutPreviewStat(
-                    "Apply Target",
-                    areaSource?.SourceInfo.SourceName ?? "No Target Area");
-            }
-            else
-            {
+            if (_layoutScopeFilter != LayoutScopeFilter.CurrentTargetArea)
                 DrawLayoutApplyTargetSelector();
-            }
 
             DrawLayoutActionButtons(layout);
+        }
+
+        private void DrawLayoutMetadata(SavedLayout layout)
+        {
+            EditorGUILayout.LabelField("Organization", EditorStyles.boldLabel);
+
+            string displayName = EditorGUILayout.DelayedTextField(
+                new GUIContent("Layout Name", "Name shown in the layout browser."),
+                layout.DisplayName);
+            string notes = EditorGUILayout.DelayedTextField(
+                new GUIContent("Notes", "Optional searchable notes about this layout."),
+                layout.Notes);
+            bool favorite = EditorGUILayout.Toggle(
+                new GUIContent("Favorite", "Keep this layout ahead of other layouts when sorting by newest."),
+                layout.Favorite);
+            bool locked = EditorGUILayout.Toggle(
+                new GUIContent("Protect Layout", "Prevent this layout from being removed by layout cleanup actions."),
+                layout.Locked);
+
+            if (displayName == layout.DisplayName &&
+                notes == layout.Notes &&
+                favorite == layout.Favorite &&
+                locked == layout.Locked)
+            {
+                return;
+            }
+
+            Undo.RecordObject(layout, "Edit Saved Layout");
+            layout.SetDesignerMetadata(displayName, notes, favorite, locked);
+            EditorUtility.SetDirty(layout);
+            LayoutWorkflow.RefreshLayoutMetadata(layout);
         }
 
         private void DrawLayoutActionButtons(SavedLayout layout)
         {
             IAreaSource areaSource = CreateLayoutAreaSource();
             bool canApply = areaSource != null && LayoutWorkflow.MatchesArea(layout, areaSource);
+
+            EditorGUILayout.Space(4f);
+
+            GUIStyle primaryButton = new(GUI.skin.button)
+            {
+                fixedHeight = 28f
+            };
 
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -239,28 +254,41 @@ namespace Genix.Editor.Windows
                     new GUIContent(
                         isPreviewing ? "Hide Preview" : "Preview Layout",
                         "Show or hide this saved layout as a non-persistent Scene view preview."),
-                    GUI.skin.button);
+                    primaryButton,
+                    GUILayout.ExpandWidth(true));
                 if (shouldPreview != isPreviewing)
                     ToggleContentLayoutPreview(layout, shouldPreview);
-            }
 
-            using (new EditorGUILayout.HorizontalScope())
-            {
+                GUILayout.Space(4f);
+
                 using (new EditorGUI.DisabledScope(!canApply))
                 {
-                    if (GUILayout.Button("Apply Layout"))
+                    if (GUILayout.Button(
+                            new GUIContent(
+                                "Apply Layout",
+                                "Replace the generated objects in the selected target area with this layout."),
+                            primaryButton,
+                            GUILayout.ExpandWidth(true)))
                         ApplyContentLayout(layout, areaSource);
-                }
-
-                using (new EditorGUI.DisabledScope(layout.Locked))
-                {
-                    if (GUILayout.Button(layout.Locked ? "Locked" : "Delete Layout…"))
-                        DeleteSelectedLayout();
                 }
             }
 
             if (areaSource != null && !canApply)
                 EditorGUILayout.HelpBox("This layout belongs to a different scene or target area than the selected apply target.", MessageType.Warning);
+        }
+
+        private void DrawDeleteLayoutButton(SavedLayout layout)
+        {
+            using (new EditorGUI.DisabledScope(layout.Locked))
+            {
+                GUIContent deleteContent = new(
+                    "Delete Layout…",
+                    layout.Locked
+                        ? "This layout is locked. Disable Protect Layout to delete it."
+                        : "Delete this saved layout and its owned prefab.");
+                if (GUILayout.Button(deleteContent, GUILayout.Width(96f)))
+                    DeleteSelectedLayout();
+            }
         }
 
         private void DrawLayoutApplyTargetSelector()
@@ -500,16 +528,13 @@ namespace Genix.Editor.Windows
 
         private static string GetLayoutListInfo(LayoutBrowserIndexEntry layout)
         {
-            string scene = string.IsNullOrWhiteSpace(layout.SceneName) ? "Unknown Scene" : layout.SceneName;
             string target = string.IsNullOrWhiteSpace(layout.TargetAreaName)
                 ? "Unknown Target Area"
                 : layout.TargetAreaName;
-            return $"{scene}    {target}    {layout.ObjectCount} objects    {layout.CreatedAt}";
-        }
-
-        private static string GetLayoutSceneLabel(SavedLayout layout)
-        {
-            return string.IsNullOrWhiteSpace(layout.SceneName) ? "Unknown Scene" : layout.SceneName;
+            string createdAt = string.IsNullOrWhiteSpace(layout.CreatedAt)
+                ? "Unknown Time"
+                : layout.CreatedAt;
+            return $"Target Area: {target}    Objects: {layout.ObjectCount}    Saved: {createdAt}";
         }
 
         private static string GetLayoutTargetLabel(SavedLayout layout)
@@ -549,23 +574,35 @@ namespace Genix.Editor.Windows
             return string.Join(", ", labels);
         }
 
-        private static string GetLayoutAssetSummary(SavedLayout layout)
+        private void DrawLayoutAssets(SavedLayout layout)
         {
             if (layout.AssetSummaries == null || layout.AssetSummaries.Count == 0)
-                return string.Empty;
+            {
+                EditorGUILayout.LabelField("Assets", "None");
+                return;
+            }
 
-            const int maxShown = 6;
+            _showLayoutAssets = EditorGUILayout.Foldout(
+                _showLayoutAssets,
+                new GUIContent(
+                    $"Assets ({layout.AssetSummaries.Count})",
+                    "Show the asset types and counts captured in this layout."),
+                true);
+            if (!_showLayoutAssets)
+                return;
 
-            string[] labels = layout.AssetSummaries
-                .Take(maxShown)
-                .Select(summary => $"{summary.AssetName} x{summary.Count}")
-                .ToArray();
-
-            int remaining = layout.AssetSummaries.Count - labels.Length;
-
-            return remaining > 0
-                ? $"{string.Join(", ", labels)} +{remaining} more"
-                : string.Join(", ", labels);
+            using (new EditorGUI.IndentLevelScope())
+            {
+                foreach (LayoutAssetSummary summary in layout.AssetSummaries)
+                {
+                    string assetName = string.IsNullOrWhiteSpace(summary.AssetName)
+                        ? "Unknown Asset"
+                        : summary.AssetName;
+                    EditorGUILayout.LabelField(
+                        new GUIContent(assetName, assetName),
+                        new GUIContent(summary.Count.ToString()));
+                }
+            }
         }
     }
 }

@@ -395,6 +395,7 @@ namespace Genix.Editor.Inspectors
         {
             EditorGUI.BeginChangeCheck();
 
+            GUI.SetNextControlName(EditorGui.DisplayNameControlName);
             string displayName = EditorGUILayout.DelayedTextField(
                 new GUIContent("Display Name", "Designer-facing name shown in Genix asset-pool selectors."),
                 target.name);

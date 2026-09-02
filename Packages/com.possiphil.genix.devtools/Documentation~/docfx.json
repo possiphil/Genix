@@ -1,0 +1,34 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": ".artifacts/Genix.DevTools.Editor",
+          "files": ["Genix.DevTools.Editor.dll"]
+        },
+        {
+          "src": ".artifacts/Genix.DevTools.SpaceFoundation.Editor",
+          "files": ["Genix.DevTools.SpaceFoundation.Editor.dll"]
+        }
+      ],
+      "dest": "api"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": ["**/*.md", "toc.yml"],
+        "exclude": ["_site/**", "api/**"]
+      },
+      {
+        "files": ["api/**.yml"]
+      }
+    ],
+    "dest": "_site",
+    "globalMetadata": {
+      "_appName": "Genix DevTools",
+      "_appTitle": "Genix DevTools Documentation",
+      "_enableSearch": true
+    }
+  }
+}

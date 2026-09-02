@@ -172,7 +172,9 @@ namespace Genix.Editor.Windows
 
                 using (new EditorGUI.DisabledScope(GetTargetCategoryForNewTag() == null))
                 {
-                    if (GUILayout.Button("New", GUILayout.Width(48f)))
+                    if (GUILayout.Button(
+                            new GUIContent("New", "Create a tag in the selected category."),
+                            GUILayout.Width(48f)))
                         CreateTag();
                 }
 

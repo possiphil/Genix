@@ -1,6 +1,8 @@
 # Profiling
 
-Open **Tools > Genix Developer > Profiler** and enable **Capture Runs** before starting a measured generation or preview. When capture is disabled, the designer workflow receives a null profiler and does not collect phase timings or managed-memory snapshots.
+Open **Tools > Genix Developer > Profiler**, select a target area from the current scene and a Generation Preset, then choose **Preview** or **Generate** and run **Profile Run**. Preview measures planning and preview preparation without placing objects. Generate additionally applies the plan to the scene and therefore includes scene-application cost. Instrumentation is enabled only for this one run; ordinary Generator operations remain uninstrumented.
+
+The selected Generation Preset supplies the complete generation configuration, including content, object count, placement targets, style, surface search, relative placement, seed policy, and partial-result policy. Use a fixed-seed preset when comparing detailed profiles. The result appears after the run and can be exported as CSV or saved under `Assets/Genix/Profiles` for later inspection.
 
 The profiler reports total time and the major phases asset filtering, area build, candidate generation, planning, and scene application. Planning is further split into candidate iteration, asset ordering, candidate construction, validation, recording, and naming. Persisted reports are stored under `Assets/Genix/Profiles`.
 

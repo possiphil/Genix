@@ -3,7 +3,11 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-UNITY_PROJECT="${GENIX_UNITY_PROJECT:-$SCRIPT_DIR/../../../../space-foundation-system}"
+EMBEDDED_PROJECT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+UNITY_PROJECT="${GENIX_UNITY_PROJECT:-}"
+if [[ -z "$UNITY_PROJECT" && -d "$EMBEDDED_PROJECT/Assets" && -d "$EMBEDDED_PROJECT/ProjectSettings" ]]; then
+    UNITY_PROJECT="$EMBEDDED_PROJECT"
+fi
 if (( $# < 1 )) || [[ -z "$1" ]]; then
     echo "Usage: $0 <suite-asset-path> [scenario-index] [prepare-environment]" >&2
     exit 2
@@ -19,7 +23,7 @@ RESPONSE_PATH="$COMMAND_DIR/BenchmarkCommandResponse.json"
 trap 'rm -f "$REQUEST_PATH"' EXIT
 
 if [[ ! -d "$UNITY_PROJECT/ProjectSettings" ]]; then
-    echo "Unity project not found at: $UNITY_PROJECT" >&2
+    echo "Set GENIX_UNITY_PROJECT to the open Unity host project." >&2
     exit 2
 fi
 

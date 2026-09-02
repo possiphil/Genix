@@ -20,12 +20,7 @@ namespace Genix.Editor.Profiling
 
         private static string GetReportListInfo(GenerationProfileReport report)
         {
-            string planning = FormatMilliseconds(report.GetPhaseTime(GenerationProfilePhase.Planning));
-            string unattributed = report.PlanningUnattributedMilliseconds > 0f
-                ? $"    Unattributed: {FormatMilliseconds(report.PlanningUnattributedMilliseconds)}"
-                : string.Empty;
-
-            return $"Total: {FormatMilliseconds(report.GetPhaseTime(GenerationProfilePhase.Total))}    Candidates: {FormatMilliseconds(report.GetPhaseTime(GenerationProfilePhase.CandidateGeneration))}    Planning: {planning}{unattributed}    Placed: {report.PlacedObjectCount}/{report.RequestedObjectCount}    Seed: {report.RandomSeed}    Source: {report.CandidateSource}";
+            return $"Total: {FormatMilliseconds(report.GetPhaseTime(GenerationProfilePhase.Total))}    Candidates: {FormatMilliseconds(report.GetPhaseTime(GenerationProfilePhase.CandidateGeneration))}    Planning: {FormatMilliseconds(report.GetPhaseTime(GenerationProfilePhase.Planning))}";
         }
 
         private static ProfileRuntimeView GetRuntimeProfile(GenerationProfile profile)
@@ -93,8 +88,8 @@ namespace Genix.Editor.Profiling
                 ValidationProfileStep.GeneratedOverlap => "Generated Overlap",
                 ValidationProfileStep.FixedOverlap => "Fixed Overlap",
                 ValidationProfileStep.FixedSpacing => "Fixed Spacing",
-                ValidationProfileStep.GeneratedSceneSpacing => "Generated Scene Spacing",
-                ValidationProfileStep.Relative => "Relative",
+                ValidationProfileStep.GeneratedSceneSpacing => "Generated Object Spacing",
+                ValidationProfileStep.Relative => "Relative Placement",
                 ValidationProfileStep.Exclusion => "Exclusion Region",
                 ValidationProfileStep.WallRelationship => "Wall Relationship",
                 ValidationProfileStep.AssetSpacing => "Asset Spacing",
@@ -105,7 +100,7 @@ namespace Genix.Editor.Profiling
         private static string FormatPlanningStep(PlanningProfileStep step) =>
             step switch
             {
-                PlanningProfileStep.UsableTargetSelection => "Usable Target Selection",
+                PlanningProfileStep.UsableTargetSelection => "Eligible Targets",
                 PlanningProfileStep.TargetSelection => "Target Selection",
                 PlanningProfileStep.AssetCatalog => "Asset Catalog",
                 PlanningProfileStep.AssetOrder => "Asset Order",
@@ -113,10 +108,10 @@ namespace Genix.Editor.Profiling
                 PlanningProfileStep.CandidateIteration => "Candidate Iteration",
                 PlanningProfileStep.CandidateBuild => "Candidate Build",
                 PlanningProfileStep.CandidateValidation => "Candidate Validation",
-                PlanningProfileStep.DiagnosticsRecording => "Diagnostics Recording",
+                PlanningProfileStep.DiagnosticsRecording => "Diagnostics",
                 PlanningProfileStep.ObjectNaming => "Object Naming",
-                PlanningProfileStep.PlanRecording => "Plan Recording",
-                PlanningProfileStep.TargetBudgetRecording => "Target Budget Recording",
+                PlanningProfileStep.PlanRecording => "Plan Update",
+                PlanningProfileStep.TargetBudgetRecording => "Budget Recording",
                 _ => step.ToString()
             };
 
@@ -169,6 +164,10 @@ namespace Genix.Editor.Profiling
 
             return runId.Length <= 8 ? runId : runId.Substring(0, 8);
         }
+
+        private static bool IsPreviewRun(string runType) =>
+            !string.IsNullOrWhiteSpace(runType) &&
+            runType.IndexOf("Preview", System.StringComparison.OrdinalIgnoreCase) >= 0;
 
         private readonly struct RejectionView
         {
@@ -317,4 +316,3 @@ namespace Genix.Editor.Profiling
         }
     }
 }
-

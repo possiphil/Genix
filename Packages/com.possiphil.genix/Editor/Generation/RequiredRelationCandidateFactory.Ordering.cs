@@ -22,6 +22,12 @@ namespace Genix.Editor.Generation
             RelativeAnchor anchor,
             AssetRelativePlacementRule rule)
         {
+            if (rule.UsesPathStations)
+            {
+                positions.Sort((left, right) => ComparePathStationPositions(left, right, anchor));
+                return;
+            }
+
             if (rule.Alignment == AssetRelativeAlignment.Random)
             {
                 context.Random.Shuffle(positions);
@@ -38,6 +44,13 @@ namespace Genix.Editor.Generation
             RelativeAnchor anchor,
             AssetRelativePlacementRule rule)
         {
+            if (rule.UsesPathStations)
+            {
+                seeds.Sort((left, right) =>
+                    ComparePathStationPositions(left.Position, right.Position, anchor));
+                return;
+            }
+
             if (rule.Alignment == AssetRelativeAlignment.Random)
             {
                 context.Random.Shuffle(seeds);
@@ -46,6 +59,24 @@ namespace Genix.Editor.Generation
 
             seeds.Sort((left, right) =>
                 ComparePositions(left.Position, right.Position, asset, anchor, rule));
+        }
+
+        private static int ComparePathStationPositions(
+            Vector3 left,
+            Vector3 right,
+            RelativeAnchor anchor)
+        {
+            int distanceComparison = (left - anchor.Position).sqrMagnitude
+                .CompareTo((right - anchor.Position).sqrMagnitude);
+            if (distanceComparison != 0)
+                return distanceComparison;
+
+            int zComparison = left.z.CompareTo(right.z);
+            if (zComparison != 0)
+                return zComparison;
+
+            int xComparison = left.x.CompareTo(right.x);
+            return xComparison != 0 ? xComparison : left.y.CompareTo(right.y);
         }
 
         private static void AddSidePositions(
@@ -209,4 +240,3 @@ namespace Genix.Editor.Generation
             RelativeAnchorProvider.MatchesSide(position, anchor, rule) ? 0 : 1;
     }
 }
-

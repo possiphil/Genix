@@ -52,7 +52,7 @@ namespace Genix.Editor.Diagnostics
                 RejectionReason.ClearanceBlocked =>
                     "The asset visual or its reserved Clearance conflicts with scene geometry, another generated object, or another reserved clearance volume. Move the conflicting object or reduce the reserved Clearance.",
                 RejectionReason.MissingAssetRelationAnchor =>
-                    "Placement Relative to Objects requires a matching generated object or Asset Relation Anchor, but none is available from the selected Anchor Objects source.",
+                    "Object Relationship requires a matching generated object or Asset Relation Anchor, but none is available from the selected Anchor Objects source.",
                 RejectionReason.OutsideAssetRelationRange =>
                     "Matching relation anchors exist, but the position is outside their configured Minimum and Maximum Distance.",
                 RejectionReason.WrongAssetRelationSide =>

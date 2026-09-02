@@ -89,7 +89,7 @@ namespace Genix.Editor.Evaluation
                     return;
                 }
 
-                if (!GenerationEvaluationRunner.Start(suite, request.scenarioIndex))
+                if (!GenerationEvaluationRunner.StartAutomated(suite, request.scenarioIndex))
                 {
                     WriteResponse(new EvaluationCommandResponse
                     {

@@ -16,6 +16,8 @@ namespace Genix.Editor.Benchmarking
         private const string RequestPath = "Library/Genix/BenchmarkCommandRequest.json";
         private const string ResponsePath = "Library/Genix/BenchmarkCommandResponse.json";
         private const string RefreshSessionKey = "Genix.OpenEditorBenchmarkBridge.RefreshPending";
+        private const string PreparedRequestSessionKey = "Genix.OpenEditorBenchmarkBridge.PreparedRequest";
+        private const string PreparationPendingSessionKey = "Genix.OpenEditorBenchmarkBridge.PreparationPending";
         private const double PollIntervalSeconds = 0.25d;
 
         private static double _nextPoll;
@@ -25,6 +27,21 @@ namespace Genix.Editor.Benchmarking
         {
             EditorApplication.update += Poll;
             GenerationBenchmarkRunner.Changed += HandleRunnerChanged;
+
+            // SessionState survives the domain reload caused by the clean Release build. Restore
+            // the command only in the new domain so it cannot run against the previous DLLs.
+            if (SessionState.GetBool(PreparationPendingSessionKey, false))
+            {
+                string preparedRequest = SessionState.GetString(PreparedRequestSessionKey, string.Empty);
+                SessionState.EraseString(PreparedRequestSessionKey);
+                SessionState.SetBool(PreparationPendingSessionKey, false);
+
+                if (!string.IsNullOrWhiteSpace(preparedRequest))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(RequestPath) ?? "Library/Genix");
+                    File.WriteAllText(RequestPath, preparedRequest);
+                }
+            }
         }
 
         private static void Poll()
@@ -73,14 +90,18 @@ namespace Genix.Editor.Benchmarking
                 if (request.prepareEnvironment)
                 {
                     Profiler.enabled = false;
+                    request.prepareEnvironment = false;
+                    SessionState.SetString(
+                        PreparedRequestSessionKey,
+                        JsonUtility.ToJson(request, true));
+                    SessionState.SetBool(PreparationPendingSessionKey, true);
 
-                    if (CompilationPipeline.codeOptimization != CodeOptimization.Release)
-                    {
-                        CompilationPipeline.codeOptimization = CodeOptimization.Release;
-                        request.prepareEnvironment = false;
-                        File.WriteAllText(RequestPath, JsonUtility.ToJson(request, true));
-                        return;
-                    }
+                    // A preceding coverage process can leave debug-optimized DLLs in Library even
+                    // after coverage has exited. Resume the command only after this clean Release
+                    // build reloads the domain so the loaded assemblies and requested state agree.
+                    CompilationPipeline.codeOptimization = CodeOptimization.Release;
+                    CompilationPipeline.RequestScriptCompilation(RequestScriptCompilationOptions.CleanBuildCache);
+                    return;
                 }
 
                 GenerationBenchmarkSuite suite = AssetDatabase.LoadAssetAtPath<GenerationBenchmarkSuite>(

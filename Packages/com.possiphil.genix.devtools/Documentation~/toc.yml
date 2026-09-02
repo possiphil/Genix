@@ -1,5 +1,7 @@
 - name: Overview
   href: index.md
+- name: Interface guide
+  href: interface-guide.md
 - name: Profiling
   href: profiling.md
 - name: Testing and verification
@@ -8,3 +10,7 @@
   href: benchmarking.md
 - name: Evaluation campaigns
   href: evaluation.md
+- name: API reference
+  href: api/toc.yml
+- name: Documentation development
+  href: documentation-development.md

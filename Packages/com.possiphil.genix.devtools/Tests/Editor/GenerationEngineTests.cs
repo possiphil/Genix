@@ -227,6 +227,48 @@ namespace Genix.Tests
         }
 
         [Test]
+        public void SharedTagMinimumUsesLocalCandidatesForRelativeVariant()
+        {
+            _scene.Dispose();
+            _scene = new GenerationTestScene(
+                worldBounds: new Bounds(new Vector3(0f, 5f, 0f), new Vector3(200f, 10f, 200f)));
+            SemanticTag coatRackTag = CreateAssetTag("Required Coat Rack");
+            AssetDefinition door = _scene.CreateAsset("Office Door", size: Vector3.one);
+            AssetDefinition coatRack = _scene.CreateAsset(
+                "Relative Coat Rack",
+                PlacementType.Floor,
+                Vector3.one * 0.25f);
+            AssetDefinition filler = _scene.CreateAsset(
+                "Office Filler",
+                PlacementType.Floor,
+                Vector3.one * 0.25f);
+            coatRack.AddTag(coatRackTag);
+            coatRack.AssetRelativePlacement.ConfigureAsset(
+                door,
+                AssetRelativeAnchorSource.SceneAnchors,
+                AssetRelativeSide.Any,
+                0f,
+                0.2f,
+                AssetRelativeFacing.Any);
+            AssetPoolTagLimit requiredCoatRack = new();
+            requiredCoatRack.Configure(coatRackTag, 1, 1);
+            _scene.Pool.SetTagPlacementLimits(new[] { requiredCoatRack });
+            CreateRelationAnchor("Office Door Anchor", door, Vector3.zero);
+            GenerationContext context = _scene.CreateContext(_scene.CreateRequest(count: 4, seed: 1950899649));
+
+            GenerationOutcome outcome = GenerationEngine.BuildPlan(
+                context,
+                new[] { coatRack, filler },
+                NullDiagnosticsSink.Instance);
+
+            Assert.That(outcome.IsComplete, Is.True, outcome.Message);
+            Assert.That(context.Plan.GetAssetTagCount(coatRackTag), Is.EqualTo(1));
+            Assert.That(
+                context.Plan.Objects.Single(item => item.Asset == coatRack).RelationAnchorIdentity,
+                Is.Not.Null);
+        }
+
+        [Test]
         public void SharedTagCountReportsMissingRequiredVariant()
         {
             SemanticTag coatRack = CreateAssetTag("Impossible Coat Rack Choice");
@@ -737,6 +779,136 @@ namespace Genix.Tests
                 Vector2.Distance(
                     new Vector2(seed.Position.x, seed.Position.z),
                     new Vector2(supportCollider.bounds.center.x, supportCollider.bounds.center.z)) < 0.001f));
+        }
+
+        [Test]
+        public void RequiredPathStationRelationPrioritizesExactStationPosition()
+        {
+            _scene.Dispose();
+            AreaBuildSettings settings = new(
+                AreaDecompositionMode.Precise,
+                ~0,
+                surfaceDiscoveryMode: SurfaceDiscoveryMode.AllMatchingSurfacesInVolume);
+            _scene = new GenerationTestScene(
+                settings,
+                new Bounds(new Vector3(0f, 2f, 0f), new Vector3(20f, 4f, 12f)));
+
+            GameObject floorObject = _scene.CreateGameObject("Path Station Floor");
+            floorObject.transform.position = new Vector3(0f, -0.05f, 0f);
+            BoxCollider floorCollider = floorObject.AddComponent<BoxCollider>();
+            floorCollider.size = new Vector3(20f, 0.1f, 12f);
+
+            SemanticTag pathTag = CreateAssetTag("Station Path");
+            AssetDefinition bollard = _scene.CreateAsset(
+                "Station Bollard",
+                PlacementType.Floor,
+                Vector3.one * 0.25f);
+            bollard.AssetRelativePlacement.ConfigureTag(
+                pathTag,
+                AssetRelativeAnchorSource.SceneAnchors,
+                AssetRelativeSide.Any,
+                0f,
+                0.75f,
+                AssetRelativeFacing.Any);
+            bollard.AssetRelativePlacement.ConfigurePathStations(
+                PathPlacementSide.BothSides,
+                5f,
+                2f,
+                0f,
+                6);
+
+            Vector3 stationPosition = new(3.137f, 0f, 2.719f);
+            RelativeAnchor station = new(
+                stationPosition,
+                new Bounds(stationPosition, Vector3.one * 0.2f),
+                "Path Station",
+                assetTags: new[] { pathTag },
+                identity: "path:test:1:right");
+            Physics.SyncTransforms();
+
+            var seeds = RequiredRelationCandidateFactory.Create(
+                _scene.CreateContext(_scene.CreateRequest(count: 1, seed: 813)),
+                bollard,
+                station,
+                null);
+
+            Assert.That(seeds, Is.Not.Empty);
+            Assert.That(seeds[0].SurfaceCollider, Is.EqualTo(floorCollider));
+            Assert.That(
+                (seeds[0].Position - stationPosition).sqrMagnitude,
+                Is.LessThan(0.000001f));
+        }
+
+        [Test]
+        public void PathStationRequirementsArePlannedBeforeFlexibleSceneRelations()
+        {
+            SemanticTag pathTag = CreateAssetTag("Reserved Station Path");
+            GameObject pathObject = _scene.CreateGameObject("Reserved Station Path");
+            PathPlacementSource path = pathObject.AddComponent<PathPlacementSource>();
+            path.SetPathTags(new[] { pathTag });
+            path.SetWorldPoints(new[] { Vector3.zero, Vector3.right * 10f });
+
+            AssetDefinition campfire = _scene.CreateAsset(
+                "Flexible Relation Anchor",
+                size: Vector3.one * 0.2f);
+            GameObject campfireObject = _scene.CreateGameObject("Flexible Relation Anchor");
+            AssetRelationAnchor campfireAnchor = campfireObject.AddComponent<AssetRelationAnchor>();
+            campfireAnchor.SetRepresentedAsset(campfire);
+            campfireAnchor.SetCustomBounds(true, Vector3.zero, Vector3.one * 0.01f);
+
+            AssetDefinition log = _scene.CreateAsset(
+                "Flexible Required Log",
+                size: Vector3.one * 0.2f);
+            log.AssetRelativePlacement.ConfigureAsset(
+                campfire,
+                AssetRelativeAnchorSource.SceneAnchors,
+                AssetRelativeSide.Any,
+                0f,
+                1.5f,
+                AssetRelativeFacing.Any);
+            log.AssetRelativePlacement.SetAlignment(AssetRelativeAlignment.Center);
+            log.AssetRelativePlacement.SetCardinality(AssetRelativeCardinalityMode.Exactly, 1);
+
+            AssetDefinition bollard = _scene.CreateAsset(
+                "Fixed Station Bollard",
+                size: Vector3.one * 0.2f);
+            bollard.AssetRelativePlacement.ConfigureTag(
+                pathTag,
+                AssetRelativeAnchorSource.SceneAnchors,
+                AssetRelativeSide.Any,
+                0f,
+                0f,
+                AssetRelativeFacing.Any);
+            bollard.AssetRelativePlacement.SetCardinality(AssetRelativeCardinalityMode.Exactly, 1);
+            bollard.AssetRelativePlacement.ConfigurePathStations(
+                PathPlacementSide.Left,
+                100f,
+                0f,
+                0f,
+                1);
+
+            GenerationContext context = _scene.CreateContext(_scene.CreateRequest(
+                count: 2,
+                algorithm: SamplingAlgorithm.BridsonPoissonDisk,
+                seed: 281));
+
+            GenerationOutcome outcome = GenerationEngine.BuildPlan(
+                context,
+                new[] { log, bollard },
+                NullDiagnosticsSink.Instance);
+
+            Assert.That(outcome.IsComplete, Is.True, outcome.Message);
+            Assert.That(context.Plan.GetAssetCount(bollard), Is.EqualTo(1));
+            Assert.That(context.Plan.GetAssetCount(log), Is.EqualTo(1));
+            Vector3 bollardPosition = context.Plan.Objects
+                .Single(item => item.Asset == bollard)
+                .Candidate.Position;
+            Vector3 logPosition = context.Plan.Objects
+                .Single(item => item.Asset == log)
+                .Candidate.Position;
+            Assert.That(Vector2.Distance(
+                new Vector2(bollardPosition.x, bollardPosition.z),
+                new Vector2(logPosition.x, logPosition.z)), Is.GreaterThanOrEqualTo(1f));
         }
 
         [Test]

@@ -32,10 +32,6 @@ namespace Genix.Editor.Windows
             List<AssetDefinition> filteredAssets = GetFilteredAssets(catalog);
 
             DrawAssetList(filteredAssets);
-
-            EditorGUILayout.Space(4f);
-
-            DrawStaticPoolAddSection(filteredAssets);
         }
 
 
@@ -550,110 +546,6 @@ namespace Genix.Editor.Windows
                 .Where(tag => tag && tag.Category == category)
                 .Distinct()
                 .ToList();
-        }
-
-        private void DrawStaticPoolAddSection(IReadOnlyList<AssetDefinition> filteredAssets)
-        {
-            EditorGUILayout.LabelField("Add to Manual Pool", EditorStyles.boldLabel);
-
-            if (position.width < 520f)
-            {
-                DrawStaticPoolTargetSelector();
-
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    DrawStaticPoolAddButtons(filteredAssets);
-                }
-            }
-            else
-            {
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    DrawStaticPoolTargetSelector();
-                    DrawStaticPoolAddButtons(filteredAssets);
-                }
-            }
-
-            DrawStaticPoolMessage();
-        }
-
-        private void DrawStaticPoolAddButtons(IReadOnlyList<AssetDefinition> filteredAssets)
-        {
-            using (new EditorGUI.DisabledScope(!_targetStaticPool || !_selectedAsset))
-            {
-                if (GUILayout.Button("Add Selected", GUILayout.Width(110f)))
-                    AddSelectedAssetToTargetPool();
-            }
-
-            using (new EditorGUI.DisabledScope(!_targetStaticPool || filteredAssets.Count == 0))
-            {
-                if (GUILayout.Button("Add Filtered", GUILayout.Width(100f)))
-                    AddFilteredAssetsToTargetPool(filteredAssets);
-            }
-        }
-
-        private void ShowStaticPoolMessage(string message, MessageType messageType)
-        {
-            _staticPoolMessage = message;
-            _staticPoolMessageType = messageType;
-            _staticPoolMessageUntil = EditorApplication.timeSinceStartup + 3.0;
-        }
-
-        private void DrawStaticPoolMessage()
-        {
-            if (string.IsNullOrWhiteSpace(_staticPoolMessage))
-                return;
-
-            if (_staticPoolMessageType is MessageType.Info or MessageType.None)
-                return;
-
-            if (EditorApplication.timeSinceStartup > _staticPoolMessageUntil)
-                return;
-
-            EditorGUILayout.Space(3f);
-            EditorGUILayout.HelpBox(_staticPoolMessage, _staticPoolMessageType);
-        }
-
-        private void DrawStaticPoolTargetSelector()
-        {
-            AssetCatalog catalog = AssetCatalogService.GetOrCreate();
-
-            List<AssetPool> staticAssetPools = catalog.AssetPools
-                .Where(pool => pool && pool.IsStatic)
-                .OrderBy(pool => pool.name)
-                .ToList();
-
-            if (staticAssetPools.Count == 0)
-            {
-                using (new EditorGUI.DisabledScope(true))
-                    EditorGUILayout.Popup(0, new[] { "No manual pools available" }, GUILayout.Width(220f));
-
-                _targetStaticPool = null;
-                return;
-            }
-
-            int selectedIndex = _targetStaticPool
-                ? staticAssetPools.IndexOf(_targetStaticPool)
-                : -1;
-
-            if (selectedIndex < 0)
-                selectedIndex = 0;
-
-            string[] options = staticAssetPools
-                .Select(pool => pool.name)
-                .ToArray();
-
-            EditorGUI.BeginChangeCheck();
-
-            int newIndex = EditorGUILayout.Popup(
-                selectedIndex,
-                options,
-                GUILayout.Width(220f));
-
-            if (!EditorGUI.EndChangeCheck())
-                return;
-
-            _targetStaticPool = staticAssetPools[newIndex];
         }
 
         private void DrawAssetList(IReadOnlyList<AssetDefinition> assets)

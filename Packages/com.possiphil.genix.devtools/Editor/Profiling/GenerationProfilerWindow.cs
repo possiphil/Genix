@@ -1,11 +1,14 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using Genix.Areas;
-using Genix.Extensions;
-using Genix.Placement;
-using Genix.Profiling;
+using Genix.Core;
+using Genix.Editor.Drawers;
+using Genix.Editor.Generation;
+using Genix.Editor.Infrastructure;
+using Genix.Editor.TargetAreas;
 using Genix.Editor.UI;
 using Genix.Editor.Utilities;
+using Genix.Profiling;
 using UnityEditor;
 using UnityEngine;
 
@@ -14,8 +17,23 @@ namespace Genix.Editor.Profiling
     /// <summary>Provides the generation profiler editor window.</summary>
     public sealed partial class GenerationProfilerWindow : EditorWindow
     {
+        private const string SelectedPresetKey = "Genix.Profiler.SelectedGenerationPreset";
+        private const string RunTypeKey = "Genix.Profiler.RunType";
         private const float SavedListHeight = 180f;
 
+        private static readonly GUIContent[] RunTypeOptions =
+        {
+            new("Preview", "Profile planning and prepare a preview without placing scene objects."),
+            new("Generate", "Profile planning and scene application. Generated objects are added to the selected target area.")
+        };
+
+        private readonly TargetAreaSelectorHost _targetAreaSelector = new();
+
+        private GenerationPreset _selectedGenerationPreset;
+        private GenerationPreset[] _generationPresets = Array.Empty<GenerationPreset>();
+        private string[] _generationPresetOptions = Array.Empty<string>();
+        private GenerationProfilerRunType _runType;
+        private string _runError = string.Empty;
         private GenerationProfileReport _selectedReport;
         private Vector2 _currentScroll;
         private Vector2 _savedListScroll;
@@ -25,104 +43,185 @@ namespace Genix.Editor.Profiling
         [MenuItem("Tools/Genix Developer/Profiler", false, 10)]
         public static void Open()
         {
-            GenixWindowDocking.Open<GenerationProfilerWindow>("Genix Profiler");
+            GenerationProfilerWindow window = GenixWindowDocking.Open<GenerationProfilerWindow>("Genix Profiler");
+            window.minSize = new Vector2(660f, 520f);
         }
 
         private void OnEnable()
         {
             GenerationProfilerService.Changed += Repaint;
+            EditorApplication.projectChanged += HandleProjectChanged;
+            EditorApplication.hierarchyChanged += HandleHierarchyChanged;
+
+            _targetAreaSelector.Refresh();
+            RefreshGenerationPresets();
+            SetGenerationPreset(LoadRememberedGenerationPreset());
+            _runType = Enum.IsDefined(
+                typeof(GenerationProfilerRunType),
+                EditorPrefs.GetInt(RunTypeKey, (int)GenerationProfilerRunType.Preview))
+                ? (GenerationProfilerRunType)EditorPrefs.GetInt(RunTypeKey)
+                : GenerationProfilerRunType.Preview;
             GenerationProfileCatalogService.Refresh();
         }
 
         private void OnDisable()
         {
             GenerationProfilerService.Changed -= Repaint;
+            EditorApplication.projectChanged -= HandleProjectChanged;
+            EditorApplication.hierarchyChanged -= HandleHierarchyChanged;
         }
 
         private void OnGUI()
         {
-            DrawToolbar();
+            EditorGUILayout.Space(4f);
+            DrawProfileRun();
 
-            EditorGUILayout.Space(6f);
-            DrawCurrentProfile();
+            if (GenerationProfilerService.LastProfile != null)
+            {
+                EditorGUILayout.Space(8f);
+                DrawProfileResult();
+            }
 
             EditorGUILayout.Space(8f);
             DrawSavedProfiles();
         }
 
-        private void DrawToolbar()
+        private void DrawProfileRun()
         {
-            using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
+            EditorGUILayout.LabelField("Profile Run", EditorStyles.boldLabel);
+
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
+                float previousLabelWidth = EditorGUIUtility.labelWidth;
+                EditorGUIUtility.labelWidth = Mathf.Clamp(position.width * 0.28f, 130f, 190f);
                 EditorGUI.BeginChangeCheck();
-                bool captureRuns = GUILayout.Toggle(
-                    GenerationProfilerService.ProfilingEnabled,
-                    new GUIContent(
-                        "Capture Runs",
-                        "Instrument subsequent Generate, Re-Generate, and Preview Run operations until disabled. This adds measurement overhead."),
-                    EditorStyles.toolbarButton,
-                    GUILayout.Width(92f));
+
+                try
+                {
+                    _targetAreaSelector.Draw(new GUIContent(
+                        "Target Area",
+                        "Location in the currently open scene used for this profile run."));
+                    DrawGenerationPreset();
+                    DrawRunType();
+                    _targetAreaSelector.DrawStatus();
+                }
+                finally
+                {
+                    EditorGUIUtility.labelWidth = previousLabelWidth;
+                }
+
                 if (EditorGUI.EndChangeCheck())
-                    GenerationProfilerService.SetProfilingEnabled(captureRuns);
+                    _runError = string.Empty;
 
-                GUILayout.FlexibleSpace();
+                if (!string.IsNullOrWhiteSpace(_runError))
+                    EditorGUILayout.HelpBox(_runError, MessageType.Error);
 
-                if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(70f)))
-                    GenerationProfileCatalogService.Refresh();
-
-                if (GUILayout.Button(
-                        new GUIContent("Actions", "Delete saved profiling data."),
-                        EditorStyles.toolbarDropDown,
-                        GUILayout.Width(72f)))
-                    ShowProfileActionsMenu();
+                EditorGUILayout.Space(4f);
+                GUIStyle primaryButton = new(GUI.skin.button)
+                {
+                    fontStyle = FontStyle.Bold,
+                    fixedHeight = 28f
+                };
+                using (new EditorGUI.DisabledScope(!_selectedGenerationPreset))
+                {
+                    if (GUILayout.Button(
+                            new GUIContent(
+                                "Profile Run",
+                                "Run the selected preset once with detailed instrumentation. Use Benchmarks for controlled performance comparisons."),
+                            primaryButton))
+                        RunProfile();
+                }
             }
         }
 
-        private void ShowProfileActionsMenu()
+        private void DrawGenerationPreset()
         {
-            GenericMenu menu = new();
-            menu.AddItem(new GUIContent("Delete All Saved Profiles…"), false, ClearSavedProfiles);
-            menu.ShowAsContext();
+            GenerationPreset preset = AssetDropdown.DrawGenerationPresetDropdownWithEditButton(
+                new GUIContent(
+                    "Generation Preset",
+                    "Complete generation configuration used by this profile run."),
+                _generationPresets,
+                _generationPresetOptions,
+                _selectedGenerationPreset);
+            if (preset != _selectedGenerationPreset)
+                SetGenerationPreset(preset);
         }
 
-        private void DrawCurrentProfile()
+        private void DrawRunType()
+        {
+            Rect row = EditorGUILayout.GetControlRect();
+            Rect field = EditorGUI.PrefixLabel(
+                row,
+                new GUIContent(
+                    "Run Type",
+                    "Preview measures planning without placing objects. Generate also measures scene application."));
+            int selected = GUI.Toolbar(field, (int)_runType, RunTypeOptions);
+            GenerationProfilerRunType runType = (GenerationProfilerRunType)Mathf.Clamp(selected, 0, RunTypeOptions.Length - 1);
+            if (runType == _runType)
+                return;
+
+            _runType = runType;
+            EditorPrefs.SetInt(RunTypeKey, (int)_runType);
+        }
+
+        private void RunProfile()
+        {
+            _runError = string.Empty;
+            if (!GenerationProfilerRunService.TryRun(
+                    _targetAreaSelector.CreateAreaSource(),
+                    _selectedGenerationPreset,
+                    _runType,
+                    out _runError))
+            {
+                return;
+            }
+
+            _currentScroll = Vector2.zero;
+            Repaint();
+        }
+
+        private void DrawProfileResult()
         {
             GenerationProfile profile = GenerationProfilerService.LastProfile;
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("Current Profile", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("Profile Result", EditorStyles.boldLabel);
                 GUILayout.FlexibleSpace();
 
-                using (new EditorGUI.DisabledScope(profile == null))
+                if (GUILayout.Button("Save", GUILayout.Width(58f)))
                 {
-                    if (GUILayout.Button("Save", EditorStyles.miniButtonLeft, GUILayout.Width(58f)))
-                    {
-                        _selectedReport = GenerationProfileReportSaver.Save(profile);
-                        GenerationProfileCatalogService.Refresh();
-                    }
-
-                    if (GUILayout.Button("Copy CSV", EditorStyles.miniButtonMid, GUILayout.Width(72f)))
-                        CopyCsv(profile);
-
-                    if (GUILayout.Button("Clear", EditorStyles.miniButtonRight, GUILayout.Width(58f)))
-                        GenerationProfilerService.ClearLastProfile();
+                    _selectedReport = GenerationProfileReportSaver.Save(profile);
                 }
+
+                if (GUILayout.Button(
+                        new GUIContent("Export CSV", "Export the detailed profile measurements as a CSV file."),
+                        GUILayout.Width(82f)))
+                    ExportCsv(profile);
             }
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                if (profile == null)
-                {
-                    DesignerTerminology.DrawEmptyState("No captured profile yet.");
-                    return;
-                }
-
                 _currentScroll = EditorGUILayout.BeginScrollView(_currentScroll, GUILayout.MaxHeight(280f));
-                DrawRunSummary(profile);
-                DrawPhaseSummary(profile);
-                DrawTargetProfiles(profile);
-                EditorGUILayout.EndScrollView();
+                float previousLabelWidth = BeginProfileDetailsLabelLayout();
+                try
+                {
+                    DrawRunSummary(profile);
+                    DrawPhaseSummary(profile);
+                    DrawTargetProfiles(profile);
+                }
+                finally
+                {
+                    EditorGUIUtility.labelWidth = previousLabelWidth;
+                    EditorGUILayout.EndScrollView();
+                }
             }
+        }
+
+        private float BeginProfileDetailsLabelLayout()
+        {
+            float previousLabelWidth = EditorGUIUtility.labelWidth;
+            EditorGUIUtility.labelWidth = Mathf.Clamp(position.width * 0.28f, 175f, 210f);
+            return previousLabelWidth;
         }
 
         private void DrawSavedProfiles()
@@ -163,13 +262,29 @@ namespace Genix.Editor.Profiling
 
                 using (new EditorGUI.DisabledScope(!_selectedReport))
                 {
-                    if (GUILayout.Button("Copy CSV", GUILayout.Width(80f)))
-                        CopyCsv(_selectedReport);
-
-                    if (GUILayout.Button("Delete", GUILayout.Width(60f)))
+                    if (GUILayout.Button(
+                            "Delete Selected…",
+                            EditorStyles.miniButtonLeft,
+                            GUILayout.Width(112f)))
                         DeleteSelectedReport();
                 }
+
+                if (GUILayout.Button(
+                        new GUIContent("▾", "Delete all saved profile reports."),
+                        EditorStyles.miniButtonRight,
+                        GUILayout.Width(22f)))
+                    ShowBulkDeleteMenu(reports);
             }
+        }
+
+        private void ShowBulkDeleteMenu(IReadOnlyList<GenerationProfileReport> reports)
+        {
+            GenericMenu menu = new();
+            if (reports.Count > 0)
+                menu.AddItem(new GUIContent("Delete All Saved Profiles…"), false, ClearSavedProfiles);
+            else
+                menu.AddDisabledItem(new GUIContent("Delete All Saved Profiles…"));
+            menu.ShowAsContext();
         }
 
         private void DrawSavedProfileListItem(GenerationProfileReport report)
@@ -197,13 +312,32 @@ namespace Genix.Editor.Profiling
             if (!_selectedReport)
                 return;
 
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField("Profile Details", EditorStyles.boldLabel);
+                GUILayout.FlexibleSpace();
+
+                if (GUILayout.Button(
+                        new GUIContent("Export CSV", "Export the selected profile's detailed measurements as a CSV file."),
+                        GUILayout.Width(82f)))
+                    ExportCsv(_selectedReport);
+            }
+
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 _savedDetailsScroll = EditorGUILayout.BeginScrollView(_savedDetailsScroll, GUILayout.MaxHeight(360f));
-                DrawRunSummary(_selectedReport);
-                DrawPhaseSummary(_selectedReport);
-                DrawTargetProfiles(_selectedReport);
-                EditorGUILayout.EndScrollView();
+                float previousLabelWidth = BeginProfileDetailsLabelLayout();
+                try
+                {
+                    DrawRunSummary(_selectedReport);
+                    DrawPhaseSummary(_selectedReport);
+                    DrawTargetProfiles(_selectedReport);
+                }
+                finally
+                {
+                    EditorGUIUtility.labelWidth = previousLabelWidth;
+                    EditorGUILayout.EndScrollView();
+                }
             }
         }
 
@@ -246,6 +380,56 @@ namespace Genix.Editor.Profiling
 
             _selectedReport = null;
             GenerationProfileCatalogService.Clear();
+            Repaint();
+        }
+
+        private void RefreshGenerationPresets()
+        {
+            _generationPresets = EditorAssets.LoadAssetsFromFolder<GenerationPreset>(
+                ProjectContentPaths.GenerationPresets,
+                (left, right) => string.Compare(left.name, right.name, StringComparison.OrdinalIgnoreCase));
+            _generationPresetOptions = EditorAssets.CreateAssetOptions(_generationPresets);
+        }
+
+        private GenerationPreset LoadRememberedGenerationPreset()
+        {
+            string guid = EditorPrefs.GetString(SelectedPresetKey, string.Empty);
+            GenerationPreset remembered = AssetDatabase.LoadAssetAtPath<GenerationPreset>(
+                AssetDatabase.GUIDToAssetPath(guid));
+            if (remembered && _generationPresets.Contains(remembered))
+                return remembered;
+
+            GenerationPreset defaultPreset = GenerationPresetPreferences.GetDefault();
+            return defaultPreset && _generationPresets.Contains(defaultPreset)
+                ? defaultPreset
+                : _generationPresets.FirstOrDefault();
+        }
+
+        private void SetGenerationPreset(GenerationPreset preset)
+        {
+            _selectedGenerationPreset = preset;
+            string path = preset ? AssetDatabase.GetAssetPath(preset) : string.Empty;
+            string guid = AssetDatabase.AssetPathToGUID(path);
+            if (string.IsNullOrWhiteSpace(guid))
+                EditorPrefs.DeleteKey(SelectedPresetKey);
+            else
+                EditorPrefs.SetString(SelectedPresetKey, guid);
+        }
+
+        private void HandleProjectChanged()
+        {
+            RefreshGenerationPresets();
+            if (!_selectedGenerationPreset || !_generationPresets.Contains(_selectedGenerationPreset))
+                SetGenerationPreset(LoadRememberedGenerationPreset());
+            GenerationProfileCatalogService.Refresh();
+            _runError = string.Empty;
+            Repaint();
+        }
+
+        private void HandleHierarchyChanged()
+        {
+            _targetAreaSelector.Refresh();
+            _runError = string.Empty;
             Repaint();
         }
     }

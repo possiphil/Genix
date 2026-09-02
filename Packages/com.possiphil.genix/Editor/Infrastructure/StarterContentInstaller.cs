@@ -119,7 +119,7 @@ namespace Genix.Editor.Infrastructure
 
             if (method == null)
             {
-                error = "The Space Foundation integration is unavailable. Install or enable SFS, then use SFS Authoring to create a room.";
+                error = "The Space Foundation integration is unavailable. Install or enable SFS, then use Genix Space Setup to create a room.";
                 return false;
             }
 

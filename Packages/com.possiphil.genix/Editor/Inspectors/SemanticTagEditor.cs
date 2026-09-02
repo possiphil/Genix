@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Genix.Assets;
 using Genix.Editor.Assets;
+using Genix.Editor.Utilities;
 using Genix.Semantics;
 using UnityEditor;
 using UnityEngine;
@@ -39,6 +40,7 @@ namespace Genix.Editor.Inspectors
         {
             EditorGUI.BeginChangeCheck();
 
+            GUI.SetNextControlName(EditorGui.DisplayNameControlName);
             string displayName = EditorGUILayout.DelayedTextField(
                 new GUIContent("Display Name", "Designer-facing semantic label shown in asset, location, and pool selectors."),
                 target.name);

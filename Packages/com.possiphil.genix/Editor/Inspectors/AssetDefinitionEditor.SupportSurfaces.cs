@@ -19,7 +19,7 @@ namespace Genix.Editor.Inspectors
                     "Support Surface",
                     IsInsideSpacePlacementType()
                         ? "Inside Space assets do not use a support collider, so support tags are ignored."
-                        : "Required defaults to Any and restricts surfaces only when tags are selected. Forbidden defaults to None and always takes precedence. Selecting None under Required or Any under Forbidden intentionally blocks this asset."),
+                        : "Required defaults to Any and restricts surfaces only when tags are selected. Blocked defaults to None and always takes precedence. Selecting None under Required or Any under Blocked intentionally disables placement."),
                 EditorStyles.boldLabel);
 
             DrawSupportTagList(
@@ -43,7 +43,7 @@ namespace Genix.Editor.Inspectors
             {
                 string names = string.Join(", ", conflicts.Select(tag => tag.DisplayName));
                 EditorGUILayout.HelpBox(
-                    $"Required and Forbidden contain the same tag(s): {names}. Forbidden takes precedence, so those surfaces will be rejected.",
+                    $"Required and Blocked contain the same tag(s): {names}. Blocked takes precedence, so those surfaces will be rejected.",
                     MessageType.Warning);
             }
 
@@ -60,7 +60,7 @@ namespace Genix.Editor.Inspectors
             if (forbiddenAny.Count > 0)
             {
                 EditorGUILayout.HelpBox(
-                    $"Forbidden is set to Any for: {string.Join(", ", forbiddenAny.Select(category => category.DisplayName))}. This asset cannot be placed until those categories are changed.",
+                    $"Blocked is set to Any for: {string.Join(", ", forbiddenAny.Select(category => category.DisplayName))}. This asset cannot be placed until those categories are changed.",
                     MessageType.Warning);
             }
         }
@@ -72,27 +72,6 @@ namespace Genix.Editor.Inspectors
             string title,
             string tooltip)
         {
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                EditorGUILayout.LabelField(new GUIContent(title, tooltip), EditorStyles.miniBoldLabel);
-                GUILayout.FlexibleSpace();
-
-                using (new EditorGUI.DisabledScope(
-                           property.arraySize == 0 && specialCategories.arraySize == 0))
-                {
-                    if (GUILayout.Button(new GUIContent(
-                            "Reset",
-                            isRequired
-                                ? "Reset every category to Any."
-                                : "Reset every category to None."), GUILayout.Width(52f)))
-                    {
-                        property.ClearArray();
-                        specialCategories.ClearArray();
-                        GUI.FocusControl(null);
-                    }
-                }
-            }
-
             AssetCatalog catalog = AssetCatalogService.GetOrCreate();
             List<TagCategory> categories = catalog.Categories
                 .Where(category => category && category.SupportsSurfaces)
@@ -107,41 +86,42 @@ namespace Genix.Editor.Inspectors
                 return;
             }
 
-            using (new EditorGUI.IndentLevelScope())
+            foreach (TagCategory category in categories)
             {
-                foreach (TagCategory category in categories)
-                {
-                    List<SemanticTag> availableTags = catalog.Tags
-                        .Where(tag => tag && tag.Category == category)
-                        .OrderBy(tag => tag.DisplayName)
-                        .ToList();
-                    List<SemanticTag> selectedTags = GetTags(property)
-                        .Where(tag => tag.Category == category)
-                        .ToList();
-                    bool specialSelected = ContainsCategory(specialCategories, category);
-                    bool anySelected = isRequired
-                        ? !specialSelected && selectedTags.Count == 0
-                        : specialSelected;
+                List<SemanticTag> availableTags = catalog.Tags
+                    .Where(tag => tag && tag.Category == category)
+                    .OrderBy(tag => tag.DisplayName)
+                    .ToList();
+                List<SemanticTag> selectedTags = GetTags(property)
+                    .Where(tag => tag.Category == category)
+                    .ToList();
+                bool specialSelected = ContainsCategory(specialCategories, category);
+                bool anySelected = isRequired
+                    ? !specialSelected && selectedTags.Count == 0
+                    : specialSelected;
+                string label = categories.Count == 1
+                    ? title
+                    : $"{title}: {category.DisplayName}";
 
-                    TagSelectionField.Draw(
-                        category.DisplayName,
-                        category,
-                        availableTags,
-                        selectedTags,
-                        null,
-                        forceMultiSelect: true,
-                        anySelected: anySelected,
-                        onChangedWithSpecialSelection: (tags, specialSelection) =>
-                            SetSupportSelection(
-                                property,
-                                specialCategories,
-                                category,
-                                tags,
-                                specialSelection,
-                                isRequired),
-                        showNoneOption: true,
-                        showAnyOption: true);
-                }
+                TagSelectionField.Draw(
+                    label,
+                    category,
+                    availableTags,
+                    selectedTags,
+                    null,
+                    forceMultiSelect: true,
+                    anySelected: anySelected,
+                    onChangedWithSpecialSelection: (tags, specialSelection) =>
+                        SetSupportSelection(
+                            property,
+                            specialCategories,
+                            category,
+                            tags,
+                            specialSelection,
+                            isRequired),
+                    showNoneOption: true,
+                    showAnyOption: true,
+                    tooltip: tooltip);
             }
         }
 

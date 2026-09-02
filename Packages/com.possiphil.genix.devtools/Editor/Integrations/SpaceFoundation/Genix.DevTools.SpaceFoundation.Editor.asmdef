@@ -1,0 +1,30 @@
+{
+    "name": "Genix.DevTools.SpaceFoundation.Editor",
+    "rootNamespace": "Genix.SpaceFoundation.Editor",
+    "references": [
+        "Genix.Runtime",
+        "Genix.DevTools.Editor",
+        "Genix.SpaceFoundation.Editor",
+        "DyrdaDev.SpaceFoundationSystemForUnity.Runtime",
+        "DyrdaDev.SpaceFoundationSystemForUnity.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "GENIX_SPACE_FOUNDATION"
+    ],
+    "versionDefines": [
+        {
+            "name": "dev.dyrda.space-foundation-system",
+            "expression": "[0.0.1,999.999.999]",
+            "define": "GENIX_SPACE_FOUNDATION"
+        }
+    ],
+    "noEngineReferences": false
+}

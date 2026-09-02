@@ -55,10 +55,11 @@ namespace Genix.Editor.Assets
             TagCategoryUsage usage = TagCategoryUsage.Asset)
         {
             string name = AssetFileService.CleanName(displayName, "New Category");
+            string path = AssetFileService.UniqueAssetPath(ProjectContentPaths.TagCategories, name);
             TagCategory category = ScriptableObject.CreateInstance<TagCategory>();
-            category.name = name;
+            category.name = System.IO.Path.GetFileNameWithoutExtension(path);
             category.Initialize(allowMultipleTags, usage);
-            AssetDatabase.CreateAsset(category, AssetFileService.UniqueAssetPath(ProjectContentPaths.TagCategories, name));
+            AssetDatabase.CreateAsset(category, path);
 
             AssetCatalog catalog = GetOrCreate();
             catalog.AddCategory(category);
@@ -145,9 +146,10 @@ namespace Genix.Editor.Assets
         public static AssetPool CreateAssetPool(string displayName, AssetPoolMode mode)
         {
             string name = AssetFileService.CleanName(displayName, "New Asset Pool");
+            string path = AssetFileService.UniqueAssetPath(ProjectContentPaths.AssetPools, name);
             AssetPool pool = ScriptableObject.CreateInstance<AssetPool>();
-            pool.Initialize(name, mode);
-            AssetDatabase.CreateAsset(pool, AssetFileService.UniqueAssetPath(ProjectContentPaths.AssetPools, name));
+            pool.Initialize(System.IO.Path.GetFileNameWithoutExtension(path), mode);
+            AssetDatabase.CreateAsset(pool, path);
 
             AssetCatalog catalog = GetOrCreate();
             catalog.AddAssetPool(pool);

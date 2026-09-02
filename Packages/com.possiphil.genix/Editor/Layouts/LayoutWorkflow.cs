@@ -31,6 +31,9 @@ namespace Genix.Editor.Layouts
         internal static LayoutBrowserSnapshot BrowseLayoutsForCurrentScene() =>
             LayoutBrowserIndex.BrowseCurrentScene();
 
+        internal static void RefreshLayoutMetadata(SavedLayout layout) =>
+            LayoutBrowserIndex.Refresh(layout);
+
         /// <summary>Determines whether a layout was captured for the specified target area.</summary>
         public static bool MatchesArea(SavedLayout layout, IAreaSource areaSource) =>
             LayoutRepository.MatchesArea(layout, areaSource);

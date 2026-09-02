@@ -107,7 +107,7 @@ namespace Genix.Editor.Benchmarking
                 return false;
             }
 
-            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
                 _status = "Benchmark cancelled before scene loading.";
                 Changed?.Invoke();

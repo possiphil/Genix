@@ -21,8 +21,8 @@ The runner owns these temporary editor changes through one campaign session. Com
 ## Running a campaign
 
 1. Create or select a Benchmark Suite.
-2. Use **Add Evaluation Scenes** to import scenes under `Packages/com.possiphil.genix.devtools/Evaluation/Scenes/Performance` and `Packages/com.possiphil.genix.devtools/Evaluation/Scenes/RealWorld`, or add scenarios manually.
-3. Assign a target area, asset pool, style preset, placement settings, and object-count series to every enabled scenario.
+2. Add the host project's performance scenes as scenarios.
+3. Assign a target area, generation preset, and object-count series to every enabled scenario. The preset owns the asset pool and placement settings measured by the scenario.
 4. Select the cache states and whether the campaign should include a phase breakdown, then validate the suite.
 5. Run the complete suite. Stop requests take effect after the current synchronous generation.
 
