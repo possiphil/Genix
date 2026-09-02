@@ -24,7 +24,7 @@ Open **Tools > Genix > Generator** for the main placement workflow.
 
 The four primary actions use a stable two-column layout: Preview and Apply Preview form one workflow; Generate and Regenerate form the other. **More** contains infrequent commands such as saving a layout, clearing the last run, and deleting generated objects from the selected area.
 
-In Advanced mode, preset editing actions appear in a reserved second row so the content below does not move when the mode changes. Advanced Settings are grouped as follows:
+With **Advanced** enabled, preset editing actions appear in a reserved second row so the content below does not move when the preference changes. Advanced Settings are grouped as follows:
 
 - **Surface Search** controls the spatial source, physical layers, voxel-boundary detail, and slope classification.
 - **Distribution** controls allocation across placement targets and semantic support surfaces.
@@ -43,7 +43,7 @@ Categories define semantic dimensions and whether one or several values may be s
 
 ### Pools
 
-Manual pools contain an explicit asset list. Rule-based pools resolve catalog assets from placement, orientation, and semantic filters. Pool-level count rules and per-anchor groups appear in Advanced mode. Membership is edited here; the Assets tab focuses on the selected asset itself.
+Manual pools contain an explicit asset list. Rule-based pools resolve catalog assets from placement, orientation, and semantic filters. Pool-level count rules and per-anchor groups appear when **Advanced** is enabled. Membership is edited here; the Assets tab focuses on the selected asset itself.
 
 ### Target Areas
 
@@ -76,7 +76,7 @@ Open **Tools > Genix > Space Setup** to create voxel-aligned SFS inputs.
 - **Location Setup** creates a bounded location, aligned location grid, or extruded footprint.
 - **Create Location** leaves editable scene objects. **Create and Compute** also validates and invokes SFS graph computation.
 
-Basic mode uses world units or fitted selection bounds. Advanced mode adds exact voxel counts, aligned actual position and size, per-axis grid sizing, anchor-range overrides, and the Scene preview. Requested values remain visible directly beside their voxel-aligned result so rounding is easy to understand.
+With **Advanced** disabled, Space Setup uses world units or fitted selection bounds. Enabling it adds exact voxel counts, aligned actual position and size, per-axis grid sizing, anchor-range overrides, and the Scene preview. Requested values remain visible directly beside their voxel-aligned result so rounding is easy to understand.
 
 ## Diagnostics
 
@@ -91,7 +91,7 @@ Enable **Technical Details** in the Report Details header for recorded configura
 Genix adds focused commands where Unity users expect them:
 
 - **Assets > Genix > Create Asset Definition From Prefab** creates definitions from selected prefab assets.
-- **GameObject > Genix** creates relation anchors, placement surfaces, support surfaces, exclusion regions, and SFS authoring elements from the current scene selection.
+- **GameObject > Genix** creates relation anchors, placement surfaces, support surfaces, exclusion regions, and Space Foundation elements from the current scene selection.
 - Custom Inspectors expose the same terminology and validation rules as the Content and Generator windows.
 
 The [settings reference](reference/settings.md) defines individual fields and algorithms. The [troubleshooting guide](troubleshooting.md) starts from observable symptoms when a configured run does not behave as expected.

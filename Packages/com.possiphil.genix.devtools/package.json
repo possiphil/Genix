@@ -10,7 +10,7 @@
     "benchmarking",
     "evaluation"
   ],
-  "license": "See LICENSE.md",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/possiphil/Genix.git"

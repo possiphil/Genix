@@ -19,7 +19,7 @@ asset attempts, bounds, rejection reasons, related objects, and Scene-view overl
 | Rejected Position | An evaluated position where every recorded asset attempt was rejected. Available in detailed reports. |
 | Unused Position | A candidate position that was generated but not evaluated before the run stopped. |
 | Attempt Skipped by Support Rules | An asset-position pairing eliminated by immutable support compatibility before full placement validation. |
-| Primary Rejection Reason | The most frequent reason an asset attempt was rejected. Basic mode calls this the **Main Placement Issue**. |
+| Primary Rejection Reason | The most frequent reason an asset attempt was rejected. The default report view calls this the **Main Placement Issue**. |
 
 Counts grouped under **Objects by Placement Target** or **Objects by Support Surface** use the
 format `placed or planned / target`. Summary diagnostics retain aggregate counts and rejection

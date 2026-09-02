@@ -25,6 +25,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- The package is distributed under the MIT License.
 - Runtime planning, projection, validation, relation lookup, and editor presentation are split by responsibility while preserving serialized fields and public behavior.
 - Benchmark and evaluation campaigns share one editor-state and target-area lifecycle, including scene restoration, profiler isolation, reload locking, and interruption recovery.
 - Surface discovery is represented by one three-value setting instead of a mode plus a legacy boolean.

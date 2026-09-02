@@ -15,6 +15,7 @@ All notable changes to Genix DevTools are documented in this file. The format fo
 
 ### Changed
 
+- The package is distributed under the MIT License.
 - Developer windows use the same responsive columns, terminology, full-row selection, foldouts, tooltips, and action placement as the designer package.
 - Benchmark and evaluation campaigns share scene restoration, target-area preparation, profiler isolation, assembly-reload locking, and interruption recovery.
 - Project-specific scenes, assets, suites, and generated evidence live in the consuming host project rather than this package.

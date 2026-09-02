@@ -20,7 +20,7 @@ Anchors and delimiters must not be children of the `SpaceFoundation` GameObject.
 
 Creates one rectangular location, six boundary volumes, and one anchor. Use world units for designer-facing dimensions, exact voxel counts for reproducible grid tests, or Fit Selection to derive the center and size from selected colliders and renderers.
 
-`Position Source` accepts a manual center, the current Scene view pivot, or the center of selected geometry. `Fit Selection` derives both position and size from the selection, so it replaces the separate position source. Basic mode offers world-space sizing and Fit Selection; Advanced mode additionally exposes exact voxel counts.
+`Position Source` accepts a manual center, the current Scene view pivot, or the center of selected geometry. `Fit Selection` derives both position and size from the selection, so it replaces the separate position source. With **Advanced** disabled, the workflow offers world-space sizing and Fit Selection; enabling it additionally exposes exact voxel counts.
 
 ### Location Grid
 
@@ -36,7 +36,7 @@ Creates one connected non-rectangular location by extruding a two-dimensional oc
 
 ## Voxel alignment
 
-World-space sizes always round up to whole voxel cells and never become smaller than requested. In Advanced mode, the voxel-aligned position and size appear directly below their corresponding inputs. The position can move by up to half a voxel per axis because SFS voxel centers lie on integer multiples of the Foundation's voxel size.
+World-space sizes always round up to whole voxel cells and never become smaller than requested. With **Advanced** enabled, the voxel-aligned position and size appear directly below their corresponding inputs. The position can move by up to half a voxel per axis because SFS voxel centers lie on integer multiples of the Foundation's voxel size.
 
 Generated colliders occupy the planned blocked cells with a small inset. This leaves a numerical gap to neighbouring free cells while retaining overlap with the voxel probe used by SFS. SFS classifies these volumes through physics overlap checks, so imported mesh normals do not affect a Box Delimiter.
 

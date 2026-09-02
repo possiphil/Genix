@@ -3,7 +3,7 @@
 This repository contains two Unity Package Manager packages:
 
 - `Packages/com.possiphil.genix` is the designer-facing Genix package. It includes
-  generation, asset authoring, scene setup, Space Foundation authoring, diagnostics,
+  generation, asset authoring, scene setup, Space Setup, diagnostics,
   layouts, and presets.
 - `Packages/com.possiphil.genix.devtools` is optional. It adds tests, profiling,
   benchmarks, evaluation tooling, and small generic test fixtures. Project-specific
@@ -28,5 +28,6 @@ provide the product boundary, so fixes do not need to be duplicated or merged be
 branch and a development branch.
 
 Start with the designer [manual](Packages/com.possiphil.genix/Documentation~/index.md) or the optional
-[DevTools manual](Packages/com.possiphil.genix.devtools/Documentation~/index.md). The repository is
-currently all rights reserved; choose and apply an explicit distribution license before making it public.
+[DevTools manual](Packages/com.possiphil.genix.devtools/Documentation~/index.md).
+
+Genix and Genix DevTools are available under the [MIT License](LICENSE.md).
