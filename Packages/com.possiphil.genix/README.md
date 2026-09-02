@@ -21,6 +21,11 @@ Profiling, automated tests, benchmarks, and evaluation campaigns are available s
 - Unity 6000.0 or newer
 - Space Foundation System package (`dev.dyrda.space-foundation-system`) installed in the project
 
+The Space Foundation System repository is currently private. Installing and using the integration
+therefore requires access granted by its owner. Genix references its APIs but does not redistribute
+its source code or binaries. See [Third Party Notices](Third%20Party%20Notices.md) for attribution
+and license terms.
+
 ## Status
 
 Genix is currently a `0.1.0` research prototype. Public APIs and serialized data may change before `1.0.0`.

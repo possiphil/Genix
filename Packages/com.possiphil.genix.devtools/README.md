@@ -19,3 +19,8 @@ add the following dependency next to the main Genix dependency:
 ```
 
 Developer windows are grouped under **Tools > Genix Developer**.
+
+The optional Space Foundation integration requires separately granted access to the currently
+private Space Foundation System repository. No Space Foundation System source code or binaries are
+included in Genix DevTools. See [Third Party Notices](Third%20Party%20Notices.md) for attribution and
+license terms.
